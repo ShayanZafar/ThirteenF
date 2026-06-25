@@ -3,20 +3,32 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Stock Money Flow Tracker API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: dashboard
+    description: Dashboard and summary operations
+  - name: institutional
+    description: 13F institutional filings
+  - name: insiders
+    description: SEC Form 4 insider transactions
+  - name: politicians
+    description: Congressional stock disclosures
+  - name: lockups
+    description: IPO lockup expiration events
+  - name: stocks
+    description: Stock search and per-ticker signals
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +36,743 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ─── Dashboard ────────────────────────────────────────────────────────────
+
+  /dashboard/activity:
+    get:
+      operationId: getDashboardActivity
+      tags: [dashboard]
+      summary: Recent cross-category activity feed
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: Activity items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityItem"
+
+  /dashboard/signals:
+    get:
+      operationId: getDashboardSignals
+      tags: [dashboard]
+      summary: Top stocks by aggregated smart-money signal score
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Signal summary per ticker
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StockSignal"
+
+  /dashboard/stats:
+    get:
+      operationId: getDashboardStats
+      tags: [dashboard]
+      summary: High-level counts for the dashboard header
+      responses:
+        "200":
+          description: Stats object
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
+  # ─── Stocks ───────────────────────────────────────────────────────────────
+
+  /stocks/search:
+    get:
+      operationId: searchStocks
+      tags: [stocks]
+      summary: Search stocks by ticker or company name
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Matching stocks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StockSearchResult"
+
+  /stocks/{ticker}/signals:
+    get:
+      operationId: getStockSignals
+      tags: [stocks]
+      summary: All money-flow signals for a given ticker
+      parameters:
+        - name: ticker
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Per-ticker signals
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TickerSignals"
+        "404":
+          description: Ticker not found
+
+  # ─── Institutional (13F) ──────────────────────────────────────────────────
+
+  /institutional:
+    get:
+      operationId: listInstitutional
+      tags: [institutional]
+      summary: List recent 13F institutional position changes
+      parameters:
+        - name: ticker
+          in: query
+          schema:
+            type: string
+        - name: action
+          in: query
+          schema:
+            type: string
+            enum: [buy, sell, increase, decrease]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: Institutional transactions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstitutionalPage"
+
+  /institutional/top-movers:
+    get:
+      operationId: getInstitutionalTopMovers
+      tags: [institutional]
+      summary: Institutions with the largest net position changes this quarter
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        "200":
+          description: Top institutional movers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InstitutionalMover"
+
+  /institutional/most-bought:
+    get:
+      operationId: getInstitutionalMostBought
+      tags: [institutional]
+      summary: Most bought tickers by institutions this quarter
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        "200":
+          description: Most bought tickers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TickerCount"
+
+  # ─── Insiders ─────────────────────────────────────────────────────────────
+
+  /insiders:
+    get:
+      operationId: listInsiders
+      tags: [insiders]
+      summary: List recent SEC Form 4 insider transactions
+      parameters:
+        - name: ticker
+          in: query
+          schema:
+            type: string
+        - name: transactionType
+          in: query
+          schema:
+            type: string
+            enum: [buy, sell, option_exercise, gift]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: Insider transactions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InsiderPage"
+
+  /insiders/summary:
+    get:
+      operationId: getInsiderSummary
+      tags: [insiders]
+      summary: Buy/sell ratio and volume breakdown for insiders
+      responses:
+        "200":
+          description: Insider summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InsiderSummary"
+
+  /insiders/notable:
+    get:
+      operationId: getNotableInsiders
+      tags: [insiders]
+      summary: Largest dollar-value insider transactions recently
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        "200":
+          description: Notable insider trades
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InsiderTransaction"
+
+  # ─── Politicians ──────────────────────────────────────────────────────────
+
+  /politicians:
+    get:
+      operationId: listPoliticians
+      tags: [politicians]
+      summary: List recent congressional stock trades
+      parameters:
+        - name: ticker
+          in: query
+          schema:
+            type: string
+        - name: party
+          in: query
+          schema:
+            type: string
+            enum: [democrat, republican, independent]
+        - name: transactionType
+          in: query
+          schema:
+            type: string
+            enum: [buy, sell]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: Political trades
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PoliticianPage"
+
+  /politicians/leaders:
+    get:
+      operationId: getPoliticianLeaders
+      tags: [politicians]
+      summary: Most active trading politicians by volume
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        "200":
+          description: Most active politicians
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PoliticianLeader"
+
+  /politicians/most-traded:
+    get:
+      operationId: getPoliticiansMostTraded
+      tags: [politicians]
+      summary: Most traded tickers by politicians
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        "200":
+          description: Most traded tickers by politicians
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TickerCount"
+
+  # ─── Lockups ──────────────────────────────────────────────────────────────
+
+  /lockups:
+    get:
+      operationId: listLockups
+      tags: [lockups]
+      summary: Upcoming and recent IPO lockup expirations
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [upcoming, expired, all]
+            default: upcoming
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: Lockup events
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LockupPage"
+
+  /lockups/expiring-soon:
+    get:
+      operationId: getLockupsExpiringSoon
+      tags: [lockups]
+      summary: Lockups expiring in the next 30 days
+      parameters:
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 30
+      responses:
+        "200":
+          description: Expiring lockups
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LockupEvent"
+
 components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
         status:
           type: string
-      required:
-        - status
 
+    # ─── Dashboard schemas ─────────────────────────────────────────────────
+
+    ActivityItem:
+      type: object
+      required: [id, category, ticker, title, description, amount, direction, date, source]
+      properties:
+        id:
+          type: string
+        category:
+          type: string
+          enum: [institutional, insider, politician, lockup]
+        ticker:
+          type: string
+        companyName:
+          type: ["string", "null"]
+        title:
+          type: string
+        description:
+          type: string
+        amount:
+          type: ["number", "null"]
+        direction:
+          type: string
+          enum: [buy, sell, neutral]
+        date:
+          type: string
+        source:
+          type: string
+
+    StockSignal:
+      type: object
+      required: [ticker, companyName, signalScore, institutionalBuys, institutionalSells, insiderBuys, insiderSells, politicianBuys, politicianSells, lockupExpiring]
+      properties:
+        ticker:
+          type: string
+        companyName:
+          type: string
+        signalScore:
+          type: number
+          description: Composite score (-100 bearish to +100 bullish)
+        institutionalBuys:
+          type: integer
+        institutionalSells:
+          type: integer
+        insiderBuys:
+          type: integer
+        insiderSells:
+          type: integer
+        politicianBuys:
+          type: integer
+        politicianSells:
+          type: integer
+        lockupExpiring:
+          type: boolean
+        lockupDate:
+          type: ["string", "null"]
+
+    DashboardStats:
+      type: object
+      required: [totalInsiderTrades, totalInstitutionalChanges, totalPoliticianTrades, lockupsThisMonth, netBuyPressure]
+      properties:
+        totalInsiderTrades:
+          type: integer
+        totalInstitutionalChanges:
+          type: integer
+        totalPoliticianTrades:
+          type: integer
+        lockupsThisMonth:
+          type: integer
+        netBuyPressure:
+          type: number
+          description: Ratio of buys to total, 0-1
+
+    # ─── Stock schemas ─────────────────────────────────────────────────────
+
+    StockSearchResult:
+      type: object
+      required: [ticker, companyName]
+      properties:
+        ticker:
+          type: string
+        companyName:
+          type: string
+        sector:
+          type: ["string", "null"]
+
+    TickerSignals:
+      type: object
+      required: [ticker, companyName, recentInsiderTrades, recentInstitutionalChanges, recentPoliticianTrades, lockups]
+      properties:
+        ticker:
+          type: string
+        companyName:
+          type: string
+        recentInsiderTrades:
+          type: array
+          items:
+            $ref: "#/components/schemas/InsiderTransaction"
+        recentInstitutionalChanges:
+          type: array
+          items:
+            $ref: "#/components/schemas/InstitutionalTransaction"
+        recentPoliticianTrades:
+          type: array
+          items:
+            $ref: "#/components/schemas/PoliticianTrade"
+        lockups:
+          type: array
+          items:
+            $ref: "#/components/schemas/LockupEvent"
+
+    # ─── Institutional schemas ─────────────────────────────────────────────
+
+    InstitutionalTransaction:
+      type: object
+      required: [id, institutionName, ticker, companyName, action, sharesChange, valueChange, reportDate, filingDate, quarter]
+      properties:
+        id:
+          type: integer
+        institutionName:
+          type: string
+        ticker:
+          type: string
+        companyName:
+          type: string
+        action:
+          type: string
+          enum: [buy, sell, increase, decrease]
+        sharesChange:
+          type: number
+        valueChange:
+          type: number
+        totalValue:
+          type: ["number", "null"]
+        percentChange:
+          type: ["number", "null"]
+        reportDate:
+          type: string
+        filingDate:
+          type: string
+        quarter:
+          type: string
+
+    InstitutionalPage:
+      type: object
+      required: [data, total]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/InstitutionalTransaction"
+        total:
+          type: integer
+
+    InstitutionalMover:
+      type: object
+      required: [institutionName, netValueChange, buysCount, sellsCount, topBuy, topSell]
+      properties:
+        institutionName:
+          type: string
+        netValueChange:
+          type: number
+        buysCount:
+          type: integer
+        sellsCount:
+          type: integer
+        topBuy:
+          type: ["string", "null"]
+        topSell:
+          type: ["string", "null"]
+
+    TickerCount:
+      type: object
+      required: [ticker, companyName, count, totalValue]
+      properties:
+        ticker:
+          type: string
+        companyName:
+          type: string
+        count:
+          type: integer
+        totalValue:
+          type: number
+
+    # ─── Insider schemas ───────────────────────────────────────────────────
+
+    InsiderTransaction:
+      type: object
+      required: [id, insiderName, insiderTitle, ticker, companyName, transactionType, shares, pricePerShare, totalValue, transactionDate, filingDate]
+      properties:
+        id:
+          type: integer
+        insiderName:
+          type: string
+        insiderTitle:
+          type: string
+        ticker:
+          type: string
+        companyName:
+          type: string
+        transactionType:
+          type: string
+          enum: [buy, sell, option_exercise, gift]
+        shares:
+          type: number
+        pricePerShare:
+          type: number
+        totalValue:
+          type: number
+        transactionDate:
+          type: string
+        filingDate:
+          type: string
+        isDirectOwnership:
+          type: boolean
+
+    InsiderPage:
+      type: object
+      required: [data, total]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/InsiderTransaction"
+        total:
+          type: integer
+
+    InsiderSummary:
+      type: object
+      required: [totalBuys, totalSells, buyVolume, sellVolume, buyRatio, last30Days]
+      properties:
+        totalBuys:
+          type: integer
+        totalSells:
+          type: integer
+        buyVolume:
+          type: number
+        sellVolume:
+          type: number
+        buyRatio:
+          type: number
+        last30Days:
+          type: object
+          required: [buys, sells]
+          properties:
+            buys:
+              type: integer
+            sells:
+              type: integer
+
+    # ─── Politician schemas ────────────────────────────────────────────────
+
+    PoliticianTrade:
+      type: object
+      required: [id, politician, party, chamber, ticker, companyName, transactionType, amountRange, transactionDate, disclosureDate]
+      properties:
+        id:
+          type: integer
+        politician:
+          type: string
+        party:
+          type: string
+          enum: [democrat, republican, independent]
+        chamber:
+          type: string
+          enum: [senate, house]
+        ticker:
+          type: string
+        companyName:
+          type: string
+        transactionType:
+          type: string
+          enum: [buy, sell]
+        amountRange:
+          type: string
+        estimatedAmount:
+          type: ["number", "null"]
+        transactionDate:
+          type: string
+        disclosureDate:
+          type: string
+        daysToDisclose:
+          type: integer
+
+    PoliticianPage:
+      type: object
+      required: [data, total]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/PoliticianTrade"
+        total:
+          type: integer
+
+    PoliticianLeader:
+      type: object
+      required: [politician, party, chamber, tradeCount, estimatedVolume, topTicker]
+      properties:
+        politician:
+          type: string
+        party:
+          type: string
+        chamber:
+          type: string
+        tradeCount:
+          type: integer
+        estimatedVolume:
+          type: number
+        topTicker:
+          type: ["string", "null"]
+
+    # ─── Lockup schemas ────────────────────────────────────────────────────
+
+    LockupEvent:
+      type: object
+      required: [id, ticker, companyName, expirationDate, sharesUnlocking, estimatedValue, ipoDate, status]
+      properties:
+        id:
+          type: integer
+        ticker:
+          type: string
+        companyName:
+          type: string
+        expirationDate:
+          type: string
+        sharesUnlocking:
+          type: number
+        estimatedValue:
+          type: number
+        ipoDate:
+          type: string
+        status:
+          type: string
+          enum: [upcoming, expired]
+        daysUntilExpiry:
+          type: ["integer", "null"]
+
+    LockupPage:
+      type: object
+      required: [data, total]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/LockupEvent"
+        total:
+          type: integer

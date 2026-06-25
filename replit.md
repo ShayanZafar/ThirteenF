@@ -1,10 +1,11 @@
-# [Project name]
+# FlowTrack
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A stock money-flow intelligence dashboard that aggregates institutional 13F filings, insider SEC Form 4 trades, congressional stock disclosures, and IPO lockup expirations — all in one place.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- `pnpm --filter @workspace/api-server run dev` — run the API server (port 8080)
+- `pnpm --filter @workspace/stock-flow run dev` — run the frontend (port 23833)
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
@@ -14,6 +15,7 @@ _Replace the heading above with the project's name, and this line with one sente
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
+- Frontend: React + Vite, Tailwind CSS, Wouter routing, TanStack Query
 - API: Express 5
 - DB: PostgreSQL + Drizzle ORM
 - Validation: Zod (`zod/v4`), `drizzle-zod`
@@ -22,15 +24,26 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `lib/api-spec/openapi.yaml` — OpenAPI spec (source of truth for all API contracts)
+- `lib/db/src/schema/` — Drizzle table definitions (institutional, insiders, politicians, lockups)
+- `artifacts/api-server/src/routes/` — Express route handlers (dashboard, stocks, institutional, insiders, politicians, lockups)
+- `artifacts/stock-flow/src/` — React frontend
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- Contract-first API: OpenAPI spec drives both Zod server validation and React Query client hooks via Orval codegen
+- All four data categories (institutional 13F, insider Form 4, congressional disclosures, lockup expirations) stored in PostgreSQL for fast aggregated queries
+- Dashboard signals computed server-side by aggregating buy/sell counts across all categories into a composite score (-100 to +100)
+- Data sourced from publicly available SEC filings and congressional disclosures; seed data is representative — a real pipeline would fetch from SEC EDGAR API / Capitol Trades
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- **Dashboard** — stats header, top signal movers by composite score, live cross-category activity feed
+- **Institutional 13F** — institutional top movers, most-bought tickers, paginated 13F position changes
+- **Insider Trades** — buy/sell ratio summary, notable large trades, paginated Form 4 list
+- **Politicians** — most active lawmakers, most traded tickers, paginated disclosure list with party badges
+- **Lockups** — upcoming IPO lockup expirations with countdown, full expiration calendar
+- **Stock Detail** (`/stocks/:ticker`) — all signals consolidated for one ticker
 
 ## User preferences
 
@@ -38,7 +51,9 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- After any OpenAPI spec change, always run `pnpm --filter @workspace/api-spec run codegen` before touching route or frontend code
+- Drizzle `numeric` columns come back as strings — always wrap with `Number(...)` before returning JSON
+- The `mode() within group (order by ticker)` aggregate is used for "top ticker" grouping — requires PostgreSQL 9.4+
 
 ## Pointers
 

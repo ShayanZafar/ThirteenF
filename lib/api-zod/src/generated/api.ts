@@ -78,6 +78,29 @@ export const GetDashboardStatsResponse = zod.object({
 
 
 /**
+ * @summary Top stocks ranked by net dollar inflow or outflow
+ */
+export const getDashboardMoneyFlowQueryLimitDefault = 10;
+
+export const GetDashboardMoneyFlowQueryParams = zod.object({
+  "limit": zod.coerce.number().default(getDashboardMoneyFlowQueryLimitDefault)
+})
+
+export const GetDashboardMoneyFlowResponseItem = zod.object({
+  "ticker": zod.string(),
+  "companyName": zod.string(),
+  "totalInflow": zod.number().describe('Total dollar value of all buy-side transactions'),
+  "totalOutflow": zod.number().describe('Total dollar value of all sell-side transactions'),
+  "netFlow": zod.number().describe('totalInflow minus totalOutflow (positive = net inflow, negative = net outflow)'),
+  "institutionalInflow": zod.number(),
+  "institutionalOutflow": zod.number(),
+  "insiderInflow": zod.number(),
+  "insiderOutflow": zod.number()
+})
+export const GetDashboardMoneyFlowResponse = zod.array(GetDashboardMoneyFlowResponseItem)
+
+
+/**
  * @summary Search stocks by ticker or company name
  */
 export const SearchStocksQueryParams = zod.object({

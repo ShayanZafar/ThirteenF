@@ -182,4 +182,72 @@ router.get("/dashboard/stats", async (_req, res): Promise<void> => {
   });
 });
 
+router.get("/dashboard/money-flow", async (req, res): Promise<void> => {
+  const limit = Math.min(Number(req.query.limit) || 10, 50);
+
+  const [instBuys, instSells, insBuys, insSells] = await Promise.all([
+    db.select({
+      ticker: institutionalTransactionsTable.ticker,
+      companyName: institutionalTransactionsTable.companyName,
+      total: sql<number>`sum(value_change)`,
+    }).from(institutionalTransactionsTable)
+      .where(sql`action in ('buy','increase')`)
+      .groupBy(institutionalTransactionsTable.ticker, institutionalTransactionsTable.companyName),
+    db.select({
+      ticker: institutionalTransactionsTable.ticker,
+      companyName: institutionalTransactionsTable.companyName,
+      total: sql<number>`sum(abs(value_change))`,
+    }).from(institutionalTransactionsTable)
+      .where(sql`action in ('sell','decrease')`)
+      .groupBy(institutionalTransactionsTable.ticker, institutionalTransactionsTable.companyName),
+    db.select({
+      ticker: insiderTransactionsTable.ticker,
+      companyName: insiderTransactionsTable.companyName,
+      total: sql<number>`sum(total_value)`,
+    }).from(insiderTransactionsTable)
+      .where(sql`transaction_type = 'buy'`)
+      .groupBy(insiderTransactionsTable.ticker, insiderTransactionsTable.companyName),
+    db.select({
+      ticker: insiderTransactionsTable.ticker,
+      companyName: insiderTransactionsTable.companyName,
+      total: sql<number>`sum(total_value)`,
+    }).from(insiderTransactionsTable)
+      .where(sql`transaction_type = 'sell'`)
+      .groupBy(insiderTransactionsTable.ticker, insiderTransactionsTable.companyName),
+  ]);
+
+  const tickerMap: Record<string, {
+    ticker: string; companyName: string;
+    institutionalInflow: number; institutionalOutflow: number;
+    insiderInflow: number; insiderOutflow: number;
+  }> = {};
+
+  const getOrCreate = (ticker: string, companyName: string) => {
+    if (!tickerMap[ticker]) {
+      tickerMap[ticker] = { ticker, companyName, institutionalInflow: 0, institutionalOutflow: 0, insiderInflow: 0, insiderOutflow: 0 };
+    }
+    return tickerMap[ticker];
+  };
+
+  instBuys.forEach((r) => { getOrCreate(r.ticker, r.companyName).institutionalInflow = Number(r.total); });
+  instSells.forEach((r) => { getOrCreate(r.ticker, r.companyName).institutionalOutflow = Number(r.total); });
+  insBuys.forEach((r) => { getOrCreate(r.ticker, r.companyName).insiderInflow = Number(r.total); });
+  insSells.forEach((r) => { getOrCreate(r.ticker, r.companyName).insiderOutflow = Number(r.total); });
+
+  const result = Object.values(tickerMap).map((entry) => ({
+    ticker: entry.ticker,
+    companyName: entry.companyName,
+    institutionalInflow: entry.institutionalInflow,
+    institutionalOutflow: entry.institutionalOutflow,
+    insiderInflow: entry.insiderInflow,
+    insiderOutflow: entry.insiderOutflow,
+    totalInflow: entry.institutionalInflow + entry.insiderInflow,
+    totalOutflow: entry.institutionalOutflow + entry.insiderOutflow,
+    netFlow: (entry.institutionalInflow + entry.insiderInflow) - (entry.institutionalOutflow + entry.insiderOutflow),
+  }));
+
+  result.sort((a, b) => Math.abs(b.netFlow) - Math.abs(a.netFlow));
+  res.json(result.slice(0, limit));
+});
+
 export default router;

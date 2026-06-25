@@ -1,15 +1,27 @@
-import { useGetDashboardStats, useGetDashboardSignals, useGetDashboardActivity, getGetDashboardStatsQueryKey, getGetDashboardSignalsQueryKey, getGetDashboardActivityQueryKey } from "@workspace/api-client-react";
+import { useGetDashboardStats, useGetDashboardSignals, useGetDashboardActivity, useGetDashboardMoneyFlow, getGetDashboardStatsQueryKey, getGetDashboardSignalsQueryKey, getGetDashboardActivityQueryKey, getGetDashboardMoneyFlowQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatCurrency, formatShares, cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { Link } from "wouter";
-import { ArrowUpRight, ArrowDownRight, Activity, Building2, UserCircle, Users, Lock, ChevronRight } from "lucide-react";
+import { ArrowUpRight, ArrowDownRight, Activity, Building2, UserCircle, Users, Lock, ChevronRight, TrendingUp, TrendingDown } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+
+function formatMoney(val: number): string {
+  const abs = Math.abs(val);
+  if (abs >= 1e9) return `$${(val / 1e9).toFixed(2)}B`;
+  if (abs >= 1e6) return `$${(val / 1e6).toFixed(1)}M`;
+  if (abs >= 1e3) return `$${(val / 1e3).toFixed(0)}K`;
+  return `$${val.toFixed(0)}`;
+}
 
 export default function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useGetDashboardStats({ query: { queryKey: getGetDashboardStatsQueryKey() } });
   const { data: signals, isLoading: signalsLoading } = useGetDashboardSignals({}, { query: { queryKey: getGetDashboardSignalsQueryKey({}) } });
   const { data: activity, isLoading: activityLoading } = useGetDashboardActivity({ limit: 15 }, { query: { queryKey: getGetDashboardActivityQueryKey({ limit: 15 }) } });
+  const { data: moneyFlow, isLoading: moneyFlowLoading } = useGetDashboardMoneyFlow({ limit: 10 }, { query: { queryKey: getGetDashboardMoneyFlowQueryKey({ limit: 10 }) } });
+
+  const topInflows = moneyFlow ? [...moneyFlow].filter(m => m.netFlow > 0).sort((a, b) => b.netFlow - a.netFlow).slice(0, 5) : [];
+  const topOutflows = moneyFlow ? [...moneyFlow].filter(m => m.netFlow < 0).sort((a, b) => a.netFlow - b.netFlow).slice(0, 5) : [];
 
   return (
     <div className="space-y-6">
@@ -25,6 +37,85 @@ export default function Dashboard() {
         <StatCard title="Insider Trades" value={stats?.totalInsiderTrades?.toLocaleString()} loading={statsLoading} />
         <StatCard title="Politician Trades" value={stats?.totalPoliticianTrades?.toLocaleString()} loading={statsLoading} />
         <StatCard title="Upcoming Lockups" value={stats?.lockupsThisMonth?.toLocaleString()} loading={statsLoading} />
+      </div>
+
+      {/* Money Flow Section */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Top Inflows */}
+        <Card className="border-border/50 bg-card/50 backdrop-blur">
+          <CardHeader className="flex flex-row items-center gap-2 pb-2 border-b border-border/50 bg-card">
+            <TrendingUp className="h-4 w-4 text-buy" />
+            <CardTitle className="text-base font-mono uppercase text-buy">Top Inflows</CardTitle>
+            <span className="text-xs text-muted-foreground ml-auto">Net $ flowing in</span>
+          </CardHeader>
+          <CardContent className="p-0">
+            {moneyFlowLoading ? (
+              <div className="p-4 space-y-3">{Array(5).fill(0).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
+            ) : topInflows.length > 0 ? (
+              <div className="divide-y divide-border/50">
+                {topInflows.map((item, idx) => (
+                  <div key={item.ticker} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors">
+                    <span className="text-xs text-muted-foreground w-4 font-mono">{idx + 1}</span>
+                    <div className="flex-1 min-w-0">
+                      <Link href={`/stocks/${item.ticker}`} className="flex items-center gap-2 group">
+                        <span className="font-mono font-bold text-primary group-hover:underline text-sm">{item.ticker}</span>
+                        <span className="text-xs text-muted-foreground truncate">{item.companyName}</span>
+                      </Link>
+                      <div className="flex gap-3 mt-0.5 text-[11px] text-muted-foreground">
+                        <span>Inst: <span className="text-buy">{formatMoney(item.institutionalInflow)}</span></span>
+                        <span>Insider: <span className="text-buy">{formatMoney(item.insiderInflow)}</span></span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-mono font-bold text-buy text-sm">{formatMoney(item.netFlow)}</div>
+                      <div className="text-[10px] text-muted-foreground">net in</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="p-6 text-center text-muted-foreground text-sm">No inflow data.</div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Top Outflows */}
+        <Card className="border-border/50 bg-card/50 backdrop-blur">
+          <CardHeader className="flex flex-row items-center gap-2 pb-2 border-b border-border/50 bg-card">
+            <TrendingDown className="h-4 w-4 text-sell" />
+            <CardTitle className="text-base font-mono uppercase text-sell">Top Outflows</CardTitle>
+            <span className="text-xs text-muted-foreground ml-auto">Net $ flowing out</span>
+          </CardHeader>
+          <CardContent className="p-0">
+            {moneyFlowLoading ? (
+              <div className="p-4 space-y-3">{Array(5).fill(0).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
+            ) : topOutflows.length > 0 ? (
+              <div className="divide-y divide-border/50">
+                {topOutflows.map((item, idx) => (
+                  <div key={item.ticker} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors">
+                    <span className="text-xs text-muted-foreground w-4 font-mono">{idx + 1}</span>
+                    <div className="flex-1 min-w-0">
+                      <Link href={`/stocks/${item.ticker}`} className="flex items-center gap-2 group">
+                        <span className="font-mono font-bold text-primary group-hover:underline text-sm">{item.ticker}</span>
+                        <span className="text-xs text-muted-foreground truncate">{item.companyName}</span>
+                      </Link>
+                      <div className="flex gap-3 mt-0.5 text-[11px] text-muted-foreground">
+                        <span>Inst: <span className="text-sell">{formatMoney(item.institutionalOutflow)}</span></span>
+                        <span>Insider: <span className="text-sell">{formatMoney(item.insiderOutflow)}</span></span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-mono font-bold text-sell text-sm">{formatMoney(Math.abs(item.netFlow))}</div>
+                      <div className="text-[10px] text-muted-foreground">net out</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="p-6 text-center text-muted-foreground text-sm">No outflow data.</div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -125,7 +216,7 @@ export default function Dashboard() {
                           {item.direction}
                         </Badge>
                         {item.amount && (
-                          <span className="font-mono text-xs text-muted-foreground">{formatCurrency(item.amount)}</span>
+                          <span className="font-mono text-xs text-muted-foreground">{formatMoney(item.amount)}</span>
                         )}
                       </div>
                     </div>

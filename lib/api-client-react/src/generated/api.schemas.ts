@@ -68,6 +68,21 @@ export interface DashboardStats {
   netBuyPressure: number;
 }
 
+export interface MoneyFlowItem {
+  ticker: string;
+  companyName: string;
+  /** Total dollar value of all buy-side transactions */
+  totalInflow: number;
+  /** Total dollar value of all sell-side transactions */
+  totalOutflow: number;
+  /** totalInflow minus totalOutflow (positive = net inflow, negative = net outflow) */
+  netFlow: number;
+  institutionalInflow: number;
+  institutionalOutflow: number;
+  insiderInflow: number;
+  insiderOutflow: number;
+}
+
 export interface StockSearchResult {
   ticker: string;
   companyName: string;
@@ -265,6 +280,10 @@ limit?: number;
 };
 
 export type GetDashboardSignalsParams = {
+limit?: number;
+};
+
+export type GetDashboardMoneyFlowParams = {
 limit?: number;
 };
 

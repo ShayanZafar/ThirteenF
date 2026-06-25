@@ -19,6 +19,7 @@ import type {
   ActivityItem,
   DashboardStats,
   GetDashboardActivityParams,
+  GetDashboardMoneyFlowParams,
   GetDashboardSignalsParams,
   GetInstitutionalMostBoughtParams,
   GetInstitutionalTopMoversParams,
@@ -38,6 +39,7 @@ import type {
   ListPoliticiansParams,
   LockupEvent,
   LockupPage,
+  MoneyFlowItem,
   PoliticianLeader,
   PoliticianPage,
   SearchStocksParams,
@@ -384,6 +386,90 @@ export function useGetDashboardStats<TData = Awaited<ReturnType<typeof getDashbo
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetDashboardStatsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetDashboardMoneyFlowUrl = (params?: GetDashboardMoneyFlowParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/dashboard/money-flow?${stringifiedParams}` : `/api/dashboard/money-flow`
+}
+
+/**
+ * @summary Top stocks ranked by net dollar inflow or outflow
+ */
+export const getDashboardMoneyFlow = async (params?: GetDashboardMoneyFlowParams, options?: RequestInit): Promise<MoneyFlowItem[]> => {
+
+  return customFetch<MoneyFlowItem[]>(getGetDashboardMoneyFlowUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDashboardMoneyFlowQueryKey = (params?: GetDashboardMoneyFlowParams,) => {
+    return [
+    `/api/dashboard/money-flow`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetDashboardMoneyFlowQueryOptions = <TData = Awaited<ReturnType<typeof getDashboardMoneyFlow>>, TError = ErrorType<unknown>>(params?: GetDashboardMoneyFlowParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDashboardMoneyFlow>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDashboardMoneyFlowQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDashboardMoneyFlow>>> = ({ signal }) => getDashboardMoneyFlow(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDashboardMoneyFlow>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDashboardMoneyFlowQueryResult = NonNullable<Awaited<ReturnType<typeof getDashboardMoneyFlow>>>
+export type GetDashboardMoneyFlowQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Top stocks ranked by net dollar inflow or outflow
+ */
+
+export function useGetDashboardMoneyFlow<TData = Awaited<ReturnType<typeof getDashboardMoneyFlow>>, TError = ErrorType<unknown>>(
+ params?: GetDashboardMoneyFlowParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDashboardMoneyFlow>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDashboardMoneyFlowQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

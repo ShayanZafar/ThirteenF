@@ -94,6 +94,27 @@ paths:
               schema:
                 $ref: "#/components/schemas/DashboardStats"
 
+  /dashboard/money-flow:
+    get:
+      operationId: getDashboardMoneyFlow
+      tags: [dashboard]
+      summary: Top stocks ranked by net dollar inflow or outflow
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        "200":
+          description: Money flow summary per ticker
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MoneyFlowItem"
+
   # ─── Stocks ───────────────────────────────────────────────────────────────
 
   /stocks/search:
@@ -500,6 +521,32 @@ components:
         netBuyPressure:
           type: number
           description: Ratio of buys to total, 0-1
+
+    MoneyFlowItem:
+      type: object
+      required: [ticker, companyName, totalInflow, totalOutflow, netFlow, institutionalInflow, institutionalOutflow, insiderInflow, insiderOutflow]
+      properties:
+        ticker:
+          type: string
+        companyName:
+          type: string
+        totalInflow:
+          type: number
+          description: Total dollar value of all buy-side transactions
+        totalOutflow:
+          type: number
+          description: Total dollar value of all sell-side transactions
+        netFlow:
+          type: number
+          description: totalInflow minus totalOutflow (positive = net inflow, negative = net outflow)
+        institutionalInflow:
+          type: number
+        institutionalOutflow:
+          type: number
+        insiderInflow:
+          type: number
+        insiderOutflow:
+          type: number
 
     # ─── Stock schemas ─────────────────────────────────────────────────────
 

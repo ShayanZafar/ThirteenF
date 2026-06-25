@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db, institutionalTransactionsTable, insiderTransactionsTable, politicianTradesTable, lockupEventsTable } from "@workspace/db";
 import { desc, sql, gte, and } from "drizzle-orm";
+import { computeSignalScore, computeMoneyFlow, type SignalEntry, type MoneyFlowEntry } from "../lib/signals";
 
 const router: IRouter = Router();
 
@@ -132,25 +133,19 @@ router.get("/dashboard/signals", async (req, res): Promise<void> => {
     entry.lockupDate = r.expirationDate;
   });
 
-  const signals = Object.values(tickerMap).map((entry) => {
-    const buySignal = (entry.instBuys * 2 + entry.insBuys * 3 + entry.polBuys * 1.5);
-    const sellSignal = (entry.instSells * 2 + entry.insSells * 3 + entry.polSells * 1.5) + (entry.lockupExpiring ? 10 : 0);
-    const total = buySignal + sellSignal || 1;
-    const score = Math.round(((buySignal - sellSignal) / total) * 100);
-    return {
-      ticker: entry.ticker,
-      companyName: entry.companyName,
-      signalScore: Math.max(-100, Math.min(100, score)),
-      institutionalBuys: entry.instBuys,
-      institutionalSells: entry.instSells,
-      insiderBuys: entry.insBuys,
-      insiderSells: entry.insSells,
-      politicianBuys: entry.polBuys,
-      politicianSells: entry.polSells,
-      lockupExpiring: entry.lockupExpiring,
-      lockupDate: entry.lockupDate,
-    };
-  });
+  const signals = Object.values(tickerMap).map((entry) => ({
+    ticker: entry.ticker,
+    companyName: entry.companyName,
+    signalScore: computeSignalScore(entry),
+    institutionalBuys: entry.instBuys,
+    institutionalSells: entry.instSells,
+    insiderBuys: entry.insBuys,
+    insiderSells: entry.insSells,
+    politicianBuys: entry.polBuys,
+    politicianSells: entry.polSells,
+    lockupExpiring: entry.lockupExpiring,
+    lockupDate: entry.lockupDate,
+  }));
 
   signals.sort((a, b) => Math.abs(b.signalScore) - Math.abs(a.signalScore));
   res.json(signals.slice(0, limit));

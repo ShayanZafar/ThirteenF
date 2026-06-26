@@ -21,7 +21,7 @@ describe("computeSignalScore", () => {
   it("penalises lockup expiring (adds 10 to sell signal)", () => {
     // pure buy but lockup expiring adds bearish weight
     const noLockup = computeSignalScore({ instBuys: 1, instSells: 0, insBuys: 0, insSells: 0, polBuys: 0, polSells: 0, lockupExpiring: false });
-    const withLockup = computeSignalScore({ instBuys: 1, instSells: 0, insBuys: 0, insBuys: 0, polBuys: 0, polSells: 0, lockupExpiring: true });
+    const withLockup = computeSignalScore({ instBuys: 1, instSells: 0, insBuys: 0, insSells: 0, polBuys: 0, polSells: 0, lockupExpiring: true });
     expect(withLockup).toBeLessThan(noLockup);
   });
 

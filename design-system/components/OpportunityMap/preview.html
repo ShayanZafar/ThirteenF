@@ -1,0 +1,147 @@
+<!-- @dsCard group="Value" height=560 subtitle="Valuation gap against net buying; the highlighted corner is where both agree" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Opportunity map — preview</title>
+<style>
+  .pv { padding: var(--space-4) var(--space-6) var(--space-6); display: grid; gap: var(--space-3); }
+  .pv__top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: var(--space-2) var(--space-4); }
+  .pv__foot { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); font-size: 13px; line-height: 18px; color: var(--ink-muted); }
+  .pv details summary { cursor: pointer; font-size: 13px; line-height: 18px; font-weight: 600; color: var(--ink); width: max-content; }
+  .pv details[open] summary { margin-bottom: var(--space-2); }
+  .pv details .tf-table { max-width: 520px; }
+</style>
+</head>
+<body>
+<div class="pv">
+  <div class="pv__top">
+    <span class="type-title">Opportunity map, Q2 2026</span>
+    <span class="tf-sample">Sample data · fictional companies</span>
+  </div>
+  <figure class="tf-map" id="map">
+<div class="tf-map__scroll">
+<svg viewBox="0 0 720 392" role="img" aria-labelledby="om-title om-desc">
+<title id="om-title">Opportunity map, Q2 2026</title>
+<desc id="om-desc">14 companies by price against estimated value (x) and net 13F buying as a share of shares outstanding (y). Three sit in the highlighted corner: at least 15% below estimated value with net buying of at least 1%: CLFR, HVMR and WXFI.</desc>
+<polygon class="tf-map__in" points="20,15 28,15 24,8"/>
+<text class="tf-map__axis" x="34" y="16" text-anchor="start">Net 13F buying, % of shares</text>
+<rect class="tf-map__quad" x="64" y="28" width="224" height="115.5"/>
+<line class="tf-map__grid" x1="64" y1="28" x2="64" y2="336"/>
+<line class="tf-map__grid" x1="224" y1="28" x2="224" y2="336"/>
+<line class="tf-map__grid" x1="544" y1="28" x2="544" y2="336"/>
+<line class="tf-map__grid" x1="704" y1="28" x2="704" y2="336"/>
+<line class="tf-map__grid" x1="64" y1="336" x2="704" y2="336"/>
+<line class="tf-map__grid" x1="64" y1="259" x2="704" y2="259"/>
+<line class="tf-map__grid" x1="64" y1="105" x2="704" y2="105"/>
+<line class="tf-map__grid" x1="64" y1="28" x2="704" y2="28"/>
+<line class="tf-map__zero" x1="384" y1="28" x2="384" y2="336"/>
+<line class="tf-map__zero" x1="64" y1="182" x2="704" y2="182"/>
+<text class="tf-map__tick" x="64" y="354" text-anchor="start">−50%</text>
+<text class="tf-map__tick" x="224" y="354" text-anchor="middle">−25%</text>
+<text class="tf-map__tick" x="384" y="354" text-anchor="middle">0</text>
+<text class="tf-map__tick" x="544" y="354" text-anchor="middle">+25%</text>
+<text class="tf-map__tick" x="704" y="354" text-anchor="end">+50%</text>
+<text class="tf-map__tick" x="56" y="340" text-anchor="end">−4%</text>
+<text class="tf-map__tick" x="56" y="263" text-anchor="end">−2%</text>
+<text class="tf-map__tick" x="56" y="186" text-anchor="end">0</text>
+<text class="tf-map__tick" x="56" y="109" text-anchor="end">+2%</text>
+<text class="tf-map__tick" x="56" y="32" text-anchor="end">+4%</text>
+<text class="tf-map__axis" x="384" y="380" text-anchor="middle">Price vs est. value</text>
+<text class="tf-map__axis" x="64" y="380" text-anchor="start">Below</text>
+<text class="tf-map__axis" x="704" y="380" text-anchor="end">Above</text>
+<rect class="tf-map__flagmark" x="76" y="40" width="7" height="7" transform="rotate(45 79.5 43.5)"/>
+<text class="tf-map__label" x="90" y="48">WORTH A LOOK</text>
+<circle class="tf-map__pt" cx="268.8" cy="255.1" r="5"/>
+<circle class="tf-map__pt" cx="345.6" cy="197.4" r="5"/>
+<circle class="tf-map__pt" cx="403.2" cy="147.3" r="5"/>
+<circle class="tf-map__pt" cx="518.4" cy="120.4" r="5"/>
+<circle class="tf-map__pt" cx="633.6" cy="282.1" r="5"/>
+<circle class="tf-map__pt" cx="128" cy="212.8" r="5"/>
+<circle class="tf-map__pt" cx="326.4" cy="170.5" r="5"/>
+<circle class="tf-map__pt" cx="460.8" cy="224.4" r="5"/>
+<circle class="tf-map__pt" cx="563.2" cy="166.6" r="5"/>
+<circle class="tf-map__pt" cx="217.6" cy="189.7" r="5"/>
+<circle class="tf-map__pt" cx="435.2" cy="81.9" r="5"/>
+<circle class="tf-map__pt tf-map__pt--hl" cx="185.6" cy="58.8" r="5"/>
+<text class="tf-map__label" x="195.6" y="62.8">CLFR</text>
+<circle class="tf-map__pt tf-map__pt--hl" cx="243.2" cy="101.2" r="5"/>
+<text class="tf-map__label" x="253.2" y="105.2">HVMR</text>
+<circle class="tf-map__pt tf-map__pt--hl" cx="268.8" cy="128.1" r="5"/>
+<text class="tf-map__label" x="278.8" y="132.1">WXFI</text>
+<circle class="tf-map__hit" cx="185.6" cy="58.8" r="12" tabindex="0" data-t="CLFR" data-n="Calder Freight" data-x="−31%" data-y="+3.2%" aria-label="CLFR, Calder Freight: −31% vs est. value, +3.2% net buying"/>
+<circle class="tf-map__hit" cx="243.2" cy="101.2" r="12" tabindex="0" data-t="HVMR" data-n="Halvorsen Marine" data-x="−22%" data-y="+2.1%" aria-label="HVMR, Halvorsen Marine: −22% vs est. value, +2.1% net buying"/>
+<circle class="tf-map__hit" cx="268.8" cy="128.1" r="12" tabindex="0" data-t="WXFI" data-n="Wexford Insurance" data-x="−18%" data-y="+1.4%" aria-label="WXFI, Wexford Insurance: −18% vs est. value, +1.4% net buying"/>
+<circle class="tf-map__hit" cx="268.8" cy="255.1" r="12" tabindex="0" data-t="QLM" data-n="Quarry Lane Materials" data-x="−18%" data-y="−1.9%" aria-label="QLM, Quarry Lane Materials: −18% vs est. value, −1.9% net buying"/>
+<circle class="tf-map__hit" cx="345.6" cy="197.4" r="12" tabindex="0" data-t="MRPK" data-n="Mercer Pack" data-x="−6%" data-y="−0.4%" aria-label="MRPK, Mercer Pack: −6% vs est. value, −0.4% net buying"/>
+<circle class="tf-map__hit" cx="403.2" cy="147.3" r="12" tabindex="0" data-t="BWU" data-n="Brightwater Utilities" data-x="+3%" data-y="+0.9%" aria-label="BWU, Brightwater Utilities: +3% vs est. value, +0.9% net buying"/>
+<circle class="tf-map__hit" cx="518.4" cy="120.4" r="12" tabindex="0" data-t="TRNH" data-n="Tern Health" data-x="+21%" data-y="+1.6%" aria-label="TRNH, Tern Health: +21% vs est. value, +1.6% net buying"/>
+<circle class="tf-map__hit" cx="633.6" cy="282.1" r="12" tabindex="0" data-t="OSPS" data-n="Osprey Semiconductor" data-x="+39%" data-y="−2.6%" aria-label="OSPS, Osprey Semiconductor: +39% vs est. value, −2.6% net buying"/>
+<circle class="tf-map__hit" cx="128" cy="212.8" r="12" tabindex="0" data-t="FNWK" data-n="Fenwick Tools" data-x="−40%" data-y="−0.8%" aria-label="FNWK, Fenwick Tools: −40% vs est. value, −0.8% net buying"/>
+<circle class="tf-map__hit" cx="326.4" cy="170.5" r="12" tabindex="0" data-t="ASHB" data-n="Ashdown Brewing" data-x="−9%" data-y="+0.3%" aria-label="ASHB, Ashdown Brewing: −9% vs est. value, +0.3% net buying"/>
+<circle class="tf-map__hit" cx="460.8" cy="224.4" r="12" tabindex="0" data-t="CRVD" data-n="Corvid Software" data-x="+12%" data-y="−1.1%" aria-label="CRVD, Corvid Software: +12% vs est. value, −1.1% net buying"/>
+<circle class="tf-map__hit" cx="563.2" cy="166.6" r="12" tabindex="0" data-t="PLHM" data-n="Pellham Retail" data-x="+28%" data-y="+0.4%" aria-label="PLHM, Pellham Retail: +28% vs est. value, +0.4% net buying"/>
+<circle class="tf-map__hit" cx="217.6" cy="189.7" r="12" tabindex="0" data-t="SBLE" data-n="Sable Energy" data-x="−26%" data-y="−0.2%" aria-label="SBLE, Sable Energy: −26% vs est. value, −0.2% net buying"/>
+<circle class="tf-map__hit" cx="435.2" cy="81.9" r="12" tabindex="0" data-t="LNBT" data-n="Linnet Bio" data-x="+8%" data-y="+2.6%" aria-label="LNBT, Linnet Bio: +8% vs est. value, +2.6% net buying"/>
+</svg>
+</div>
+    <div class="tf-map__tip" id="tip" hidden></div>
+  </figure>
+  <div class="pv__foot">
+    <span class="tf-flag">Worth a look</span>
+    <span>At least 15% below est. value and net 13F buying of at least 1% of shares. Hover or tab to a point for details.</span>
+  </div>
+  <details>
+    <summary>Table view</summary>
+    <div class="tf-tablewrap">
+      <table class="tf-table">
+        <thead><tr><th scope="col">Company</th><th scope="col" class="tf-r">Vs est. value</th><th scope="col" class="tf-r">Net buying</th></tr></thead>
+        <tbody>
+<tr class="tf-hl"><td><span class="tf-ticker">CLFR</span> Calder Freight</td><td class="tf-r">−31%</td><td class="tf-r">+3.2%</td></tr>
+<tr class="tf-hl"><td><span class="tf-ticker">HVMR</span> Halvorsen Marine</td><td class="tf-r">−22%</td><td class="tf-r">+2.1%</td></tr>
+<tr class="tf-hl"><td><span class="tf-ticker">WXFI</span> Wexford Insurance</td><td class="tf-r">−18%</td><td class="tf-r">+1.4%</td></tr>
+<tr><td><span class="tf-ticker">FNWK</span> Fenwick Tools</td><td class="tf-r">−40%</td><td class="tf-r">−0.8%</td></tr>
+<tr><td><span class="tf-ticker">SBLE</span> Sable Energy</td><td class="tf-r">−26%</td><td class="tf-r">−0.2%</td></tr>
+<tr><td><span class="tf-ticker">QLM</span> Quarry Lane Materials</td><td class="tf-r">−18%</td><td class="tf-r">−1.9%</td></tr>
+<tr><td><span class="tf-ticker">ASHB</span> Ashdown Brewing</td><td class="tf-r">−9%</td><td class="tf-r">+0.3%</td></tr>
+<tr><td><span class="tf-ticker">MRPK</span> Mercer Pack</td><td class="tf-r">−6%</td><td class="tf-r">−0.4%</td></tr>
+<tr><td><span class="tf-ticker">BWU</span> Brightwater Utilities</td><td class="tf-r">+3%</td><td class="tf-r">+0.9%</td></tr>
+<tr><td><span class="tf-ticker">LNBT</span> Linnet Bio</td><td class="tf-r">+8%</td><td class="tf-r">+2.6%</td></tr>
+<tr><td><span class="tf-ticker">CRVD</span> Corvid Software</td><td class="tf-r">+12%</td><td class="tf-r">−1.1%</td></tr>
+<tr><td><span class="tf-ticker">TRNH</span> Tern Health</td><td class="tf-r">+21%</td><td class="tf-r">+1.6%</td></tr>
+<tr><td><span class="tf-ticker">PLHM</span> Pellham Retail</td><td class="tf-r">+28%</td><td class="tf-r">+0.4%</td></tr>
+<tr><td><span class="tf-ticker">OSPS</span> Osprey Semiconductor</td><td class="tf-r">+39%</td><td class="tf-r">−2.6%</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </details>
+</div>
+<script>
+  (function () {
+    var fig = document.getElementById('map'), tip = document.getElementById('tip');
+    function line(tag, text) { var n = document.createElement(tag); n.textContent = text; tip.appendChild(n); }
+    function show(el) {
+      tip.textContent = '';
+      line('span', el.dataset.t + ' · ' + el.dataset.n);
+      line('strong', el.dataset.x); line('span', 'price vs est. value');
+      line('strong', el.dataset.y); line('span', 'net 13F buying, % of shares');
+      tip.hidden = false;
+      var f = fig.getBoundingClientRect(), r = el.getBoundingClientRect();
+      var w = tip.offsetWidth, h = tip.offsetHeight;
+      var x = Math.min(Math.max(r.left + r.width / 2 - f.left - w / 2, 0), f.width - w);
+      var above = r.top - f.top - h - 4;
+      var y = above >= 0 ? above : r.bottom - f.top + 4;
+      tip.style.left = x + 'px';
+      tip.style.top = y + 'px';
+    }
+    function hide() { tip.hidden = true; }
+    fig.querySelectorAll('.tf-map__hit').forEach(function (el) {
+      el.addEventListener('pointerenter', function () { show(el); });
+      el.addEventListener('pointerleave', hide);
+      el.addEventListener('focus', function () { show(el); });
+      el.addEventListener('blur', hide);
+    });
+  })();
+</script>
+</body>
+</html>

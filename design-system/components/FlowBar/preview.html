@@ -1,0 +1,58 @@
+<!-- @dsCard group="Money flow" height=330 subtitle="Net institutional flow per name, diverging around zero" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Flow bar — preview</title>
+<style>
+  .pv { padding: var(--space-4) var(--space-6) var(--space-6); }
+</style>
+</head>
+<body>
+<div class="pv">
+  <figure class="tf-flow" aria-label="Net 13F flow by company, Q2 2026">
+    <figcaption class="tf-flow__head">
+      <span class="type-title">Net 13F flow, Q2 2026</span>
+      <span class="tf-sample">Sample data · fictional companies</span>
+    </figcaption>
+    <div class="tf-flow__axis" aria-hidden="true">
+      <span>Company</span>
+      <span><span><span class="tf-dir tf-dir--out"></span>Out</span><span>In<span class="tf-dir tf-dir--in" style="margin: 0 0 0 4px"></span></span></span>
+      <span class="tf-r">Net</span>
+    </div>
+    <ol class="tf-flow__rows">
+      <li class="tf-flow__row tf-hl">
+        <span class="tf-flow__name"><span class="tf-ticker">CLFR</span><span>Calder Freight</span></span>
+        <span class="tf-flow__track"><span class="tf-flow__bar tf-flow__bar--in" style="--w: 93.8%"></span></span>
+        <span class="tf-flow__value">+$377M</span>
+      </li>
+      <li class="tf-flow__row tf-hl">
+        <span class="tf-flow__name"><span class="tf-ticker">HVMR</span><span>Halvorsen Marine</span></span>
+        <span class="tf-flow__track"><span class="tf-flow__bar tf-flow__bar--in" style="--w: 52.7%"></span></span>
+        <span class="tf-flow__value">+$212M</span>
+      </li>
+      <li class="tf-flow__row">
+        <span class="tf-flow__name"><span class="tf-ticker">BWU</span><span>Brightwater Utilities</span></span>
+        <span class="tf-flow__track"><span class="tf-flow__bar tf-flow__bar--in" style="--w: 36.8%"></span></span>
+        <span class="tf-flow__value">+$148M</span>
+      </li>
+      <li class="tf-flow__row">
+        <span class="tf-flow__name"><span class="tf-ticker">MRPK</span><span>Mercer Pack</span></span>
+        <span class="tf-flow__track"><span class="tf-flow__bar tf-flow__bar--out" style="--w: 9%"></span></span>
+        <span class="tf-flow__value">−$36M</span>
+      </li>
+      <li class="tf-flow__row">
+        <span class="tf-flow__name"><span class="tf-ticker">QLM</span><span>Quarry Lane Materials</span></span>
+        <span class="tf-flow__track"><span class="tf-flow__bar tf-flow__bar--out" style="--w: 40.8%"></span></span>
+        <span class="tf-flow__value">−$164M</span>
+      </li>
+      <li class="tf-flow__row">
+        <span class="tf-flow__name"><span class="tf-ticker">OSPS</span><span>Osprey Semiconductor</span></span>
+        <span class="tf-flow__track"><span class="tf-flow__bar tf-flow__bar--out" style="--w: 100%"></span></span>
+        <span class="tf-flow__value">−$402M</span>
+      </li>
+    </ol>
+  </figure>
+</div>
+</body>
+</html>

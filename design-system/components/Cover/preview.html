@@ -1,0 +1,62 @@
+<!-- @dsCard height=288 -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ThirteenF</title>
+<style>
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--paper); color: var(--ink); overflow: hidden; }
+  .cover { position: relative; width: 960px; height: 288px; overflow: hidden; }
+  .art { position: absolute; top: 0; left: 480px; width: 480px; height: 288px; overflow: hidden; }
+  .art svg { display: block; }
+  .ink { fill: var(--ink); }
+  .cut { fill: var(--paper); }
+  .hl { fill: var(--highlight); }
+  .est { fill: var(--estimate); }
+  .in { fill: var(--flow-in); }
+  .out { fill: var(--flow-out); }
+  .blk { rx: var(--radius-xs); }
+  .bar { rx: var(--radius-sm); }
+  .zero { stroke: var(--rule-strong); stroke-width: 1; }
+  .words { position: absolute; left: var(--space-8); bottom: var(--space-8); max-width: 440px; }
+  .name { margin: 0; font-family: var(--font-serif); font-size: 88px; line-height: 0.92; font-weight: 500; letter-spacing: -0.015em; color: var(--ink); }
+  .tag { margin: var(--space-2) 0 0 3px; font-family: var(--font-sans); font-size: 14px; line-height: 20px; color: var(--ink-muted); }
+</style>
+</head>
+<body>
+<div class="cover">
+<div class="art" aria-hidden="true">
+<svg viewBox="0 0 480 288" width="480" height="288">
+<!--
+  blocks      ink 176x256 slab bled off the top (filed facts, the largest) · highlight 240x48 band bled off the right (the highlighted row) · estimate 128x160 · flow-in 96x160 bled off the right; about 33% of 960x288. flow-out only as one bar.
+  arrangement one tall ink slab left of a rule-strong zero line; the highlighted row and two blocks right of it; bottoms on one line space-8 above the edge; space-2 gutters to the line, space-4 between the right blocks
+  pattern     the flow bar, from "direction is a bar growing from a zero line": nine size-bar-tall bars at a space-6 pitch cut from the slab toward the left, one of them flow-out; one flow-in bar on the highlight band growing right
+  scales      sides in space-2 multiples; gutters space-2 and space-4; pitch space-6; blocks radius-xs; bar data ends radius-sm, square at the zero line
+-->
+<rect class="ink blk" x="48" y="-8" width="176" height="264" rx="2"/>
+<rect class="cut bar" x="152" y="20" width="84" height="12" rx="4"/>
+<rect class="cut bar" x="96" y="44" width="140" height="12" rx="4"/>
+<rect class="cut bar" x="176" y="68" width="60" height="12" rx="4"/>
+<rect class="cut bar" x="72" y="92" width="164" height="12" rx="4"/>
+<rect class="out bar" x="136" y="116" width="96" height="12" rx="4"/>
+<rect class="out" x="224" y="116" width="8" height="12"/>
+<rect class="cut bar" x="88" y="140" width="148" height="12" rx="4"/>
+<rect class="cut bar" x="168" y="164" width="68" height="12" rx="4"/>
+<rect class="cut bar" x="112" y="188" width="124" height="12" rx="4"/>
+<rect class="cut bar" x="144" y="212" width="92" height="12" rx="4"/>
+<rect class="hl blk" x="240" y="32" width="248" height="48" rx="2"/>
+<rect class="in bar" x="232" y="50" width="168" height="12" rx="4"/>
+<rect class="in" x="232" y="50" width="8" height="12"/>
+<rect class="est blk" x="240" y="96" width="128" height="160" rx="2"/>
+<rect class="in blk" x="384" y="96" width="104" height="160" rx="2"/>
+<line class="zero" x1="232.5" y1="0" x2="232.5" y2="288"/>
+</svg>
+</div>
+<div class="words">
+<h1 class="name">ThirteenF</h1>
+<p class="tag">Filed facts in ink, estimates in pen.</p>
+</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,140 @@
+/* ThirteenF patterns. Load after tokens.css. Every class is prefixed tf-; no JavaScript required. */
+
+body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--font-sans); font-size: 15px; line-height: 22px; -webkit-font-smoothing: antialiased; }
+
+/* Type helpers the generated styles cannot carry */
+.type-caption { text-transform: uppercase; }
+.type-data, .tf-num { font-variant-numeric: tabular-nums; }
+.type-figure { font-variant-numeric: proportional-nums; }
+.type-display, .type-headline, .type-title { text-wrap: balance; }
+
+.tf-muted { color: var(--ink-muted); }
+.tf-est { color: var(--estimate); }
+.tf-r { text-align: right; }
+.tf-ticker { font-family: var(--font-sans); font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink); }
+.tf-sample { font-family: var(--font-sans); font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-muted); }
+
+/* Focus: a paper gap, then a solid ink ring */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible { outline: 2px solid transparent; box-shadow: var(--focus-ring); border-radius: var(--radius-xs); }
+
+/* Direction triangle: always beside a signed number, never alone */
+.tf-dir { display: inline-block; width: 8px; height: 7px; margin-right: var(--space-1); vertical-align: 1px; background: currentColor; }
+.tf-dir--in { color: var(--flow-in); clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+.tf-dir--out { color: var(--flow-out); clip-path: polygon(0 0, 100% 0, 50% 100%); }
+
+/* The highlighter */
+.tf-hl { background: var(--highlight); }
+.tf-flag { display: inline-flex; align-items: center; gap: 6px; height: var(--size-tag); padding: 0 var(--space-2); border-radius: var(--radius-xs); background: var(--highlight); color: var(--ink); font-size: 12px; line-height: 20px; font-weight: 600; white-space: nowrap; }
+.tf-flag::before { content: ""; width: 6px; height: 6px; background: var(--ink); transform: rotate(45deg); flex: none; }
+
+/* Change tags: New and Exit are solid, Add and Trim tinted, Hold outlined */
+.tf-tag { display: inline-flex; align-items: center; height: var(--size-tag); padding: 0 6px; border-radius: var(--radius-xs); font-size: 11px; line-height: 1; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
+.tf-tag--new { background: var(--flow-in); color: var(--on-flow); }
+.tf-tag--add { background: var(--flow-in-soft); color: var(--flow-in); }
+.tf-tag--trim { background: var(--flow-out-soft); color: var(--flow-out); }
+.tf-tag--exit { background: var(--flow-out); color: var(--on-flow); }
+.tf-tag--hold { box-shadow: inset 0 0 0 1px var(--rule-strong); color: var(--ink-muted); }
+
+/* Key figure */
+.tf-kfrow { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); column-gap: var(--space-8); border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); overflow: hidden; }
+.tf-kf { position: relative; display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-4) 0; min-width: 0; border-top: 1px solid var(--rule); margin-top: -1px; }
+.tf-kf::before { content: ""; position: absolute; top: 0; bottom: 0; left: calc(var(--space-4) * -1); width: 1px; background: var(--rule); }
+.tf-kf__label { font-size: 13px; line-height: 18px; font-weight: 500; color: var(--ink-muted); }
+.tf-kf__value { font-size: 32px; line-height: 36px; font-weight: 600; letter-spacing: -0.01em; color: var(--ink); }
+.tf-kf__unit { font-size: 15px; font-weight: 500; letter-spacing: 0; color: var(--ink-muted); margin-left: 1px; }
+.tf-kf__delta { font-size: 13px; line-height: 18px; font-weight: 500; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+.tf-kf__delta--in b { color: var(--flow-in); font-weight: 600; }
+.tf-kf__delta--out b { color: var(--flow-out); font-weight: 600; }
+.tf-kf--est .tf-kf__value, .tf-kf--est .tf-kf__unit { color: var(--estimate); }
+
+/* Flow bar: diverging rows around a zero line */
+.tf-flow { margin: 0; display: grid; gap: var(--space-2); }
+.tf-flow__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-2) var(--space-4); }
+.tf-flow__rows { list-style: none; margin: 0; padding: 0; }
+.tf-flow__row, .tf-flow__axis { display: grid; grid-template-columns: minmax(9rem, 1.1fr) minmax(8rem, 2fr) 4.5rem; align-items: center; column-gap: var(--space-3); }
+.tf-flow__row { min-height: 32px; border-bottom: 1px solid var(--rule); }
+.tf-flow__row:last-child { border-bottom: 0; }
+.tf-flow__name { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; font-size: 14px; line-height: 20px; }
+.tf-flow__name span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-muted); }
+.tf-flow__track { position: relative; align-self: stretch; }
+.tf-flow__track::before { content: ""; position: absolute; left: 50%; top: 0; bottom: -1px; width: 1px; background: var(--rule-strong); }
+.tf-flow__bar { position: absolute; top: 50%; height: var(--size-bar); margin-top: calc(var(--size-bar) / -2); width: calc(var(--w) / 2); }
+.tf-flow__bar--in { left: calc(50% + 1px); background: var(--flow-in); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+.tf-flow__bar--out { right: 50%; background: var(--flow-out); border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
+.tf-flow__value { text-align: right; font-size: 14px; line-height: 20px; font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
+.tf-flow__axis { padding-bottom: var(--space-1); border-bottom: 1px solid var(--rule-strong); }
+.tf-flow__axis > span:nth-child(2) { display: flex; justify-content: space-between; }
+.tf-flow__axis span { font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-muted); }
+.tf-flow__row.tf-hl { background: var(--highlight); }
+
+/* Holder table */
+.tf-tablewrap { overflow-x: auto; }
+.tf-table { width: 100%; border-collapse: collapse; font-size: 14px; line-height: 20px; }
+.tf-table caption { text-align: left; padding-bottom: var(--space-3); }
+.tf-table th { height: 32px; padding: 0 var(--space-3); background: var(--paper-shade); color: var(--ink-muted); font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; text-align: left; white-space: nowrap; }
+.tf-table td { height: var(--size-row); padding: 0 var(--space-3); border-bottom: 1px solid var(--rule); white-space: nowrap; }
+.tf-table th:first-child, .tf-table td:first-child { padding-left: var(--space-2); }
+.tf-table .tf-r { text-align: right; font-variant-numeric: tabular-nums; }
+.tf-table tbody tr:hover { background: var(--paper-shade); }
+.tf-table tbody tr.tf-hl, .tf-table tbody tr.tf-hl:hover { background: var(--highlight); }
+.tf-table tfoot td { border-bottom: 0; height: auto; padding-top: var(--space-3); color: var(--ink-muted); font-size: 13px; line-height: 18px; white-space: normal; }
+.tf-table .tf-was { color: var(--ink-muted); }
+
+/* Conviction meter: ink fill on a shade track, prior quarter as a tick */
+.tf-meter { display: grid; gap: 6px; min-width: 0; }
+.tf-meter__head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-3); font-size: 14px; line-height: 20px; }
+.tf-meter__value { font-weight: 600; font-variant-numeric: tabular-nums; }
+.tf-meter__track { position: relative; height: var(--size-meter); background: var(--paper-shade); box-shadow: inset 0 0 0 1px var(--rule); }
+.tf-meter__fill { position: absolute; left: 0; top: 0; bottom: 0; width: var(--pct); background: var(--ink); }
+.tf-meter__prior { position: absolute; left: var(--pct); top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--ink-muted); box-shadow: 0 0 0 2px var(--paper); }
+.tf-meter__mark { position: absolute; left: var(--pct); top: calc(100% + 2px); width: 1px; height: 5px; background: var(--rule-strong); }
+.tf-meter__foot { display: flex; justify-content: space-between; gap: var(--space-3); font-size: 13px; line-height: 18px; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+.tf-meter--mini { display: inline-grid; grid-template-columns: 64px auto; align-items: center; column-gap: var(--space-2); }
+.tf-meter--mini .tf-meter__track { height: 4px; }
+.tf-meter--mini .tf-meter__prior { top: -3px; bottom: -3px; }
+
+/* Valuation gap: badge and strip. The price is a filed fact (ink); the range is an estimate (pen). */
+.tf-gap { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 var(--space-2); border-radius: var(--radius-xs); background: var(--estimate-soft); color: var(--estimate); font-size: 13px; line-height: 1; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tf-gapstrip { position: relative; padding: 22px 0 26px; }
+.tf-gapstrip__track { position: relative; height: var(--size-meter); background: var(--paper-shade); }
+.tf-gapstrip__range { position: absolute; left: var(--lo); right: calc(100% - var(--hi)); top: -5px; bottom: -5px; background: var(--estimate-soft); box-shadow: inset 2px 0 0 var(--estimate), inset -2px 0 0 var(--estimate); }
+.tf-gapstrip__mid { position: absolute; left: var(--mid); top: -8px; bottom: -8px; width: 2px; margin-left: -1px; background: var(--estimate); }
+.tf-gapstrip__price { position: absolute; left: var(--price); top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: var(--radius-full); background: var(--ink); box-shadow: 0 0 0 2px var(--paper); }
+.tf-gapstrip__label { position: absolute; font-size: 12px; line-height: 16px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tf-gapstrip__label--est { top: 0; left: var(--mid); transform: translateX(-50%); color: var(--estimate); font-weight: 600; }
+.tf-gapstrip__label--price { bottom: 0; left: var(--price); transform: translateX(-50%); color: var(--ink); font-weight: 600; }
+
+/* Freshness stamp */
+.tf-stamp { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 var(--space-2); border: 1px solid var(--rule-strong); border-radius: var(--radius-xs); color: var(--ink-muted); font-size: 11px; line-height: 1; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tf-stamp b { color: var(--ink); font-weight: 700; }
+.tf-stamp i { font-style: normal; color: var(--rule-strong); }
+.tf-stamp--arriving { background: var(--paper-shade); }
+.tf-stamp--stale { border-style: dashed; color: var(--ink); }
+.tf-stamp--est b { color: var(--estimate); }
+
+/* Opportunity map */
+.tf-map { position: relative; margin: 0; min-width: 0; }
+.tf-map__scroll { overflow-x: auto; max-width: 100%; }
+.tf-map svg { display: block; width: 100%; min-width: 560px; height: auto; overflow: visible; }
+.tf-map__quad { fill: var(--highlight); }
+.tf-map__grid { stroke: var(--rule); stroke-width: 1; }
+.tf-map__zero { stroke: var(--rule-strong); stroke-width: 1; }
+.tf-map__pt { fill: var(--rule-strong); stroke: var(--paper); stroke-width: 2; }
+.tf-map__pt--hl { fill: var(--ink); stroke: var(--highlight); }
+.tf-map__hit { fill: transparent; cursor: default; }
+.tf-map__hit:focus { outline: none; }
+.tf-map__hit:focus-visible { stroke: var(--ink); stroke-width: 2; }
+.tf-map__tick { fill: var(--ink-muted); font-family: var(--font-sans); font-size: 12px; font-variant-numeric: tabular-nums; }
+.tf-map__axis { fill: var(--ink-muted); font-family: var(--font-sans); font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+.tf-map__label { fill: var(--ink); font-family: var(--font-sans); font-size: 12px; font-weight: 700; letter-spacing: 0.05em; }
+.tf-map__in { fill: var(--flow-in); }
+.tf-map__out { fill: var(--flow-out); }
+.tf-map__flagmark { fill: var(--ink); }
+.tf-map__tip { position: absolute; z-index: 1; pointer-events: none; min-width: 180px; padding: var(--space-2) var(--space-3); background: var(--paper-raised); color: var(--ink); border-radius: var(--radius-sm); box-shadow: var(--shadow-pop); font-size: 13px; line-height: 18px; }
+.tf-map__tip strong { display: block; margin-top: var(--space-1); font-size: 15px; line-height: 20px; font-variant-numeric: tabular-nums; }
+.tf-map__tip span { display: block; color: var(--ink-muted); }
+.tf-map__tip span:first-child { color: var(--ink); font-weight: 600; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .tf-table tbody tr, .tf-map__pt { transition: background-color 120ms ease, fill 120ms ease; }
+}

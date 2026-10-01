@@ -1,0 +1,79 @@
+<!-- @dsCard group="Money flow" height=420 subtitle="Who opened, added, trimmed or exited, from one quarter's 13F filings" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Holder table — preview</title>
+<style>
+  .pv { padding: var(--space-4) var(--space-6) var(--space-6); }
+  .pv__cap { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: var(--space-2) var(--space-4); }
+</style>
+</head>
+<body>
+<div class="pv">
+  <div class="tf-tablewrap">
+    <table class="tf-table">
+      <caption>
+        <span class="pv__cap"><span class="type-title">Largest holders of CLFR, Q2 2026</span><span class="tf-sample">Sample data · fictional managers</span></span>
+      </caption>
+      <thead>
+        <tr>
+          <th scope="col">Manager</th>
+          <th scope="col">Change</th>
+          <th scope="col" class="tf-r">Shares</th>
+          <th scope="col" class="tf-r">Value, Jun 30</th>
+          <th scope="col">Weight in book</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Stillwell Partners</td>
+          <td><span class="tf-tag tf-tag--add">Add</span></td>
+          <td class="tf-r">+860K</td>
+          <td class="tf-r">$146M</td>
+          <td><span class="tf-meter tf-meter--mini"><span class="tf-meter__track"><span class="tf-meter__fill" style="--pct: 89%"></span><span class="tf-meter__prior" style="--pct: 61%"></span></span><span class="tf-num">8.9% <span class="tf-was">was 6.1%</span></span></span></td>
+        </tr>
+        <tr>
+          <td>Kestrel Hill Advisors</td>
+          <td><span class="tf-tag tf-tag--add">Add</span></td>
+          <td class="tf-r">+310K</td>
+          <td class="tf-r">$142M</td>
+          <td><span class="tf-meter tf-meter--mini"><span class="tf-meter__track"><span class="tf-meter__fill" style="--pct: 31%"></span><span class="tf-meter__prior" style="--pct: 28%"></span></span><span class="tf-num">3.1% <span class="tf-was">was 2.8%</span></span></span></td>
+        </tr>
+        <tr>
+          <td>Larchmere Capital</td>
+          <td><span class="tf-tag tf-tag--new">New</span></td>
+          <td class="tf-r">+2.41M</td>
+          <td class="tf-r">$118M</td>
+          <td><span class="tf-meter tf-meter--mini"><span class="tf-meter__track"><span class="tf-meter__fill" style="--pct: 64%"></span></span><span class="tf-num">6.4% <span class="tf-was">new</span></span></span></td>
+        </tr>
+        <tr>
+          <td>Osgood &amp; Vane</td>
+          <td><span class="tf-tag tf-tag--trim">Trim</span></td>
+          <td class="tf-r">−540K</td>
+          <td class="tf-r">$93.2M</td>
+          <td><span class="tf-meter tf-meter--mini"><span class="tf-meter__track"><span class="tf-meter__fill" style="--pct: 17%"></span><span class="tf-meter__prior" style="--pct: 24%"></span></span><span class="tf-num">1.7% <span class="tf-was">was 2.4%</span></span></span></td>
+        </tr>
+        <tr>
+          <td>Northgate Pension Trust</td>
+          <td><span class="tf-tag tf-tag--hold">Hold</span></td>
+          <td class="tf-r">0</td>
+          <td class="tf-r">$52.5M</td>
+          <td><span class="tf-meter tf-meter--mini"><span class="tf-meter__track"><span class="tf-meter__fill" style="--pct: 2%"></span></span><span class="tf-num">0.2% <span class="tf-was">unchanged</span></span></span></td>
+        </tr>
+        <tr>
+          <td>Pembury Value Partners</td>
+          <td><span class="tf-tag tf-tag--exit">Exit</span></td>
+          <td class="tf-r">−1.20M</td>
+          <td class="tf-r tf-muted">—</td>
+          <td><span class="tf-meter tf-meter--mini"><span class="tf-meter__track"><span class="tf-meter__prior" style="--pct: 23%"></span></span><span class="tf-num">0% <span class="tf-was">was 2.3%</span></span></span></td>
+        </tr>
+      </tbody>
+      <tfoot>
+        <tr><td colspan="5">6 of 214 holders · 13F-HR filings for Q2 2026 · positions as of Jun 30, 2026 · weight = position ÷ the manager's reported 13F portfolio</td></tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,17 @@
+/* Generated from tokens.json. Load before components/bundle.css. Themes: data-theme="light" (Paper, default) or "dark" (Night desk). */
+@font-face { font-family: "Newsreader"; src: url("fonts/Newsreader-Variable.woff2") format("woff2"); font-weight: 200 800; font-style: normal; font-display: swap; }
+@font-face { font-family: "Newsreader"; src: url("fonts/Newsreader-Italic-Variable.woff2") format("woff2"); font-weight: 200 800; font-style: italic; font-display: swap; }
+@font-face { font-family: "Public Sans"; src: url("fonts/PublicSans-Variable.woff2") format("woff2"); font-weight: 100 900; font-style: normal; font-display: swap; }
+:root, [data-theme="light"] { --paper: #f3f0e9; --paper-raised: #fbf9f6; --paper-shade: #e9e5dc; --rule: #d6cfc5; --rule-strong: #847c72; --ink: #1d1914; --ink-muted: #5f5850; --flow-in: #007252; --flow-in-soft: #d1eee2; --flow-out: #a73b15; --flow-out-soft: #fdddd0; --on-flow: #fbf9f6; --estimate: #2c4a9d; --estimate-soft: #dde6fa; --highlight: #fae685; --shadow-pop: 0 1px 2px #1d19140f, 0 8px 20px -6px #1d191433; --focus-ring: 0 0 0 2px #f3f0e9, 0 0 0 4px #1d1914; }
+[data-theme="dark"] { --paper: #15120f; --paper-raised: #1d1a16; --paper-shade: #25211c; --rule: #37322c; --rule-strong: #877f75; --ink: #eee9df; --ink-muted: #b8b0a3; --flow-in: #40a987; --flow-in-soft: #0e2b22; --flow-out: #da724d; --flow-out-soft: #3b1b10; --on-flow: #15120f; --estimate: #7b8fde; --estimate-soft: #1c243e; --highlight: #3a3004; --shadow-pop: 0 10px 28px -6px #000000cc; --focus-ring: 0 0 0 2px #15120f, 0 0 0 4px #eee9df; }
+:root { --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-6: 24px; --space-8: 32px; --space-12: 48px; --radius-xs: 2px; --radius-sm: 4px; --radius-full: 9999px; --size-row: 40px; --size-tag: 20px; --size-bar: 12px; --size-meter: 6px; --size-content: 1200px; --font-serif: "Newsreader", "Iowan Old Style", Georgia, serif; --font-sans: "Public Sans", "Segoe UI", system-ui, sans-serif; --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace; }
+.type-display { font-family: var(--font-serif); font-size: 44px; line-height: 48px; font-weight: 500; letter-spacing: -0.01em; }
+.type-headline { font-family: var(--font-serif); font-size: 28px; line-height: 34px; font-weight: 500; }
+.type-title { font-family: var(--font-serif); font-size: 19px; line-height: 26px; font-weight: 600; }
+.type-note { font-family: var(--font-serif); font-size: 16px; line-height: 24px; font-weight: 400; font-style: italic; }
+.type-figure { font-family: var(--font-sans); font-size: 32px; line-height: 36px; font-weight: 600; letter-spacing: -0.01em; }
+.type-body { font-family: var(--font-sans); font-size: 15px; line-height: 22px; font-weight: 400; }
+.type-data { font-family: var(--font-sans); font-size: 14px; line-height: 20px; font-weight: 400; }
+.type-label { font-family: var(--font-sans); font-size: 13px; line-height: 18px; font-weight: 500; }
+.type-caption { font-family: var(--font-sans); font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: 0.06em; }
+.type-id { font-family: var(--font-mono); font-size: 13px; line-height: 18px; font-weight: 400; }

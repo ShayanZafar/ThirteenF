@@ -1,0 +1,40 @@
+<!-- @dsCard group="Money flow" height=324 subtitle="How big a position is in each manager's reported portfolio" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Conviction meter — preview</title>
+<style>
+  .pv { padding: var(--space-4) var(--space-6) var(--space-6); display: grid; gap: var(--space-4); }
+  .pv__top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: var(--space-2) var(--space-4); }
+  .pv__list { display: grid; gap: var(--space-6); max-width: 560px; }
+  .pv__scale { display: flex; justify-content: space-between; max-width: 560px; margin-top: calc(var(--space-2) * -1); }
+</style>
+</head>
+<body>
+<div class="pv">
+  <div class="pv__top">
+    <span class="type-title">Weight of CLFR in each book, Q2 2026</span>
+    <span class="tf-sample">Sample data · fictional managers</span>
+  </div>
+  <div class="pv__list">
+    <div class="tf-meter" role="meter" aria-valuemin="0" aria-valuemax="10" aria-valuenow="8.9" aria-label="Stillwell Partners: 8.9% of reported portfolio, was 6.1%">
+      <div class="tf-meter__head"><span>Stillwell Partners</span><span class="tf-meter__value">8.9%</span></div>
+      <div class="tf-meter__track"><span class="tf-meter__fill" style="--pct: 89%"></span><span class="tf-meter__prior" style="--pct: 61%"></span><span class="tf-meter__mark" style="--pct: 50%"></span></div>
+      <div class="tf-meter__foot"><span>#2 of 31 positions</span><span>was 6.1% in Q1</span></div>
+    </div>
+    <div class="tf-meter" role="meter" aria-valuemin="0" aria-valuemax="10" aria-valuenow="6.4" aria-label="Larchmere Capital: 6.4% of reported portfolio, new position">
+      <div class="tf-meter__head"><span>Larchmere Capital</span><span class="tf-meter__value">6.4%</span></div>
+      <div class="tf-meter__track"><span class="tf-meter__fill" style="--pct: 64%"></span><span class="tf-meter__mark" style="--pct: 50%"></span></div>
+      <div class="tf-meter__foot"><span>#4 of 38 positions</span><span>new this quarter</span></div>
+    </div>
+    <div class="tf-meter" role="meter" aria-valuemin="0" aria-valuemax="10" aria-valuenow="0.2" aria-label="Northgate Pension Trust: 0.2% of reported portfolio, unchanged">
+      <div class="tf-meter__head"><span>Northgate Pension Trust</span><span class="tf-meter__value">0.2%</span></div>
+      <div class="tf-meter__track"><span class="tf-meter__fill" style="--pct: 2%"></span><span class="tf-meter__mark" style="--pct: 50%"></span></div>
+      <div class="tf-meter__foot"><span>#412 of 1,960 positions</span><span>unchanged</span></div>
+    </div>
+  </div>
+  <div class="pv__scale type-caption tf-muted tf-num" aria-hidden="true"><span>0</span><span>5%</span><span>10%+</span></div>
+</div>
+</body>
+</html>

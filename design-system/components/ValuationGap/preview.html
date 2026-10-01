@@ -1,0 +1,63 @@
+<!-- @dsCard group="Value" height=380 subtitle="Price, a filed fact in ink, against the estimated value range in pen" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Valuation gap — preview</title>
+<style>
+  .pv { padding: var(--space-4) var(--space-6) var(--space-6); display: grid; gap: var(--space-2); }
+  .pv__top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: var(--space-2) var(--space-4); }
+  .pv__row { display: grid; grid-template-columns: minmax(10rem, 1fr) minmax(14rem, 2fr); gap: var(--space-2) var(--space-6); align-items: center; padding: var(--space-2) 0; border-bottom: 1px solid var(--rule); }
+  .pv__row:last-of-type { border-bottom: 0; }
+  .pv__who { display: grid; gap: 6px; justify-items: start; }
+  .pv__name { font-size: 14px; line-height: 20px; }
+  @media (max-width: 520px) { .pv__row { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="pv">
+  <div class="pv__top">
+    <span class="type-title">Price against est. value</span>
+    <span class="tf-sample">Sample data · fictional companies</span>
+  </div>
+
+  <div class="pv__row">
+    <div class="pv__who">
+      <span class="pv__name"><span class="tf-ticker">CLFR</span> Calder Freight</span>
+      <span class="tf-gap">31% below est. value</span>
+    </div>
+    <div class="tf-gapstrip" style="--lo: 44.6%; --hi: 85.2%; --mid: 64.9%; --price: 13.6%" role="img" aria-label="Price 50.30 dollars; estimated value 64 to 82 dollars, midpoint 73">
+      <div class="tf-gapstrip__track"><span class="tf-gapstrip__range"></span><span class="tf-gapstrip__mid"></span><span class="tf-gapstrip__price"></span></div>
+      <span class="tf-gapstrip__label tf-gapstrip__label--est">Est. $64–$82</span>
+      <span class="tf-gapstrip__label tf-gapstrip__label--price">$50.30</span>
+    </div>
+  </div>
+
+  <div class="pv__row">
+    <div class="pv__who">
+      <span class="pv__name"><span class="tf-ticker">BWU</span> Brightwater Utilities</span>
+      <span class="tf-gap">Within est. range</span>
+    </div>
+    <div class="tf-gapstrip" style="--lo: 26%; --hi: 78.5%; --mid: 52.2%; --price: 59.4%" role="img" aria-label="Price 38.10 dollars; estimated value 33 to 41 dollars, midpoint 37">
+      <div class="tf-gapstrip__track"><span class="tf-gapstrip__range"></span><span class="tf-gapstrip__mid"></span><span class="tf-gapstrip__price"></span></div>
+      <span class="tf-gapstrip__label tf-gapstrip__label--est">Est. $33–$41</span>
+      <span class="tf-gapstrip__label tf-gapstrip__label--price">$38.10</span>
+    </div>
+  </div>
+
+  <div class="pv__row">
+    <div class="pv__who">
+      <span class="pv__name"><span class="tf-ticker">OSPS</span> Osprey Semiconductor</span>
+      <span class="tf-gap">39% above est. value</span>
+    </div>
+    <div class="tf-gapstrip" style="--lo: 13.2%; --hi: 56%; --mid: 34.6%; --price: 85.4%" role="img" aria-label="Price 212.40 dollars; estimated value 128 to 178 dollars, midpoint 153">
+      <div class="tf-gapstrip__track"><span class="tf-gapstrip__range"></span><span class="tf-gapstrip__mid"></span><span class="tf-gapstrip__price"></span></div>
+      <span class="tf-gapstrip__label tf-gapstrip__label--est">Est. $128–$178</span>
+      <span class="tf-gapstrip__label tf-gapstrip__label--price">$212.40</span>
+    </div>
+  </div>
+
+  <p class="type-note tf-muted" style="margin: var(--space-2) 0 0">Gap is price against the middle of the range. The range is the spread of three models, not a price target.</p>
+</div>
+</body>
+</html>

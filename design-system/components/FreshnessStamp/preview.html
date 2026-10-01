@@ -1,0 +1,39 @@
+<!-- @dsCard group="Page basics" height=260 subtitle="The as-of date and age of every source on the page" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Freshness stamp — preview</title>
+<style>
+  .pv { padding: var(--space-4) var(--space-6) var(--space-6); display: grid; gap: var(--space-4); }
+  .pv__top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: var(--space-2) var(--space-4); }
+  .pv__group { display: grid; gap: var(--space-2); }
+  .pv__row { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+</style>
+</head>
+<body>
+<div class="pv">
+  <div class="pv__top">
+    <span class="type-title">Freshness stamps</span>
+    <span class="tf-sample">Sample dates · as of Sep 30, 2026</span>
+  </div>
+  <div class="pv__group">
+    <span class="type-caption tf-muted">13F states</span>
+    <div class="pv__row">
+      <span class="tf-stamp"><b>13F</b><i>·</i>As of Jun 30, 2026<i>·</i>92d</span>
+      <span class="tf-stamp tf-stamp--arriving"><b>13F Q3 2026</b><i>·</i>17 of 42 filed<i>·</i>Due Nov 16</span>
+      <span class="tf-stamp tf-stamp--stale"><b>Stale</b><i>·</i>Last filed for Q1 2026</span>
+    </div>
+  </div>
+  <div class="pv__group">
+    <span class="type-caption tf-muted">Other sources</span>
+    <div class="pv__row">
+      <span class="tf-stamp"><b>Form 4</b><i>·</i>Filed Sep 28, 2026<i>·</i>2d</span>
+      <span class="tf-stamp"><b>Short interest</b><i>·</i>Settled Sep 15<i>·</i>15d</span>
+      <span class="tf-stamp"><b>Price</b><i>·</i>Close Sep 29, 2026</span>
+      <span class="tf-stamp tf-stamp--est"><b>Est. value</b><i>·</i>Model run Sep 29, 2026</span>
+    </div>
+  </div>
+</div>
+</body>
+</html>

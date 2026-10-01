@@ -28,12 +28,16 @@ Dates are text such as `30-JUN-2026`; parse them.
 **Period.** The quarter end in `PERIODOFREPORT`. Positions describe that day. Filings are due 45 days later, moved to the next business day when that falls on a weekend or holiday (Q2 2026: Aug 14, 2026).
 
 **Current filing per manager and period.** Keep `13F-HR` and `13F-HR/A` filings (drop `13F-NT`, which has no holdings). For each CIK and period: start from the latest amendment whose `AMENDMENTTYPE` is `RESTATEMENT`, or the original filing if there is none, then add any later amendments whose type is `NEW HOLDINGS`.
+- A `13F-HR` is always the original, even when its cover page says otherwise (one manager labels its only filing each quarter `NEW HOLDINGS`).
+- A `13F-HR/A` with no `AMENDMENTTYPE` replaces the report, like a restatement (its entry count matches the original's).
+- Read `CIK` as a number: the SEC writes the same manager both as `1539994` and `0001539994`.
+- Read `CUSIP` upper-cased and trimmed; about 71,000 rows arrive in lower case.
 
 **Positions.** Sum `INFOTABLE` rows for each manager, CUSIP and period, because one manager can list the same CUSIP on several lines.
 - Shares: rows where `SSHPRNAMTTYPE` is `SH` and `PUTCALL` is empty. `PRN` rows are bond principal; options have `PUTCALL` set. Leave both out.
 - Value: the same rows' `VALUE`, in dollars.
 
-**Funds holding.** The number of distinct managers (CIKs) with shares above zero in the CUSIP for the period. 13f.info counts filings instead, so its numbers run slightly higher.
+**Funds holding.** The number of distinct managers (CIKs) with shares above zero in the CUSIP for the period. 13f.info counts filings instead, and its numbers run 4 to 10% higher (see Reference numbers).
 
 **All 13F filers.** The number of distinct managers with a holdings report for the period. This is the tide to compare against: every Dec 31 it jumps, because managers that grew past $100M during the year file for the first time. A stock that gains 8% more holders at year-end may only be keeping pace.
 
@@ -54,10 +58,18 @@ Dates are text such as `30-JUN-2026`; parse them.
 
 **Implied price.** For each manager, CUSIP and period, implied price = value ÷ shares. Compare it with the median implied price across all managers holding that CUSIP in that period. Flag rows more than 3 times higher or lower than the median, leave them out of share totals, and list them on the data-check table with the manager's name.
 
-**Shares against value.** For each CUSIP, compare the period's change in total shares with its change in total value. When shares move 25 points or more beyond value, flag the total. In the reference file, Q2 2026 share totals for AAPL, MSFT, NVDA, AMZN, GOOGL, META and TSLA jump 46% to 117% while value moves 2% to 35%.
+One exception, decided Oct 1, 2026: some managers still file `VALUE` in thousands, the rule before 2023 (336 to 540 managers per period, falling as they switch). Their implied price is about 1/1000 of the median while their share counts are right. A row whose implied price × 1000 falls within 3 times the median is "value in thousands": its shares stay in the totals, its value counts × 1000, and it is still listed on the data-check table. Leaving these rows out would cut share totals by about 5% and make them drift upward as managers switch to dollars.
+
+**Shares against value.** For each CUSIP, compare the period's change in total shares with its change in total value, allowing for the change in price per share (the median implied price): shares should move by (1 + value change) ÷ (1 + price change). When shares move 25 points or more beyond that, flag the total. Without the price adjustment, any stock whose price moves 25% in a quarter would be flagged, as would every split. In the reference file, Q2 2026 share totals for AAPL, MSFT, NVDA, AMZN, GOOGL, META and TSLA jump 46% to 117% while value moves 2% to 35%.
 
 **Late filers.** Until the next deadline passes, show the latest period as still arriving, with the count filed so far.
 
 ## Reference numbers
 
 `docs/reference/13finfo-holdings.csv` holds 13f.info's published figures for eight test stocks (the same eight as the example watchlist), Q2 2024 to Q2 2026: filings, shares and value (options left out). They are rounded source values used to test this pipeline, not ground truth. The share totals include the suspect ones above on purpose, so the checks can be tested against them.
+
+Measured against the SEC data sets (Oct 1, 2026):
+
+- Funds holding runs 4 to 10% below the reference's filings count. Counting every filing in the data sets that lists the stock, its options or its notes, superseded amendments included, still falls 1 to 7% short, so 13f.info counts filings the data sets do not hold. Q2 2026 is about 2 points further behind because filings made after Aug 31 arrive in the next zip.
+- The change from period to period agrees within 2 points for every stock and period. The tests check that, and the level within 11% (worst case: Shopify, Q2 2024, 10.1% below).
+- Share totals agree within 0.5% in most periods. The reference's Q2 2026 totals for the seven largest stocks and Microsoft's Q2 and Q3 2025 totals imply prices far from the market, so they are suspect; the SEC data sets show no such jumps.

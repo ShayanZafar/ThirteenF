@@ -33,7 +33,7 @@ Build these as DuckDB views or tables, exactly as defined in `docs/13f-data.md`:
 - `price_check`: the implied-price check, with each flagged row and the manager who filed it.
 
 **Check (pytest):**
-- Funds holding for each stock in `docs/reference/13finfo-holdings.csv` is within 3% of the `filings` column for every period. The reference counts filings and the app counts managers, so exact matches are not expected.
+- Funds holding for each stock in `docs/reference/13finfo-holdings.csv` changes from period to period within 2 points of the `filings` column's change, and its level is within 11%. (Changed Oct 1, 2026 from "within 3%": the reference counts filings the SEC data sets do not hold; see `docs/13f-data.md`.)
 - The Q2 2026 share totals for AAPL, MSFT, NVDA, AMZN, GOOGL, META and TSLA, which jump 46% to 117% in the reference, either come out in line with their value once flagged rows are removed, or are flagged by `price_check`. The test prints the managers whose rows were flagged.
 
 ## Phase 3: The "Look up a stock" page
@@ -46,7 +46,7 @@ Design: `design/screens/lookup.html`.
 - Compare with the tide in two ways, both defined in `docs/13f-data.md`: the market median (what the typical stock did) and the change against the tide (against all 13F filers). The design says "watchlist median" because it was drawn from eight stocks; use the market median. Show "share of all 13F filers holding it" in the table.
 - Hide share totals that fail the price check and say why.
 
-**Check:** all eight reference stocks match the reference within 3%, and at least five other stocks of different sizes render correctly, including one held by fewer than 50 funds. Both themes, no hard-coded colors.
+**Check:** all eight reference stocks match the reference as in Phase 2 (changes within 2 points), and at least five other stocks of different sizes render correctly, including one held by fewer than 50 funds. Both themes, no hard-coded colors.
 
 ## Phase 4: Biggest changes across all stocks
 
@@ -68,7 +68,7 @@ Design: `design/screens/overview.html`.
 - For each stock: funds holding, change against last period, change against the market median, a nine-period sparkline, the streak, and the two-year change. Each row links to its lookup page.
 - The data-check table is computed live from `price_check`.
 
-**Check:** the eight example stocks match the reference within 3%, a stock added from search appears with its numbers, and the page flags the Q2 2026 share totals that fail the check.
+**Check:** the eight example stocks match the reference as in Phase 2, a stock added from search appears with its numbers, and the page flags the Q2 2026 share totals that fail the check.
 
 ## Phase 6: Tickers and search
 

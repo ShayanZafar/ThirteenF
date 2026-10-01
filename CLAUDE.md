@@ -32,6 +32,7 @@ A personal app, run locally, that answers one question for every US-listed stock
 
 ## Commands (add them as you build)
 
-- `python -m thirteenf.ingest` downloads the Form 13F data sets and loads them.
+- `python -m thirteenf.ingest` downloads the Form 13F data sets, loads them and builds the model. `--no-download` loads only the zips already in `data/raw/`.
+- `python -m thirteenf.model` rebuilds the model tables from the raw tables (about a minute).
 - `python -m thirteenf.web` serves the app at http://127.0.0.1:8000.
 - `pytest` runs the tests, including the reference-number checks.

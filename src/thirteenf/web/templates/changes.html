@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Biggest changes, {{ selected.label }} · ThirteenF{% endblock %}
+{% macro streak(r) -%}
+{% if r.direction and r.direction > 0 %}<span class="tf-dir tf-dir--in"></span>Up {{ r.streak }}{% elif r.direction and r.direction < 0 %}<span class="tf-dir tf-dir--out"></span>Down {{ r.streak }}{% else %}<span class="tf-muted">Same</span>{% endif %}
+{%- endmacro %}
+{% macro ranked(rows, most) -%}
+<div class="tf-tablewrap"><table class="tf-table">
+<thead><tr><th scope="col" class="tf-r">#</th><th scope="col">Stock</th><th scope="col">Against the tide</th><th scope="col" class="tf-r">Funds holding</th><th scope="col">Change</th><th scope="col" class="tf-r">Shares held</th><th scope="col">Streak</th></tr></thead>
+<tbody>
+{% for r in rows %}
+<tr>
+<td class="tf-r tf-muted">{{ loop.index }}</td>
+<td class="app-td-wrap"><div class="app-cell"><a href="/stock/{{ r.cusip }}">{{ r.name }}</a><span class="app-cell__sub"><span class="type-id">{{ r.cusip }}</span>{% if r.title_of_class %} · {{ r.title_of_class }}{% endif %}</span></div></td>
+<td><div class="app-cell">
+{% if by == "tide" %}<span class="app-bar"><span class="app-bar__track{% if most == 'lost' %} app-bar__track--out{% endif %}"><span class="app-bar__fill{% if most == 'lost' %} app-bar__fill--out{% endif %}" style="width: {{ r.bar }}%"></span></span><span class="tf-num app-strong">{{ fmt.pts(r.vs_tide_pts) }}</span></span>{% else %}<span class="tf-num">{{ fmt.pts(r.vs_tide_pts) }}</span>{% endif %}
+<span class="app-cell__sub tf-num">{{ fmt.pct(r.funds_pct) }} against {{ fmt.pct(r.filers_pct) }}</span></div></td>
+<td class="tf-r"><div class="app-cell"><span class="tf-num">{{ fmt.count(r.funds) }}</span><span class="app-cell__sub tf-num">from {{ fmt.count(r.funds_prev) }}</span></div></td>
+<td><div class="app-cell">
+{% if by == "count" %}<span class="app-bar"><span class="app-bar__track{% if most == 'lost' %} app-bar__track--out{% endif %}"><span class="app-bar__fill{% if most == 'lost' %} app-bar__fill--out{% endif %}" style="width: {{ r.bar }}%"></span></span><span class="tf-num app-strong">{{ fmt.signed_count(r.funds_change) }}</span></span>{% else %}<span class="tf-num">{% if r.funds_change > 0 %}<span class="tf-dir tf-dir--in"></span>{% elif r.funds_change < 0 %}<span class="tf-dir tf-dir--out"></span>{% endif %}{{ fmt.signed_count(r.funds_change) }}</span>{% endif %}
+<span class="app-cell__sub tf-num">{{ fmt.pct(r.funds_pct) }}</span></div></td>
+<td class="tf-r">{% if r.share_check == "ok" %}<div class="app-cell"><span class="tf-num">{{ fmt.pct(r.shares_pct) }}</span><span class="app-cell__sub tf-num">{{ fmt.compact(r.shares) }} sh</span></div>{% elif r.share_check == "outran" %}<span class="tf-stamp tf-stamp--stale"><b>Check</b><i>·</i>Shares outran value</span>{% else %}<span class="tf-muted">—</span>{% endif %}</td>
+<td>{{ streak(r) }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table></div>
+{%- endmacro %}
+{% block main %}
+<section class="app-section app-section--tight">
+<div class="app-eyebrow"><span class="type-caption app-caption-muted">All stocks on 13F · {{ selected.label }}</span></div>
+<h1 class="type-display app-title">Biggest changes in funds holding, {{ selected.label }}</h1>
+{% include "_stamps.html" %}
+<p class="app-answer">{{ summary_text }}</p>
+{% if year_end %}<p class="app-answer-more">Every Dec 31 the count jumps, because managers that grew past $100M during the year file their first 13F. Ranking against the tide allows for that.</p>{% endif %}
+</section>
+
+<div class="tf-kfrow">
+<div class="tf-kf"><span class="tf-kf__label">Stocks compared, {{ quarter }}</span><span class="tf-kf__value">{{ fmt.count(summary.stocks) }}</span><span class="tf-kf__delta">Held by {{ fmt.count(minimum) }}+ funds at both dates</span></div>
+<div class="tf-kf"><span class="tf-kf__label">Stocks with more funds</span><span class="tf-kf__value">{{ fmt.count(summary.more) }}<span class="tf-kf__unit"> of {{ fmt.count(summary.stocks) }}</span></span><span class="tf-kf__delta">{{ fmt.count(summary.fewer) }} with fewer</span></div>
+<div class="tf-kf"><span class="tf-kf__label">Typical stock, {{ quarter }}</span><span class="tf-kf__value">{{ fmt.pct(summary.median_pct) }}</span><span class="tf-kf__delta">Median change in funds holding</span></div>
+<div class="tf-kf"><span class="tf-kf__label">All 13F filers, {{ quarter }}</span><span class="tf-kf__value">{{ fmt.pct(summary.filers_pct) }}</span><span class="tf-kf__delta">{{ fmt.count(summary.filers) }} managers filed holdings</span></div>
+</div>
+
+<form class="app-form-row" method="get" action="/changes" aria-label="Filters">
+<div class="app-field"><label for="period" class="type-caption app-caption-muted">Period</label><select id="period" name="period" class="app-select" onchange="this.form.submit()">{% for p in choices|reverse %}<option value="{{ p.period.isoformat() }}"{% if p.period == selected.period %} selected{% endif %}>{{ p.label }} · positions {{ fmt.short_day(p.period) }}</option>{% endfor %}</select></div>
+<div class="app-field"><span id="rankby" class="type-caption app-caption-muted">Rank by</span><div role="group" aria-labelledby="rankby" class="app-seg">{% for key, label in [("tide", "Against the tide"), ("count", "Change in funds")] %}<a class="app-seg__opt" href="/changes?period={{ selected.period.isoformat() }}&amp;min={{ minimum }}&amp;by={{ key }}&amp;n={{ limit }}"{% if by == key %} aria-current="true"{% endif %}>{{ label }}</a>{% endfor %}</div></div>
+<div class="app-field"><label for="min" class="type-caption app-caption-muted">Minimum funds holding</label><input id="min" name="min" type="number" min="1" step="1" value="{{ minimum }}" class="app-input app-input--num"></div>
+<div class="app-field"><label for="n" class="type-caption app-caption-muted">Rows</label><select id="n" name="n" class="app-select" onchange="this.form.submit()">{% for choice in [25, 50, 100] %}<option value="{{ choice }}"{% if choice == limit %} selected{% endif %}>{{ choice }}</option>{% endfor %}</select></div>
+<input type="hidden" name="by" value="{{ by }}">
+<button type="submit" class="app-button">Update</button>
+</form>
+
+<section class="app-section">
+<div class="app-section__head"><h2 class="type-headline">Most funds added{% if by == "tide" %} against the tide{% endif %}, {{ selected.label }}</h2><span class="type-caption app-caption-muted">{{ fmt.day(selected.period) }} against {{ fmt.short_day(selected.prev_period) }}</span></div>
+{% if added %}{{ ranked(added, "added") }}{% else %}<p class="app-empty">No stock held by {{ fmt.count(minimum) }} or more funds gained{% if by == "tide" %} against the tide{% else %} funds{% endif %} in {{ selected.label }}.</p>{% endif %}
+</section>
+
+<section class="app-section">
+<div class="app-section__head"><h2 class="type-headline">Most funds lost{% if by == "tide" %} against the tide{% endif %}, {{ selected.label }}</h2><span class="type-caption app-caption-muted">{{ fmt.day(selected.period) }} against {{ fmt.short_day(selected.prev_period) }}</span></div>
+{% if lost %}{{ ranked(lost, "lost") }}{% else %}<p class="app-empty">No stock held by {{ fmt.count(minimum) }} or more funds lost{% if by == "tide" %} ground against the tide{% else %} funds{% endif %} in {{ selected.label }}.</p>{% endif %}
+</section>
+
+<section id="method" class="app-method">
+<h2 class="type-title">Method</h2>
+<p class="type-note">Each stock is compared with itself one period earlier. Change against the tide is its percentage change in funds holding minus the percentage change in all 13F filers: {{ fmt.count(summary.filers) }} managers filed holdings for {{ selected.label }}, {{ fmt.pct(summary.filers_pct) }} on the period before. Ranking by change in funds uses the plain difference in the number of funds instead.</p>
+<p class="type-note">Only stocks held by at least {{ fmt.count(minimum) }} funds at both dates are ranked, so a stock new to 13F filings, or one that left them, does not top a list on small counts. When a company changed its CUSIP, its funds are counted across both CUSIPs.</p>
+<p class="type-note">The change in shares held is shown only when the share total passes the data checks: reports whose value per share is more than 3 times off the median are left out, and shares must move in line with value once the price per share is allowed for.</p>
+<p class="type-note">13F covers managers with $100M or more in US-listed securities, and long positions only. Funds holding counts managers, so a manager that files late can still change the latest period.</p>
+</section>
+{% endblock %}

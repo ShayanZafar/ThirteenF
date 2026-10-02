@@ -23,6 +23,22 @@ app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
 templates = Jinja2Templates(directory=HERE / "templates")
 templates.env.globals["fmt"] = fmt
 
+ASSET_DIRS = {"/ds/": DESIGN_SYSTEM_DIR, "/static/": HERE / "static"}
+
+
+def asset(url: str) -> str:
+    """A stylesheet URL with its file's modification time, so browsers fetch it again after a change."""
+    for prefix, folder in ASSET_DIRS.items():
+        if url.startswith(prefix):
+            try:
+                return f"{url}?v={int((folder / url[len(prefix):]).stat().st_mtime)}"
+            except OSError:
+                return url
+    return url
+
+
+templates.env.globals["asset"] = asset
+
 
 def theme_of(request: Request) -> str:
     return "dark" if request.cookies.get("tf_theme") == "dark" else "light"
@@ -113,4 +129,45 @@ def stock_page(request: Request, cusip: str, came_from: str = Query("", alias="f
         earlier=earlier,
         came_from=came_from.upper() if any(e["old_cusip"] == came_from.upper() for e in earlier) else "",
         **freshness(periods[-1]),
+    )
+
+
+@app.get("/changes", response_class=HTMLResponse)
+def changes_page(
+    request: Request,
+    period: str = "",
+    minimum: int = Query(100, alias="min", ge=1),
+    by: str = "tide",
+    n: int = 25,
+):
+    by = by if by in data.RANKINGS else "tide"
+    limit = n if n in (25, 50, 100) else 25
+    with data.connection() as con:
+        periods = data.periods(con)
+        choices = [p for p in periods if p.prev_period is not None]
+        selected = next((p for p in choices if p.period.isoformat() == period), choices[-1])
+        added = data.ranked_changes(con, selected.period, minimum, by, limit, "added")
+        lost = data.ranked_changes(con, selected.period, minimum, by, limit, "lost")
+        summary = data.change_summary(con, selected.period, minimum)
+    metric = data.RANKINGS[by]
+    for rows in (added, lost):
+        widest = max((abs(r[metric]) for r in rows), default=0) or 1
+        for r in rows:
+            r["bar"] = round(100 * abs(r[metric]) / widest, 1)
+    return render(
+        request,
+        "changes.html",
+        nav="changes",
+        selected=selected,
+        choices=choices,
+        minimum=minimum,
+        by=by,
+        limit=limit,
+        added=added,
+        lost=lost,
+        summary=summary,
+        summary_text=story.change_summary(summary, selected, added if by == "tide" else []),
+        year_end=selected.period.month == 12,
+        quarter=f"Q{(selected.period.month - 1) // 3 + 1}",
+        **freshness(selected),
     )

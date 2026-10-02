@@ -83,7 +83,21 @@ class Security:
 
 
 def security(con, cusip: str) -> Security | None:
-    rows = _rows(con, "SELECT * FROM securities WHERE cusip = ?", [cusip.upper()])
+    """A CUSIP, named the way its stock is named."""
+    rows = _rows(
+        con,
+        """
+        SELECT s.cusip, s.stock, s.latest_period,
+               coalesce(st.name_filed, s.name_filed) AS name_filed,
+               coalesce(st.name_mixed, s.name_mixed) AS name_mixed,
+               coalesce(st.title_of_class, s.title_of_class) AS title_of_class,
+               coalesce(st.figi, s.figi) AS figi
+        FROM securities s
+        LEFT JOIN stocks st ON st.cusip = s.stock
+        WHERE s.cusip = ?
+        """,
+        [cusip.upper()],
+    )
     if not rows:
         return None
     r = rows[0]
@@ -292,10 +306,10 @@ def search(con, query: str, limit: int = 25) -> list[dict]:
         con,
         f"""
         WITH matched AS (SELECT DISTINCT s.stock FROM securities s WHERE {where})
-        SELECT cur.cusip, cur.name_filed, cur.name_mixed, cur.title_of_class, cur.latest_period,
+        SELECT cur.cusip, cur.name_filed, cur.name_mixed, cur.title_of_class,
                coalesce(h.funds_holding, 0) AS funds
         FROM matched m
-        JOIN securities cur ON cur.cusip = m.stock
+        JOIN stocks cur ON cur.cusip = m.stock
         LEFT JOIN holders h ON h.cusip = m.stock AND h.period = ?
         ORDER BY funds DESC, cur.name_filed
         LIMIT {int(limit)}
@@ -305,3 +319,54 @@ def search(con, query: str, limit: int = 25) -> list[dict]:
     for r in rows:
         r["name"] = display_name(r["name_filed"], r["name_mixed"])
     return rows
+
+
+RANKINGS = {
+    "tide": "vs_tide_pts",  # change in funds holding against the change in all 13F filers
+    "count": "funds_change",  # change in the number of funds
+}
+
+
+def ranked_changes(con, period: date, minimum: int, by: str, limit: int, most: str) -> list[dict]:
+    """Stocks held by at least `minimum` funds in both periods, ranked by their change.
+
+    most="added" ranks from the top, most="lost" from the bottom."""
+    column = RANKINGS[by]
+    direction = "DESC" if most == "added" else "ASC"
+    rows = _rows(
+        con,
+        f"""
+        SELECT sp.cusip, s.name_filed, s.name_mixed, s.title_of_class,
+               sp.funds_holding AS funds, sp.funds_prev, sp.funds_change, sp.funds_pct,
+               sp.filers_pct, sp.vs_tide_pts, sp.market_median_pct, sp.vs_median_pts,
+               sp.shares, sp.shares_prev, sp.shares_pct, sp.share_check, sp.streak, sp.direction
+        FROM stock_periods sp
+        JOIN stocks s ON s.cusip = sp.cusip
+        WHERE sp.period = ? AND sp.funds_holding >= ? AND sp.funds_prev >= ?
+          AND sp.{column} {">" if most == "added" else "<"} 0
+        ORDER BY sp.{column} {direction}, sp.cusip
+        LIMIT ?
+        """,
+        [period, minimum, minimum, limit],
+    )
+    for r in rows:
+        r["name"] = display_name(r["name_filed"], r["name_mixed"])
+    return rows
+
+
+def change_summary(con, period: date, minimum: int) -> dict:
+    """How the stocks compared moved in a period, for the page's key figures."""
+    return _rows(
+        con,
+        """
+        SELECT count(*) AS stocks,
+               count(*) FILTER (WHERE funds_change > 0) AS more,
+               count(*) FILTER (WHERE funds_change < 0) AS fewer,
+               median(funds_pct) AS median_pct,
+               any_value(filers_pct) AS filers_pct,
+               any_value(filers) AS filers
+        FROM stock_periods
+        WHERE period = ? AND funds_holding >= ? AND funds_prev >= ?
+        """,
+        [period, minimum, minimum],
+    )[0]

@@ -18,6 +18,7 @@ rebuilds them from raw_* exactly.
   changes        per stock and period: managers that opened, added, trimmed, sold out or held
   stock_periods  per stock and period: changes against last period, the tide and the market median
   securities     per CUSIP: the name and class filers use, and its stock
+  stocks         per stock: the name of whichever of its CUSIPs most funds report
 
 A stock is identified by its current CUSIP. When a company changes its CUSIP
 (a reverse split, a new holding company, a move abroad), the old CUSIP's
@@ -46,15 +47,22 @@ VALUE_THOUSANDS = 1000
 SHARES_VS_VALUE_PTS = 25.0
 # Market median: stocks held by at least this many funds in both periods.
 MEDIAN_MIN_FUNDS = 100
-# CUSIP changes: an old CUSIP held by at least CHANGE_MIN_FUNDS funds loses at
-# least half of them, and at least half of the funds that left it opened one new
-# CUSIP that most of its new holders came from. In a real change each fund's
-# shares convert at the same ratio, so at least CHANGE_SAME_RATIO of the funds
-# that moved must sit within 5% of the median ratio. Coincidences, such as index
-# funds dropping one stock and adding another, fail that test.
+# CUSIP changes. Funds that left an old CUSIP (held by at least CHANGE_MIN_FUNDS
+# funds) opened a new CUSIP, and at least half of the new CUSIP's new holders
+# came from the old one. In a real change every holding converts at one ratio and
+# keeps its value, so at least CHANGE_SAME_RATIO of the funds that moved sit
+# within 5% of the median share ratio, and their positions keep between 1/10 and
+# 10 times their value (a contingent value right is worth far less than the stock).
+# Coincidences, such as index funds dropping one stock and adding another, fail
+# those tests. Either most of the funds that left moved (a completed change), or
+# at least CHANGE_PARTIAL_MOVED moved at a tighter CHANGE_PARTIAL_SAME (a change
+# still under way at quarter end, such as Exxon's new holding company in 2026).
 CHANGE_MIN_FUNDS = 20
-CHANGE_MIN_MOVED = 10
+CHANGE_MIN_MOVED = 20
 CHANGE_SAME_RATIO = 0.2
+CHANGE_PARTIAL_MOVED = 50
+CHANGE_PARTIAL_SAME = 0.5
+CHANGE_VALUE_RANGE = (0.1, 10)
 
 WINDOW = re.compile(r"(\d{2}[a-z]{3}\d{4})-(\d{2}[a-z]{3}\d{4})_form13f\.zip$", re.I)
 
@@ -258,12 +266,12 @@ GROUP BY ALL
 
 SQL_CUSIP_CHANGES = f"""
 CREATE OR REPLACE TABLE cusip_changes AS
-WITH shrunk AS (   -- CUSIPs that lost at least half their funds
+WITH shrunk AS (   -- CUSIPs that lost funds
     SELECT p.period, p.prev_period, b.cusip
     FROM periods p
     JOIN cusip_holders b ON b.period = p.prev_period
     LEFT JOIN cusip_holders a ON a.period = p.period AND a.cusip = b.cusip
-    WHERE b.funds >= {CHANGE_MIN_FUNDS} AND coalesce(a.funds, 0) <= b.funds * 0.5
+    WHERE b.funds >= {CHANGE_MIN_FUNDS} AND coalesce(a.funds, 0) <= b.funds - {CHANGE_MIN_MOVED}
 ),
 grown AS (         -- CUSIPs that at least doubled their funds, or are new
     SELECT p.period, p.prev_period, a.cusip
@@ -273,14 +281,14 @@ grown AS (         -- CUSIPs that at least doubled their funds, or are new
     WHERE p.prev_period IS NOT NULL AND a.funds >= {CHANGE_MIN_MOVED} AND coalesce(b.funds, 0) <= a.funds * 0.5
 ),
 departed AS (      -- funds that held a shrunk CUSIP, filed again, and no longer hold it
-    SELECT s.period, s.cusip, x.cik, x.shares
+    SELECT s.period, s.cusip, x.cik, x.shares, x.value_checked AS value
     FROM shrunk s
     JOIN positions x ON x.period = s.prev_period AND x.cusip = s.cusip AND x.shares > 0
     SEMI JOIN filings f ON f.period = s.period AND f.cik = x.cik AND f.lines > 0
     ANTI JOIN positions y ON y.period = s.period AND y.cik = x.cik AND y.cusip = s.cusip AND y.shares > 0
 ),
 arrived AS (       -- funds that hold a grown CUSIP and did not before
-    SELECT g.period, g.cusip, x.cik, x.shares
+    SELECT g.period, g.cusip, x.cik, x.shares, x.value_checked AS value
     FROM grown g
     JOIN positions x ON x.period = g.period AND x.cusip = g.cusip AND x.shares > 0
     ANTI JOIN positions y ON y.period = g.prev_period AND y.cik = x.cik AND y.cusip = g.cusip AND y.shares > 0
@@ -289,28 +297,34 @@ departed_count AS (SELECT period, cusip, count(*) AS departed FROM departed GROU
 arrived_count AS (SELECT period, cusip, count(*) AS arrived FROM arrived GROUP BY ALL),
 moves AS (
     SELECT d.period, d.cusip AS old_cusip, a.cusip AS new_cusip, d.cik,
-           a.shares::DOUBLE / d.shares AS ratio
+           a.shares::DOUBLE / d.shares AS ratio,
+           a.value::DOUBLE / NULLIF(d.value, 0) AS value_ratio
     FROM departed d
     JOIN arrived a ON a.period = d.period AND a.cik = d.cik AND a.cusip <> d.cusip
 ),
 pairs AS (
-    SELECT period, old_cusip, new_cusip, count(*) AS moved, median(ratio) AS exchange_ratio
+    SELECT period, old_cusip, new_cusip, count(*) AS moved,
+           median(ratio) AS exchange_ratio, median(value_ratio) AS value_ratio
     FROM moves GROUP BY ALL
     HAVING count(*) >= {CHANGE_MIN_MOVED}
 ),
 scored AS (
-    SELECT pr.period, pr.old_cusip, pr.new_cusip, pr.moved, pr.exchange_ratio,
+    SELECT pr.period, pr.old_cusip, pr.new_cusip, pr.moved, pr.exchange_ratio, pr.value_ratio,
            avg(CASE WHEN abs(m.ratio / pr.exchange_ratio - 1) <= 0.05 THEN 1.0 ELSE 0.0 END) AS same_ratio
     FROM pairs pr
     JOIN moves m USING (period, old_cusip, new_cusip)
     GROUP BY ALL
 )
 SELECT DISTINCT ON (s.period, s.old_cusip)
-    s.period, s.old_cusip, s.new_cusip, s.moved, d.departed, a.arrived, s.exchange_ratio, s.same_ratio
+    s.period, s.old_cusip, s.new_cusip, s.moved, d.departed, a.arrived,
+    s.exchange_ratio, s.same_ratio, s.value_ratio, s.moved < 0.5 * d.departed AS partial
 FROM scored s
 JOIN departed_count d ON d.period = s.period AND d.cusip = s.old_cusip
 JOIN arrived_count a ON a.period = s.period AND a.cusip = s.new_cusip
-WHERE s.moved >= 0.5 * d.departed AND s.moved >= 0.5 * a.arrived AND s.same_ratio >= {CHANGE_SAME_RATIO}
+WHERE s.moved >= 0.5 * a.arrived
+  AND s.value_ratio BETWEEN {CHANGE_VALUE_RANGE[0]} AND {CHANGE_VALUE_RANGE[1]}
+  AND ((s.moved >= 0.5 * d.departed AND s.same_ratio >= {CHANGE_SAME_RATIO})
+       OR (s.moved >= {CHANGE_PARTIAL_MOVED} AND s.same_ratio >= {CHANGE_PARTIAL_SAME}))
 ORDER BY s.period, s.old_cusip, (left(s.new_cusip, 6) = left(s.old_cusip, 6)) DESC, s.moved DESC
 """
 
@@ -552,6 +566,21 @@ LEFT JOIN mixed m USING (cusip)
 LEFT JOIN classes c USING (cusip)
 """
 
+# A stock's name comes from the CUSIP most funds reported in its latest period:
+# while a change of CUSIP is under way, that is often still the old one.
+SQL_STOCKS = """
+CREATE OR REPLACE TABLE stocks AS
+WITH best AS (
+    SELECT DISTINCT ON (k.stock) k.stock, k.cusip
+    FROM stock_keys k
+    JOIN cusip_holders ch USING (cusip)
+    ORDER BY k.stock, ch.period DESC, ch.funds DESC, k.cusip
+)
+SELECT b.stock AS cusip, s.name_filed, s.name_mixed, s.title_of_class, s.figi, b.cusip AS named_from
+FROM best b
+JOIN securities s ON s.cusip = b.cusip
+"""
+
 STEPS = [
     ("submissions", SQL_SUBMISSIONS),
     ("periods", build_periods),
@@ -568,6 +597,7 @@ STEPS = [
     ("changes", SQL_CHANGES),
     ("stock_periods", SQL_STOCK_PERIODS),
     ("securities", SQL_SECURITIES),
+    ("stocks", SQL_STOCKS),
 ]
 
 

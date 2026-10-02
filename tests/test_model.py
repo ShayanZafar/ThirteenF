@@ -175,3 +175,22 @@ def test_every_stock_is_its_own_key(con):
         "SELECT count(*) FROM stock_keys k JOIN stock_keys s ON s.cusip = k.stock WHERE s.stock <> s.cusip"
     ).fetchone()[0]
     assert chained_twice == 0
+
+
+def test_a_change_under_way_is_linked(con):
+    """At Jun 30, 2026 most funds still reported Exxon Mobil's old CUSIP, but
+    nearly all holders of the new holding company's CUSIP came from it, 1 for 1."""
+    stock, partial = con.execute(
+        """
+        SELECT k.stock, c.partial FROM stock_keys k
+        JOIN cusip_changes c ON c.old_cusip = k.cusip
+        WHERE k.cusip = '30231G102'
+        """
+    ).fetchone()
+    assert stock == "30233Q108" and partial
+
+
+def test_a_contingent_value_right_is_not_the_stock(con):
+    """Hologic's holders received a CVR one for one when it was acquired; the CVR
+    is worth far less than the stock, so Hologic's history is not folded into it."""
+    assert con.execute("SELECT stock FROM stock_keys WHERE cusip = '436440101'").fetchone()[0] == "436440101"

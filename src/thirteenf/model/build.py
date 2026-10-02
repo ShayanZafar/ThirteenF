@@ -10,11 +10,18 @@ rebuilds them from raw_* exactly.
   managers       manager names
   positions      manager x CUSIP x period: shares and value, with the implied-price check
   price_check    the positions flagged by the implied-price check
-  holders        per CUSIP and period: funds holding, shares held, value
+  cusip_holders  per CUSIP and period: funds holding (used to find CUSIP changes)
+  cusip_changes  CUSIPs replaced by another: most funds moved across at one exchange ratio
+  stock_keys     each CUSIP's stock (its latest CUSIP) and the ratio to today's shares
+  holders        per stock and period: funds holding, shares held, value
   filers_total   per period: managers that filed holdings
-  changes        per CUSIP and period: managers that opened, added, trimmed, sold out or held
-  stock_periods  per CUSIP and period: changes against last period, the tide and the market median
-  securities     per CUSIP: the name and class filers use
+  changes        per stock and period: managers that opened, added, trimmed, sold out or held
+  stock_periods  per stock and period: changes against last period, the tide and the market median
+  securities     per CUSIP: the name and class filers use, and its stock
+
+A stock is identified by its current CUSIP. When a company changes its CUSIP
+(a reverse split, a new holding company, a move abroad), the old CUSIP's
+history is folded into the new one, with shares converted at the exchange ratio.
 """
 
 from __future__ import annotations
@@ -39,6 +46,15 @@ VALUE_THOUSANDS = 1000
 SHARES_VS_VALUE_PTS = 25.0
 # Market median: stocks held by at least this many funds in both periods.
 MEDIAN_MIN_FUNDS = 100
+# CUSIP changes: an old CUSIP held by at least CHANGE_MIN_FUNDS funds loses at
+# least half of them, and at least half of the funds that left it opened one new
+# CUSIP that most of its new holders came from. In a real change each fund's
+# shares convert at the same ratio, so at least CHANGE_SAME_RATIO of the funds
+# that moved must sit within 5% of the median ratio. Coincidences, such as index
+# funds dropping one stock and adding another, fail that test.
+CHANGE_MIN_FUNDS = 20
+CHANGE_MIN_MOVED = 10
+CHANGE_SAME_RATIO = 0.2
 
 WINDOW = re.compile(r"(\d{2}[a-z]{3}\d{4})-(\d{2}[a-z]{3}\d{4})_form13f\.zip$", re.I)
 
@@ -232,22 +248,142 @@ JOIN filings f USING (cik, period)
 WHERE p.price_flag OR p.value_in_thousands
 """
 
-SQL_HOLDERS = """
-CREATE OR REPLACE TABLE holders AS
-SELECT
-    cusip, period,
-    count(DISTINCT cik) FILTER (WHERE shares > 0)                AS funds_holding,
-    sum(shares) FILTER (WHERE shares > 0)::BIGINT                AS shares_filed,
-    sum(value) FILTER (WHERE shares > 0)::BIGINT                 AS value_filed,
-    sum(shares) FILTER (WHERE shares > 0 AND NOT price_flag)::BIGINT AS shares,
-    sum(value_checked) FILTER (WHERE shares > 0 AND NOT price_flag)::BIGINT AS value,
-    count(*) FILTER (WHERE price_flag)                           AS flagged_rows,
-    count(*) FILTER (WHERE value_in_thousands)                   AS thousands_rows,
-    coalesce(sum(shares) FILTER (WHERE price_flag), 0)::BIGINT   AS flagged_shares,
-    any_value(median_price)                                      AS median_price
+SQL_CUSIP_HOLDERS = """
+CREATE OR REPLACE TABLE cusip_holders AS
+SELECT cusip, period, count(DISTINCT cik) AS funds
 FROM positions
+WHERE shares > 0
 GROUP BY ALL
-HAVING count(DISTINCT cik) FILTER (WHERE shares > 0) > 0
+"""
+
+SQL_CUSIP_CHANGES = f"""
+CREATE OR REPLACE TABLE cusip_changes AS
+WITH shrunk AS (   -- CUSIPs that lost at least half their funds
+    SELECT p.period, p.prev_period, b.cusip
+    FROM periods p
+    JOIN cusip_holders b ON b.period = p.prev_period
+    LEFT JOIN cusip_holders a ON a.period = p.period AND a.cusip = b.cusip
+    WHERE b.funds >= {CHANGE_MIN_FUNDS} AND coalesce(a.funds, 0) <= b.funds * 0.5
+),
+grown AS (         -- CUSIPs that at least doubled their funds, or are new
+    SELECT p.period, p.prev_period, a.cusip
+    FROM periods p
+    JOIN cusip_holders a ON a.period = p.period
+    LEFT JOIN cusip_holders b ON b.period = p.prev_period AND b.cusip = a.cusip
+    WHERE p.prev_period IS NOT NULL AND a.funds >= {CHANGE_MIN_MOVED} AND coalesce(b.funds, 0) <= a.funds * 0.5
+),
+departed AS (      -- funds that held a shrunk CUSIP, filed again, and no longer hold it
+    SELECT s.period, s.cusip, x.cik, x.shares
+    FROM shrunk s
+    JOIN positions x ON x.period = s.prev_period AND x.cusip = s.cusip AND x.shares > 0
+    SEMI JOIN filings f ON f.period = s.period AND f.cik = x.cik AND f.lines > 0
+    ANTI JOIN positions y ON y.period = s.period AND y.cik = x.cik AND y.cusip = s.cusip AND y.shares > 0
+),
+arrived AS (       -- funds that hold a grown CUSIP and did not before
+    SELECT g.period, g.cusip, x.cik, x.shares
+    FROM grown g
+    JOIN positions x ON x.period = g.period AND x.cusip = g.cusip AND x.shares > 0
+    ANTI JOIN positions y ON y.period = g.prev_period AND y.cik = x.cik AND y.cusip = g.cusip AND y.shares > 0
+),
+departed_count AS (SELECT period, cusip, count(*) AS departed FROM departed GROUP BY ALL),
+arrived_count AS (SELECT period, cusip, count(*) AS arrived FROM arrived GROUP BY ALL),
+moves AS (
+    SELECT d.period, d.cusip AS old_cusip, a.cusip AS new_cusip, d.cik,
+           a.shares::DOUBLE / d.shares AS ratio
+    FROM departed d
+    JOIN arrived a ON a.period = d.period AND a.cik = d.cik AND a.cusip <> d.cusip
+),
+pairs AS (
+    SELECT period, old_cusip, new_cusip, count(*) AS moved, median(ratio) AS exchange_ratio
+    FROM moves GROUP BY ALL
+    HAVING count(*) >= {CHANGE_MIN_MOVED}
+),
+scored AS (
+    SELECT pr.period, pr.old_cusip, pr.new_cusip, pr.moved, pr.exchange_ratio,
+           avg(CASE WHEN abs(m.ratio / pr.exchange_ratio - 1) <= 0.05 THEN 1.0 ELSE 0.0 END) AS same_ratio
+    FROM pairs pr
+    JOIN moves m USING (period, old_cusip, new_cusip)
+    GROUP BY ALL
+)
+SELECT DISTINCT ON (s.period, s.old_cusip)
+    s.period, s.old_cusip, s.new_cusip, s.moved, d.departed, a.arrived, s.exchange_ratio, s.same_ratio
+FROM scored s
+JOIN departed_count d ON d.period = s.period AND d.cusip = s.old_cusip
+JOIN arrived_count a ON a.period = s.period AND a.cusip = s.new_cusip
+WHERE s.moved >= 0.5 * d.departed AND s.moved >= 0.5 * a.arrived AND s.same_ratio >= {CHANGE_SAME_RATIO}
+ORDER BY s.period, s.old_cusip, (left(s.new_cusip, 6) = left(s.old_cusip, 6)) DESC, s.moved DESC
+"""
+
+
+def build_stock_keys(con: duckdb.DuckDBPyConnection) -> None:
+    """Follow each CUSIP through its changes to the stock's current CUSIP."""
+    successor: dict[str, tuple[str, float]] = {}
+    for old, new, ratio in con.execute(
+        "SELECT old_cusip, new_cusip, exchange_ratio FROM cusip_changes ORDER BY period, old_cusip"
+    ).fetchall():
+        successor.setdefault(old, (new, ratio))
+    chained = []
+    for cusip in successor:
+        stock, ratio, seen = cusip, 1.0, {cusip}
+        while stock in successor:
+            nxt, step = successor[stock]
+            if nxt in seen:
+                break
+            seen.add(nxt)
+            stock, ratio = nxt, ratio * step
+        chained.append((cusip, stock, ratio))
+    con.execute("CREATE OR REPLACE TEMP TABLE chained (cusip VARCHAR, stock VARCHAR, ratio DOUBLE)")
+    if chained:
+        quote = lambda text: "'" + text.replace("'", "''") + "'"
+        values = ", ".join(f"({quote(c)}, {quote(k)}, {float(r)!r})" for c, k, r in chained)
+        con.execute(f"INSERT INTO chained VALUES {values}")
+    con.execute(
+        """
+        CREATE OR REPLACE TABLE stock_keys AS
+        SELECT h.cusip, coalesce(c.stock, h.cusip) AS stock, coalesce(c.ratio, 1.0) AS ratio
+        FROM (SELECT DISTINCT cusip FROM cusip_holders) h
+        LEFT JOIN chained c USING (cusip)
+        """
+    )
+
+
+# Stocks reported under more than one CUSIP. Every other CUSIP is its own stock
+# and passes straight through, which keeps the per-stock steps fast.
+LINKED = "(SELECT cusip FROM stock_keys WHERE stock IN (SELECT stock FROM stock_keys WHERE cusip <> stock))"
+
+_HOLDER_COLUMNS = """
+    count(DISTINCT cik)                                         AS funds_holding,
+    sum(shares)::BIGINT                                         AS shares_filed,
+    sum(value)::BIGINT                                          AS value_filed,
+    sum(shares) FILTER (WHERE NOT price_flag)::BIGINT           AS shares,
+    sum(value_checked) FILTER (WHERE NOT price_flag)::BIGINT    AS value,
+    count(*) FILTER (WHERE price_flag)                          AS flagged_rows,
+    count(*) FILTER (WHERE value_in_thousands)                  AS thousands_rows,
+    coalesce(sum(shares) FILTER (WHERE price_flag), 0)::BIGINT  AS flagged_shares,
+"""
+
+# Per stock: every CUSIP it was reported under, with shares in today's terms.
+SQL_HOLDERS = f"""
+CREATE OR REPLACE TABLE holders AS
+SELECT cusip, period, {_HOLDER_COLUMNS}
+    any_value(median_price) AS median_price,
+    1::BIGINT AS cusips
+FROM positions
+WHERE shares > 0 AND cusip NOT IN {LINKED}
+GROUP BY ALL
+UNION ALL
+SELECT cusip, period, {_HOLDER_COLUMNS}
+    median(implied_price) AS median_price,
+    count(DISTINCT reported_cusip) AS cusips
+FROM (
+    SELECT k.stock AS cusip, p.cusip AS reported_cusip, p.period, p.cik,
+           p.shares * k.ratio AS shares, p.value, p.value_checked,
+           p.price_flag, p.value_in_thousands, p.implied_price / k.ratio AS implied_price
+    FROM positions p
+    JOIN stock_keys k ON k.cusip = p.cusip
+    WHERE p.shares > 0 AND p.cusip IN {LINKED}
+)
+GROUP BY ALL
 """
 
 SQL_FILERS_TOTAL = """
@@ -261,30 +397,42 @@ GROUP BY p.period
 
 # Per manager, between a period and the one before it. A manager that held
 # shares last period and has not filed for this one is "not yet filed", never "sold out".
-SQL_CHANGES = """
+SQL_CHANGES = f"""
 CREATE OR REPLACE TABLE changes AS
 WITH cur AS (
-    SELECT cik, period, cusip, shares FROM positions WHERE shares > 0
+    SELECT cusip, period, cik, shares::DOUBLE AS shares, false AS converted
+    FROM positions
+    WHERE shares > 0 AND cusip NOT IN {LINKED}
+    UNION ALL
+    SELECT k.stock AS cusip, p.period, p.cik, sum(p.shares * k.ratio) AS shares,
+           bool_or(k.cusip <> k.stock) AS converted
+    FROM positions p
+    JOIN stock_keys k ON k.cusip = p.cusip
+    WHERE p.shares > 0 AND p.cusip IN {LINKED}
+    GROUP BY ALL
 ),
 now AS (
     SELECT c.cik, c.cusip, c.shares, p.period FROM cur c JOIN periods p ON c.period = p.period
     WHERE p.prev_period IS NOT NULL
 ),
 before AS (
-    SELECT c.cik, c.cusip, c.shares, p.period FROM cur c JOIN periods p ON c.period = p.prev_period
+    SELECT c.cik, c.cusip, c.shares, c.converted, p.period FROM cur c JOIN periods p ON c.period = p.prev_period
 ),
 pairs AS (
     SELECT coalesce(n.period, b.period) AS period, coalesce(n.cusip, b.cusip) AS cusip,
-           coalesce(n.cik, b.cik) AS cik, b.shares AS prev_shares, n.shares AS shares
+           coalesce(n.cik, b.cik) AS cik, b.shares AS prev_shares, n.shares AS shares,
+           -- Shares converted from an old CUSIP rarely match to the share: within 1% is held.
+           CASE WHEN b.converted THEN abs(n.shares - b.shares) <= 0.01 * b.shares
+                ELSE n.shares = b.shares END AS same
     FROM now n FULL OUTER JOIN before b ON n.period = b.period AND n.cik = b.cik AND n.cusip = b.cusip
 ),
 filed AS (SELECT cik, period FROM filings WHERE lines > 0)
 SELECT
     pairs.cusip, pairs.period,
     count(*) FILTER (WHERE prev_shares IS NULL AND shares IS NOT NULL)           AS opened,
-    count(*) FILTER (WHERE prev_shares IS NOT NULL AND shares > prev_shares)     AS added,
-    count(*) FILTER (WHERE prev_shares IS NOT NULL AND shares = prev_shares)     AS held,
-    count(*) FILTER (WHERE prev_shares IS NOT NULL AND shares < prev_shares)     AS trimmed,
+    count(*) FILTER (WHERE prev_shares IS NOT NULL AND NOT same AND shares > prev_shares) AS added,
+    count(*) FILTER (WHERE prev_shares IS NOT NULL AND same)                     AS held,
+    count(*) FILTER (WHERE prev_shares IS NOT NULL AND NOT same AND shares < prev_shares) AS trimmed,
     count(*) FILTER (WHERE prev_shares IS NOT NULL AND shares IS NULL AND filed.cik IS NOT NULL) AS sold_out,
     count(*) FILTER (WHERE prev_shares IS NOT NULL AND shares IS NULL AND filed.cik IS NULL)     AS not_yet_filed
 FROM pairs
@@ -366,7 +514,7 @@ FROM islands
 SQL_SECURITIES = """
 CREATE OR REPLACE TABLE securities AS
 WITH latest AS (
-    SELECT cusip, max(period) AS period FROM holders GROUP BY cusip
+    SELECT cusip, max(period) AS period FROM cusip_holders GROUP BY cusip
 ),
 names AS (
     SELECT upper(trim(i.CUSIP)) AS cusip, fp.period, i.NAMEOFISSUER AS name, i.TITLEOFCLASS AS class,
@@ -396,9 +544,10 @@ mixed AS (
 classes AS (
     SELECT cusip, mode(trim(class)) AS title_of_class, mode(figi) AS figi FROM recent GROUP BY cusip
 )
-SELECT t.cusip, t.name_filed, m.name_mixed, c.title_of_class, c.figi, l.period AS latest_period
+SELECT t.cusip, k.stock, t.name_filed, m.name_mixed, c.title_of_class, c.figi, l.period AS latest_period
 FROM top t
 JOIN latest l USING (cusip)
+JOIN stock_keys k USING (cusip)
 LEFT JOIN mixed m USING (cusip)
 LEFT JOIN classes c USING (cusip)
 """
@@ -411,6 +560,9 @@ STEPS = [
     ("managers", SQL_MANAGERS),
     ("positions", SQL_POSITIONS),
     ("price_check", SQL_PRICE_CHECK),
+    ("cusip_holders", SQL_CUSIP_HOLDERS),
+    ("cusip_changes", SQL_CUSIP_CHANGES),
+    ("stock_keys", build_stock_keys),
     ("holders", SQL_HOLDERS),
     ("filers_total", SQL_FILERS_TOTAL),
     ("changes", SQL_CHANGES),

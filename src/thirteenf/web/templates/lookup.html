@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Look up a stock · ThirteenF{% endblock %}
+{% block main %}
+{% with crumb = "Look up a stock" %}{% include "_lookup_form.html" %}{% endwith %}
+<section class="app-section">
+{% if query %}
+<div class="app-section__head"><h2 class="type-title">{% if results %}Stocks matching “{{ query }}”{% else %}No stock matches “{{ query }}”{% endif %}</h2>{% if results %}<span class="type-caption app-caption-muted">Most widely held first</span>{% endif %}</div>
+{% if not results %}<p class="app-small">Try part of the company name as filers write it, such as “Shopify”, or its nine-character CUSIP.</p>{% endif %}
+{% else %}
+<div class="app-section__head"><h2 class="type-title">Examples</h2><span class="type-caption app-caption-muted">From the example watchlist</span></div>
+{% endif %}
+{% if results %}
+<div class="tf-tablewrap"><table class="tf-table">
+<thead><tr><th scope="col">Stock</th><th scope="col">Class</th><th scope="col">CUSIP</th><th scope="col" class="tf-r">Funds holding, {{ fmt.day(latest_period.period) }}</th></tr></thead>
+<tbody>
+{% for r in results %}<tr><td><a href="/stock/{{ r.cusip }}">{{ r.name }}</a></td><td class="tf-muted">{{ r.title_of_class or "" }}</td><td><span class="type-id">{{ r.cusip }}</span></td><td class="tf-r">{{ fmt.count(r.funds) }}</td></tr>
+{% endfor %}
+</tbody>
+</table></div>
+{% endif %}
+</section>
+{% endblock %}

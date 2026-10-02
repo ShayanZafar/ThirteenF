@@ -37,7 +37,9 @@ Dates are text such as `30-JUN-2026`; parse them.
 - Shares: rows where `SSHPRNAMTTYPE` is `SH` and `PUTCALL` is empty. `PRN` rows are bond principal; options have `PUTCALL` set. Leave both out.
 - Value: the same rows' `VALUE`, in dollars.
 
-**Funds holding.** The number of distinct managers (CIKs) with shares above zero in the CUSIP for the period. 13f.info counts filings instead, and its numbers run 4 to 10% higher (see Reference numbers).
+**Stocks and CUSIP changes.** A stock is identified by its current CUSIP. When a company replaces its CUSIP (a reverse split, a new holding company, a move abroad), the same funds report the new CUSIP from one period to the next. Treat it as one stock, decided Oct 2, 2026: an old CUSIP held by at least 20 funds that loses at least half of them is replaced by a new CUSIP when at least half of the funds that left it opened the new one, at least half of the new CUSIP's new holders came from it, and at least 20% of those funds hold new shares within 5% of the median exchange ratio (in a real change every holding converts at the same ratio; coincidences, such as index funds dropping one stock and adding another, do not). The old CUSIP's history then counts toward the new one, with its shares converted at that ratio. Over the eight transitions this finds 425 changes, among them Honeywell (1 new share for 2 old, Q2 2026), DuPont, Carnival and BlackRock.
+
+**Funds holding.** The number of distinct managers (CIKs) with shares above zero in the stock (any of its CUSIPs) for the period. 13f.info counts filings instead, and its numbers run 4 to 10% higher (see Reference numbers).
 
 **All 13F filers.** The number of distinct managers with a holdings report for the period. This is the tide to compare against: every Dec 31 it jumps, because managers that grew past $100M during the year file for the first time. A stock that gains 8% more holders at year-end may only be keeping pace.
 

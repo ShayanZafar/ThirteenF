@@ -74,4 +74,12 @@ input::placeholder { color: var(--ink-muted); }
   .app-input--search { flex: 1 1 auto; width: auto; }
   .type-display { font-size: 34px; line-height: 40px; }
   .app-answer { font-size: 18px; line-height: 27px; }
+  .app-stamps .tf-stamp { max-width: 100%; height: auto; min-height: 22px; padding-top: 3px; padding-bottom: 3px; line-height: 16px; white-space: normal; }
 }
+
+/* Look up a stock */
+.app-lookup { display: flex; flex-direction: column; gap: var(--space-2); }
+.app-lookup__form { display: flex; flex-direction: column; gap: var(--space-2); margin: 0; }
+.app-row--nowrap { flex-wrap: nowrap; }
+.app-figure .app-chart { overflow: visible; }
+code { font-family: var(--font-mono); font-size: 0.9em; }

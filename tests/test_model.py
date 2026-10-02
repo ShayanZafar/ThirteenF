@@ -145,3 +145,33 @@ def test_changes_add_up(con):
 def test_price_check_lists_manager_names(con):
     missing = con.execute("SELECT count(*) FROM price_check WHERE manager_name IS NULL").fetchone()[0]
     assert missing == 0
+
+
+def test_a_cusip_change_folds_the_old_cusip_into_the_new(con):
+    """Honeywell moved its holders from 438516106 to 438516205 in Q2 2026,
+    one new share for every two old ones."""
+    stock, ratio = con.execute("SELECT stock, ratio FROM stock_keys WHERE cusip = '438516106'").fetchone()
+    assert stock == "438516205"
+    assert abs(ratio - 0.5) < 0.01
+    before = con.execute(
+        "SELECT funds_holding FROM holders WHERE cusip = '438516205' AND period = DATE '2026-03-31'"
+    ).fetchone()[0]
+    old_cusip_before = con.execute(
+        "SELECT funds FROM cusip_holders WHERE cusip = '438516106' AND period = DATE '2026-03-31'"
+    ).fetchone()[0]
+    assert before >= old_cusip_before
+    assert con.execute("SELECT count(*) FROM holders WHERE cusip = '438516106'").fetchone()[0] == 0
+
+
+def test_coincidences_are_not_cusip_changes(con):
+    """Funds that left these acquired companies opened other new CUSIPs in the
+    same quarter, but their shares do not convert at one ratio."""
+    for cusip in ["127097103", "48203R104", "68339B104", "83125X103"]:  # Coterra, Juniper, ON24, Sleep Number
+        assert con.execute("SELECT stock FROM stock_keys WHERE cusip = ?", [cusip]).fetchone()[0] == cusip
+
+
+def test_every_stock_is_its_own_key(con):
+    chained_twice = con.execute(
+        "SELECT count(*) FROM stock_keys k JOIN stock_keys s ON s.cusip = k.stock WHERE s.stock <> s.cusip"
+    ).fetchone()[0]
+    assert chained_twice == 0

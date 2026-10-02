@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block main %}
+{% with crumb = "Not found" %}{% include "_lookup_form.html" %}{% endwith %}
+<section class="app-section app-section--tight">
+<h1 class="type-headline app-title">No 13F filer has reported {{ what }}</h1>
+<p class="app-small">Look it up by name or by its nine-character CUSIP.</p>
+</section>
+{% endblock %}

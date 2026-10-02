@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}{{ sec.name }} · ThirteenF{% endblock %}
+{% block main %}
+{% with crumb = sec.name, query = sec.name %}{% include "_lookup_form.html" %}{% endwith %}
+
+<section class="app-section app-section--tight">
+<div class="app-eyebrow"><span class="type-caption app-caption-muted">CUSIP {{ sec.cusip }}{% if sec.title_of_class %} · {{ sec.title_of_class }}{% endif %} · 13F holdings by filing period</span></div>
+<h1 class="type-display app-title">{{ sec.name }}</h1>
+{% include "_stamps.html" %}
+{% if earlier %}<p class="app-small app-caption-muted">{% if came_from %}CUSIP {{ came_from }} is an earlier CUSIP of this stock. {% endif %}{% for e in earlier %}Funds moved from CUSIP {{ e.old_cusip }}{% if e.name != sec.name %} ({{ e.name }}){% endif %} to {{ e.new_cusip }} in {{ e.label }}, at {{ fmt.exchange(e.exchange_ratio) }}. {% endfor %}Counts here cover every CUSIP of the stock, with shares in today’s terms.</p>{% endif %}
+<p class="app-answer">{{ answer }}</p>
+{% if comparison %}<p class="app-answer-more">{{ comparison }}</p>{% endif %}
+</section>
+
+<div class="tf-kfrow">
+{% for f in figures %}
+<div class="tf-kf"><span class="tf-kf__label">{{ f.label }}</span><span class="tf-kf__value">{{ f.value }}{% if f.unit %}<span class="tf-kf__unit">{{ f.unit }}</span>{% endif %}</span><span class="tf-kf__delta{% if f.direction %} tf-kf__delta--{{ f.direction }}{% endif %}">{{ f.delta }}</span></div>
+{% endfor %}
+</div>
+
+<section class="app-section">
+<div class="app-section__head"><h2 class="type-title">Funds holding {{ sec.name }}, by filing period</h2><span class="type-caption app-caption-muted">Every Dec 31 adds newly large funds</span></div>
+<figure class="app-figure">{{ chart }}</figure>
+</section>
+
+<section class="app-section">
+<div class="app-section__head"><h2 class="type-title">Every filing period</h2><span class="type-caption app-caption-muted">Newest first</span></div>
+<div class="tf-tablewrap"><table class="tf-table">
+<thead><tr><th scope="col">Period</th><th scope="col">Positions as of</th><th scope="col" class="tf-r">Funds holding</th><th scope="col" class="tf-r">Change</th><th scope="col" class="tf-r">Change %</th><th scope="col" class="tf-r">Market median</th><th scope="col" class="tf-r">All filers</th><th scope="col" class="tf-r">Of all filers</th><th scope="col" class="tf-r">Shares held</th><th scope="col" class="tf-r">Change</th><th scope="col" class="tf-r">Value</th></tr></thead>
+<tbody>
+{% for r in rows %}
+<tr>
+<td class="app-strong">{{ r.label }}</td>
+<td>{{ fmt.day(r.period) }}</td>
+<td class="tf-r">{{ fmt.count(r.funds) }}</td>
+<td class="tf-r">{% if r.funds_change is none %}<span class="tf-muted">—</span>{% else %}{% if r.funds_change > 0 %}<span class="tf-dir tf-dir--in"></span>{% elif r.funds_change < 0 %}<span class="tf-dir tf-dir--out"></span>{% endif %}{{ fmt.signed_count(r.funds_change) }}{% endif %}</td>
+<td class="tf-r">{% if r.funds_pct is none %}<span class="tf-muted">—</span>{% else %}{{ fmt.pct(r.funds_pct) }}{% endif %}</td>
+<td class="tf-r tf-muted">{{ fmt.pct(r.market_median_pct) if r.funds_pct is not none else "—" }}</td>
+<td class="tf-r tf-muted">{{ fmt.pct(r.filers_pct) if r.funds_pct is not none else "—" }}</td>
+<td class="tf-r">{{ fmt.pct(r.share_of_filers, signed=False) }}</td>
+{% if r.shares_shown %}
+<td class="tf-r">{{ fmt.compact(r.shares) }}</td>
+<td class="tf-r">{% if r.shares_change is none %}<span class="tf-muted">—</span>{% else %}{% set t = fmt.signed_compact(r.shares_change, r.shares) %}{% if fmt.flow(t) %}<span class="tf-dir tf-dir--{{ fmt.flow(t) }}"></span>{% endif %}{{ t }}{% endif %}</td>
+{% elif r.held %}
+<td class="tf-r" colspan="2"><span class="tf-stamp tf-stamp--stale"><b>Check</b><i>·</i>Shares outran value</span></td>
+{% else %}
+<td class="tf-r"><span class="tf-muted">—</span></td><td class="tf-r"><span class="tf-muted">—</span></td>
+{% endif %}
+<td class="tf-r">{{ fmt.money(r.value) if r.held else "—" }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table></div>
+{% if over_time %}<p class="app-small">{{ over_time }}</p>{% endif %}
+</section>
+
+{% if left_out or outran %}
+<section class="app-section">
+<div class="app-section__head"><h2 class="type-title">Data check</h2><span class="type-caption app-caption-muted">Share totals, {{ latest.label }}</span></div>
+{% if outran %}<p class="app-small">Share totals for {{ outran | join(", ") }} moved 25 points or more beyond their value, after allowing for the change in price per share. That points to a filing error, so those totals are not shown.</p>{% endif %}
+{% if left_out %}
+<p class="app-small">{{ fmt.count(left_out_total) }} {{ "report was" if left_out_total == 1 else "reports were" }} left out of the {{ latest.label }} share total: the value per share they give is more than 3 times above or below the median of {{ fmt.price(latest.median_price) }} across all funds holding {{ sec.name }}.{% if left_out_total > left_out|length %} The {{ left_out|length }} largest are listed.{% endif %}</p>
+<div class="tf-tablewrap"><table class="tf-table app-table-narrow">
+<thead><tr><th scope="col">Manager</th><th scope="col" class="tf-r">Shares</th><th scope="col" class="tf-r">Value</th><th scope="col" class="tf-r">Value per share</th><th scope="col" class="tf-r">Against median</th></tr></thead>
+<tbody>
+{% for row in left_out %}<tr><td>{{ row.manager_name }}</td><td class="tf-r">{{ fmt.count(row.shares) }}</td><td class="tf-r">{{ fmt.money(row.value) }}</td><td class="tf-r">{{ fmt.price(row.implied_price) }}</td><td class="tf-r">{{ fmt.ratio(row.price_ratio) }}</td></tr>
+{% endfor %}
+</tbody>
+</table></div>
+{% endif %}
+</section>
+{% endif %}
+
+<section id="method" class="app-method">
+<h2 class="type-title">Method</h2>
+<p class="type-note">Funds holding counts the managers whose 13F-HR report for each quarter end lists shares of {{ sec.name }}, from the SEC’s Form 13F data sets. Each manager counts once: a restatement replaces its report, and a new-holdings amendment adds to it. Options and bond principal are left out.</p>
+<p class="type-note">Shares and value come from the same rows. A report whose value per share is more than 3 times above or below the median across all funds holding the stock is left out of the share total and listed under Data check. Reports from managers that still give value in thousands of dollars are kept, with their value scaled. Value moves with the share price, so a lower value does not by itself mean funds sold.</p>
+<p class="type-note">The market median is the middle change in funds holding across every stock held by at least 100 funds in both periods{% if latest_period.market_median_stocks %} ({{ fmt.count(latest_period.market_median_stocks) }} stocks in {{ latest_period.label }}){% endif %}. All 13F filers is the change in the number of managers filing holdings. Every Dec 31 both jump, because newly large managers file their first 13F, so compare a stock with them rather than with zero.</p>
+<p class="type-note">13F covers managers with $100M or more in US-listed securities, and long positions only. Filings made after {{ fmt.day(latest_period.data_through) }} arrive in the SEC’s next data set, so late filers can still add a few funds to the latest quarter.</p>
+</section>
+{% endblock %}

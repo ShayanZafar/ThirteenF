@@ -11,9 +11,9 @@
 {% endif %}
 {% if results %}
 <div class="tf-tablewrap"><table class="tf-table">
-<thead><tr><th scope="col">Stock</th><th scope="col">Class</th><th scope="col">CUSIP</th><th scope="col" class="tf-r">Funds holding, {{ fmt.day(latest_period.period) }}</th></tr></thead>
+<thead><tr><th scope="col">Stock</th><th scope="col">Class</th><th scope="col">CUSIP</th><th scope="col" class="tf-r">Funds holding, {{ fmt.day(latest_period.period) }}</th><th scope="col">Watchlist</th></tr></thead>
 <tbody>
-{% for r in results %}<tr><td><a href="/stock/{{ r.cusip }}">{{ r.name }}</a></td><td class="tf-muted">{{ r.title_of_class or "" }}</td><td><span class="type-id">{{ r.cusip }}</span></td><td class="tf-r">{{ fmt.count(r.funds) }}</td></tr>
+{% for r in results %}<tr><td><a href="/stock/{{ r.cusip }}">{{ r.name }}</a></td><td class="tf-muted">{{ r.title_of_class or "" }}</td><td><span class="type-id">{{ r.cusip }}</span></td><td class="tf-r">{{ fmt.count(r.funds) }}</td><td>{% if r.cusip in on_watchlist %}<span class="tf-muted">On your watchlist</span>{% else %}<form method="post" action="/watchlist/add" class="app-inline-form"><input type="hidden" name="cusip" value="{{ r.cusip }}"><input type="hidden" name="back" value="/stock?q={{ query|urlencode }}"><button type="submit" class="app-link-button">Add</button></form>{% endif %}</td></tr>
 {% endfor %}
 </tbody>
 </table></div>

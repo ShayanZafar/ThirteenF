@@ -274,3 +274,71 @@ def change_summary(summary: dict, period, added: list[dict]) -> str:
         top = added[0]
         text += f" {top['name']} gained the most against that tide: {pts(top['vs_tide_pts'])}."
     return text
+
+
+_ORDINALS = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth"]
+
+
+def ordinal(n: int) -> str:
+    return _ORDINALS[n - 1] if 1 <= n <= len(_ORDINALS) else f"{n}th"
+
+
+def join_names(names: list[str]) -> str:
+    if len(names) <= 2:
+        return " and ".join(names)
+    return ", ".join(names[:-1]) + f" and {names[-1]}"
+
+
+def watchlist_answer(rows: list, period) -> str:
+    """rows: objects with .name and .latest (a StockPeriod)."""
+    if not rows:
+        return "Your watchlist is empty. Add a stock below to follow it here."
+    n = len(rows)
+    compared = [r for r in rows if r.latest.funds_change is not None]
+    more = [r for r in compared if r.latest.funds_change > 0]
+    fewer = [r for r in compared if r.latest.funds_change < 0]
+    now, before = day(period.period), short_day(period.prev_period)
+    if n > 1 and len(more) == n:
+        return f"More funds held every stock on your watchlist at {now} than at {before}."
+    if n > 1 and len(fewer) == n:
+        return f"Fewer funds held every stock on your watchlist at {now} than at {before}."
+    if n == 1:
+        r = rows[0]
+        if r.latest.funds_change is None:
+            return f"{count(r.latest.funds)} funds held {r.name} at {now}."
+        word = "More" if r.latest.funds_change > 0 else "Fewer" if r.latest.funds_change < 0 else "The same number of"
+        return f"{word} funds held {r.name} at {now} than at {before}."
+    text = f"More funds held {number_word(len(more))} of these {number_word(n)} stocks at {now} than at {before}."
+    if len(fewer) == 1:
+        r = fewer[0]
+        text += f" {r.name} was the one that lost funds"
+        text += f", for the {ordinal(r.latest.streak)} quarter running." if r.latest.streak >= 2 else "."
+    elif 1 < len(fewer) <= 3:
+        text += f" {join_names([r.name for r in fewer])} lost funds."
+    elif len(fewer) > 3:
+        text += f" {number_word(len(fewer)).capitalize()} lost funds."
+    return text
+
+
+def watchlist_figures(rows: list, period) -> list[Figure]:
+    quarter = f"Q{(period.period.month - 1) // 3 + 1}"
+    compared = [r for r in rows if r.latest.funds_change is not None]
+    more = sum(1 for r in compared if r.latest.funds_change > 0)
+    figures = [
+        Figure(label=f"Stocks that gained funds, {quarter}", value=str(more), unit=f" of {len(rows)}",
+               delta=Markup(escape(f"Against {short_day(period.prev_period)}"))),
+        Figure(label=f"Market median, {quarter}", value=pct(period.market_median_pct),
+               delta=Markup("Typical change in funds holding")),
+    ]
+    ranked = sorted((r for r in rows if r.latest.vs_median_pts is not None), key=lambda r: r.latest.vs_median_pts)
+    if len(ranked) >= 2:
+        best = "Furthest ahead of the median" if ranked[-1].latest.vs_median_pts > 0 else "Nearest the median"
+        for label, r in ((best, ranked[-1]), ("Furthest behind", ranked[0])):
+            d = "in" if r.latest.vs_median_pts > 0 else "out" if r.latest.vs_median_pts < 0 else ""
+            figures.append(
+                Figure(
+                    label=label, value=pts(r.latest.vs_median_pts)[:-4], unit=" pts", direction=d,
+                    delta=_dir(d) + Markup(f"<b>{escape(r.name)}</b>, {escape(pct(r.latest.funds_pct))}"),
+                )
+            )
+    return figures

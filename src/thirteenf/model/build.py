@@ -89,6 +89,9 @@ def build_periods(con: duckdb.DuckDBPyConnection) -> None:
     rows = []
     for seq, period in enumerate(P.periods_between(first, last), start=1):
         deadline = P.filing_deadline(period)
+        # Late filers keep arriving after the deadline: a period counts as complete
+        # once the data reaches the next period's deadline.
+        next_deadline = P.filing_deadline(P.next_quarter_end(period))
         rows.append(
             (
                 period,
@@ -96,7 +99,7 @@ def build_periods(con: duckdb.DuckDBPyConnection) -> None:
                 P.label(period),
                 P.previous_quarter_end(period) if seq > 1 else None,
                 deadline,
-                deadline <= last_end,
+                next_deadline <= last_end,
                 last_end,
             )
         )

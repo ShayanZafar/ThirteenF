@@ -3,17 +3,19 @@
 from __future__ import annotations
 
 import csv
+from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
+from urllib.parse import quote
 
-from fastapi import FastAPI, Query, Request
+from fastapi import FastAPI, Form, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
 
 from thirteenf.config import DESIGN_SYSTEM_DIR, WATCHLIST_CSV
-from thirteenf.web import charts, data, format as fmt, story
+from thirteenf.web import charts, data, format as fmt, story, watchlist
 
 HERE = Path(__file__).resolve().parent
 
@@ -64,11 +66,6 @@ def example_cusips() -> list[str]:
         return [row["cusip"].strip().upper() for row in csv.DictReader(f)]
 
 
-@app.get("/", response_class=HTMLResponse)
-def home(request: Request):
-    return RedirectResponse("/stock", status_code=307)
-
-
 @app.get("/search")
 def search_redirect(q: str = ""):
     return RedirectResponse(f"/stock?q={q}" if q else "/stock", status_code=303)
@@ -89,7 +86,10 @@ def lookup(request: Request, q: str = ""):
             for cusip in example_cusips():
                 results += data.search(con, cusip, limit=1)
             results.sort(key=lambda r: -r["funds"])
-    return render(request, "lookup.html", nav="lookup", query=query, results=results, **freshness(periods[-1]))
+    return render(
+        request, "lookup.html", nav="lookup", query=query, results=results,
+        on_watchlist=watchlist.cusips(), **freshness(periods[-1]),
+    )
 
 
 @app.get("/stock/{cusip}", response_class=HTMLResponse)
@@ -127,6 +127,7 @@ def stock_page(request: Request, cusip: str, came_from: str = Query("", alias="f
         left_out_total=left_out_total,
         outran=[r.label for r in series if r.held and r.share_check == "outran"],
         earlier=earlier,
+        on_watchlist=sec.cusip in watchlist.cusips(),
         came_from=came_from.upper() if any(e["old_cusip"] == came_from.upper() for e in earlier) else "",
         **freshness(periods[-1]),
     )
@@ -171,3 +172,104 @@ def changes_page(
         quarter=f"Q{(selected.period.month - 1) // 3 + 1}",
         **freshness(selected),
     )
+
+
+@dataclass
+class WatchRow:
+    cusip: str
+    ticker: str
+    name: str
+    latest: data.StockPeriod
+    spark: Markup
+    since: str  # the first period shown, when the stock's history is shorter than the data's
+    long_change: float | None
+    left_out_total: int
+    left_out_top: dict | None
+
+
+def _back(url: str) -> str:
+    """Only send people back to a page of this app."""
+    return url if url.startswith("/") and not url.startswith("//") else "/"
+
+
+@app.get("/", response_class=HTMLResponse)
+def overview(request: Request):
+    entries = watchlist.load()
+    with data.connection() as con:
+        periods = data.periods(con)
+        latest_period = periods[-1]
+        rows: list[WatchRow] = []
+        missing: list[watchlist.Entry] = []
+        seen: set[str] = set()
+        for entry in entries:
+            sec = data.security(con, entry.cusip)
+            if sec is not None and sec.stock != sec.cusip:
+                sec = data.security(con, sec.stock)  # a replaced CUSIP: follow it to the stock
+            if sec is None:
+                missing.append(entry)
+                continue
+            if sec.cusip in seen:
+                continue
+            seen.add(sec.cusip)
+            series = data.stock_series(con, sec.cusip, periods)
+            if not series:
+                missing.append(entry)
+                continue
+            latest, first = series[-1], series[0]
+            top, total = data.left_out_rows(con, sec.cusip, latest.period, limit=1) if latest.held else ([], 0)
+            funds_by_period = {r.period: r.funds for r in series}
+            rows.append(
+                WatchRow(
+                    cusip=sec.cusip,
+                    ticker=entry.ticker,
+                    name=entry.name or sec.name,
+                    latest=latest,
+                    spark=Markup(charts.sparkline([funds_by_period.get(p.period) for p in periods])),
+                    since="" if first.period == periods[0].period else first.label,
+                    long_change=(latest.funds / first.funds - 1) if first is not latest and first.funds else None,
+                    left_out_total=total,
+                    left_out_top=top[0] if top else None,
+                )
+            )
+    rows.sort(key=lambda r: (r.latest.vs_median_pts is None, -(r.latest.vs_median_pts or 0)))
+    return render(
+        request,
+        "overview.html",
+        nav="overview",
+        rows=rows,
+        missing=missing,
+        periods=periods,
+        answer=story.watchlist_answer(rows, latest_period),
+        figures=story.watchlist_figures(rows, latest_period),
+        failed=[r for r in rows if r.latest.held and r.latest.share_check == "outran"],
+        left_out_sum=sum(r.left_out_total for r in rows),
+        biggest_left_out=max(
+            ((r, r.left_out_top) for r in rows if r.left_out_top), key=lambda x: x[1]["shares"], default=None
+        ),
+        **freshness(latest_period),
+    )
+
+
+@app.post("/watchlist/add")
+def watchlist_add(q: str = Form(""), cusip: str = Form(""), back: str = Form("/")):
+    with data.connection() as con:
+        if cusip.strip():
+            sec = data.security(con, cusip.strip())
+            if sec is None:
+                return RedirectResponse(f"/stock?q={quote(cusip.strip())}", status_code=303)
+            target = sec.stock
+        else:
+            results = data.search(con, q)
+            exact = [r for r in results if r["cusip"] == q.strip().upper()]
+            if not (exact or len(results) == 1):
+                # Several matches, or none: pick from the search results.
+                return RedirectResponse(f"/stock?q={quote(q.strip())}", status_code=303)
+            target = (exact or results)[0]["cusip"]
+    watchlist.add(target)
+    return RedirectResponse(_back(back), status_code=303)
+
+
+@app.post("/watchlist/remove")
+def watchlist_remove(cusip: str = Form(...), back: str = Form("/")):
+    watchlist.remove(cusip)
+    return RedirectResponse(_back(back), status_code=303)

@@ -1,5 +1,5 @@
 <div class="app-stamps">
 {% if latest_period.complete %}<span class="tf-stamp"><b>13F</b><i>·</i>As of {{ fmt.day(latest_period.period) }}<i>·</i>{{ age_days }}d</span>
-{% else %}<span class="tf-stamp tf-stamp--arriving"><b>13F</b><i>·</i>As of {{ fmt.day(latest_period.period) }}<i>·</i>Arriving: {{ fmt.count(latest_period.filers) }} filed so far</span>
+{% else %}<span class="tf-stamp tf-stamp--arriving"><b>13F</b><i>·</i>As of {{ fmt.day(latest_period.period) }}<i>·</i>{{ age_days }}d<i>·</i>Still arriving: {{ fmt.count(latest_period.filers) }} managers so far</span>
 {% endif %}<span class="tf-stamp"><b>Source</b><i>·</i>SEC Form 13F data sets, filed through {{ fmt.day(latest_period.data_through) }}</span>
 </div>

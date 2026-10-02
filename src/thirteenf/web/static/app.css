@@ -100,3 +100,7 @@ code { font-family: var(--font-mono); font-size: 0.9em; }
 .app-bar__fill { background: var(--flow-in); border-radius: 0 2px 2px 0; }
 .app-bar__fill--out { background: var(--flow-out); border-radius: 2px 0 0 2px; }
 .tf-table td.app-td-wrap { white-space: normal; min-width: 14rem; }
+
+/* Overview */
+.app-spark-cell { padding: var(--space-1) 0; }
+.app-measure { max-width: 900px; }

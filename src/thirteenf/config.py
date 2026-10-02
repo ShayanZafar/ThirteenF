@@ -8,7 +8,8 @@ DATA_DIR = Path(os.environ.get("THIRTEENF_DATA", ROOT / "data"))
 RAW_DIR = DATA_DIR / "raw"
 DB_PATH = DATA_DIR / "thirteenf.duckdb"
 DESIGN_SYSTEM_DIR = ROOT / "design-system"
-WATCHLIST_CSV = ROOT / "config" / "watchlist.csv"
+WATCHLIST_CSV = ROOT / "config" / "watchlist.csv"  # the example the watchlist starts from
+WATCHLIST_PATH = Path(os.environ.get("THIRTEENF_WATCHLIST", DATA_DIR / "watchlist.csv"))  # yours
 REFERENCE_CSV = ROOT / "docs" / "reference" / "13finfo-holdings.csv"
 
 

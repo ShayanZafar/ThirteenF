@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Your watchlist, {{ latest_period.label }} · ThirteenF{% endblock %}
+{% block main %}
+<section class="app-section app-section--tight">
+<div class="app-eyebrow"><span class="type-caption app-caption-muted">Overview · Your watchlist · 13F filings for {{ latest_period.label }}</span></div>
+<h1 class="type-display app-title">Your watchlist, {{ latest_period.label }}</h1>
+{% include "_stamps.html" %}
+<p class="app-answer">{{ answer }}</p>
+</section>
+
+{% if rows %}
+<div class="tf-kfrow">
+{% for f in figures %}
+<div class="tf-kf"><span class="tf-kf__label">{{ f.label }}</span><span class="tf-kf__value">{{ f.value }}{% if f.unit %}<span class="tf-kf__unit">{{ f.unit }}</span>{% endif %}</span><span class="tf-kf__delta{% if f.direction %} tf-kf__delta--{{ f.direction }}{% endif %}">{{ f.delta }}</span></div>
+{% endfor %}
+</div>
+{% endif %}
+
+<section class="app-section">
+<div class="app-section__head"><h2 class="type-title">Funds holding each stock</h2><span class="type-caption app-caption-muted">{{ fmt.day(latest_period.period) }} against {{ fmt.short_day(latest_period.prev_period) }}</span></div>
+{% if rows %}
+<div class="tf-tablewrap"><table class="tf-table">
+<thead><tr><th scope="col">Stock</th><th scope="col" class="tf-r">Funds holding</th><th scope="col" class="tf-r">Change</th><th scope="col" class="tf-r">Vs market median</th><th scope="col">{{ periods[0].label }} to {{ latest_period.label }}</th><th scope="col">Streak</th><th scope="col" class="tf-r">{% if periods|length == 9 %}2 years{% else %}Since {{ periods[0].label }}{% endif %}</th><th scope="col"><span class="sr-only">Remove</span></th></tr></thead>
+<tbody>
+{% for r in rows %}
+{% set l = r.latest %}
+<tr>
+<td class="app-td-wrap">{% if r.ticker %}<span class="tf-ticker">{{ r.ticker }}</span> {% endif %}<a href="/stock/{{ r.cusip }}">{{ r.name }}</a></td>
+<td class="tf-r">{{ fmt.count(l.funds) }}</td>
+<td class="tf-r">{% if l.funds_change is none %}<span class="tf-muted">—</span>{% else %}{% if l.funds_change > 0 %}<span class="tf-dir tf-dir--in"></span>{% elif l.funds_change < 0 %}<span class="tf-dir tf-dir--out"></span>{% endif %}{{ fmt.signed_count(l.funds_change) }}{% if l.funds_pct is not none %} <span class="tf-muted">({{ fmt.pct(l.funds_pct) }})</span>{% endif %}{% endif %}</td>
+<td class="tf-r">{% if l.vs_median_pts is none %}<span class="tf-muted">—</span>{% else %}{% set t = fmt.pts(l.vs_median_pts) %}{% if fmt.flow(t) %}<span class="tf-dir tf-dir--{{ fmt.flow(t) }}"></span>{% endif %}{{ t }}{% endif %}</td>
+<td><div class="app-spark-cell">{{ r.spark }}</div></td>
+<td>{% if l.direction and l.direction > 0 %}<span class="tf-dir tf-dir--in"></span>Up {{ l.streak }}{% elif l.direction and l.direction < 0 %}<span class="tf-dir tf-dir--out"></span>Down {{ l.streak }}{% else %}<span class="tf-muted">Same</span>{% endif %}</td>
+<td class="tf-r">{% if r.long_change is none %}<span class="tf-muted">—</span>{% else %}{{ fmt.pct(r.long_change, 0) }}{% if r.since %} <span class="tf-muted">since {{ r.since }}</span>{% endif %}{% endif %}</td>
+<td><form method="post" action="/watchlist/remove" class="app-inline-form"><input type="hidden" name="cusip" value="{{ r.cusip }}"><input type="hidden" name="back" value="/"><button type="submit" class="app-link-button" aria-label="Remove {{ r.name }} from your watchlist">Remove</button></form></td>
+</tr>
+{% endfor %}
+</tbody>
+</table></div>
+{% endif %}
+{% if missing %}<div class="app-small app-caption-muted">Not in the 13F data:{% for e in missing %} {{ e.ticker or e.cusip }} <form method="post" action="/watchlist/remove" class="app-inline-form"><input type="hidden" name="cusip" value="{{ e.cusip }}"><input type="hidden" name="back" value="/"><button type="submit" class="app-link-button" aria-label="Remove {{ e.ticker or e.cusip }} from your watchlist">Remove</button></form>{% if not loop.last %};{% endif %}{% endfor %}</div>{% endif %}
+<form method="post" action="/watchlist/add" class="app-form-row app-add">
+<div class="app-field"><label for="add" class="type-caption app-caption-muted">Add a stock</label><input id="add" name="q" type="search" class="app-input app-input--search" placeholder="Company name or CUSIP" autocomplete="off" required></div>
+<input type="hidden" name="back" value="/">
+<button type="submit" class="app-button">Add</button>
+</form>
+<p class="app-small">Every Dec 31 the count jumps for most stocks, because funds that grew past $100M file their first 13F then. So judge a stock against the market median for the same period, not against zero. <a href="/changes">See the biggest changes across all stocks</a>.</p>
+</section>
+
+{% if rows %}
+<section class="app-section">
+<div class="app-section__head"><h2 class="type-title">Data check, {{ latest_period.label }}</h2><span class="type-caption app-caption-muted">Share totals, {{ fmt.short_day(latest_period.prev_period) }} → {{ fmt.short_day(latest_period.period) }}</span></div>
+<p class="app-small app-measure">Each share total leaves out reports whose value per share is more than 3 times above or below the median across all funds holding the stock, and is shown only when shares move in line with value once the price per share is allowed for.
+{% if left_out_sum %} For {{ latest_period.label }} the check left out {{ fmt.count(left_out_sum) }} {{ "report" if left_out_sum == 1 else "reports" }} across these stocks{% if biggest_left_out %}; the largest was {{ fmt.compact(biggest_left_out[1].shares) }} shares of {{ biggest_left_out[0].name }} reported by {{ biggest_left_out[1].manager_name }}, at {{ fmt.ratio(biggest_left_out[1].price_ratio) }}{% endif %}.{% endif %}
+{% if failed %} {{ failed|length }} {{ "total failed" if failed|length == 1 else "totals failed" }} and {{ "is" if failed|length == 1 else "are" }} not shown.{% else %} Every share total on your watchlist passed.{% endif %}</p>
+<div class="tf-tablewrap"><table class="tf-table app-table-narrow">
+<thead><tr><th scope="col">Stock</th><th scope="col" class="tf-r">Shares held, {{ fmt.short_day(latest_period.prev_period) }} → {{ fmt.short_day(latest_period.period) }}</th><th scope="col" class="tf-r">Shares</th><th scope="col" class="tf-r">Value</th><th scope="col">Check</th></tr></thead>
+<tbody>
+{% for r in rows %}
+{% set l = r.latest %}
+<tr>
+<td>{% if r.ticker %}<span class="tf-ticker">{{ r.ticker }}</span>{% else %}{{ r.name }}{% endif %}</td>
+{% if l.held and l.share_check == "outran" %}
+<td class="tf-r"><span class="tf-muted">—</span></td><td class="tf-r"><span class="tf-muted">—</span></td>
+<td class="tf-r">{{ fmt.pct(l.value_pct, 0) }}</td>
+<td><span class="tf-stamp tf-stamp--stale"><b>Check</b><i>·</i>Shares outran value by {{ "%.0f"|format(l.shares_vs_value_pts|abs) }} pts</span></td>
+{% elif l.shares_change_shown %}
+<td class="tf-r">{{ fmt.compact(l.shares_prev) }} → {{ fmt.compact(l.shares) }}</td>
+<td class="tf-r">{{ fmt.pct(l.shares_pct, 0) }}</td>
+<td class="tf-r">{{ fmt.pct(l.value_pct, 0) }}</td>
+<td><span class="tf-stamp"><b>OK</b><i>·</i>{% if r.left_out_total %}{{ fmt.count(r.left_out_total) }} {{ "report" if r.left_out_total == 1 else "reports" }} left out{% else %}In line{% endif %}</span></td>
+{% else %}
+<td class="tf-r"><span class="tf-muted">—</span></td><td class="tf-r"><span class="tf-muted">—</span></td><td class="tf-r"><span class="tf-muted">—</span></td>
+<td><span class="tf-muted">No earlier period to compare</span></td>
+{% endif %}
+</tr>
+{% endfor %}
+</tbody>
+</table></div>
+</section>
+{% endif %}
+
+<section id="method" class="app-method">
+<h2 class="type-title">Method</h2>
+<p class="type-note">Funds holding counts the managers whose 13F-HR report for each quarter end lists shares of the stock, from the SEC’s Form 13F data sets. Each manager counts once, with amendments applied; options and bond principal are left out.</p>
+<p class="type-note">The market median is the middle change in funds holding across every stock held by at least 100 funds in both periods{% if latest_period.market_median_stocks %} ({{ fmt.count(latest_period.market_median_stocks) }} stocks in {{ latest_period.label }}){% endif %}. Every Dec 31 most stocks gain funds as newly large managers file their first 13F, so compare with the median rather than with zero.</p>
+<p class="type-note">Your watchlist is kept on this computer in data/watchlist.csv. It started from the example list in config/watchlist.csv.</p>
+<p class="type-note">13F covers managers with $100M or more in US-listed securities, and long positions only. Filings made after {{ fmt.day(latest_period.data_through) }} arrive in the SEC’s next data set, so late filers can still add a few funds to the latest quarter.</p>
+</section>
+{% endblock %}

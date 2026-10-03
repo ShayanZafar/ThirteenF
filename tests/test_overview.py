@@ -120,7 +120,10 @@ def test_a_failing_share_total_is_flagged_not_shown(client, con):
     client.post("/watchlist/add", data={"cusip": "G9600F104"})
     html = client.get("/").text
     check = html.split("Data check,", 1)[1].split("</table>", 1)[0]
-    row = [r for r in re.findall(r"<tr>(.*?)</tr>", check, re.S) if "Versigent" in r][0]
+    # The row shows the ticker when OpenFIGI has one, else the name.
+    ticker = con.execute("SELECT ticker FROM stocks WHERE cusip = 'G9600F104'").fetchone()[0]
+    label = f'<span class="tf-ticker">{ticker.replace("/", ".")}</span>' if ticker else "Versigent"
+    row = [r for r in re.findall(r"<tr>(.*?)</tr>", check, re.S) if label in r][0]
     assert "Shares outran value" in row
     assert "→" not in _text(row)  # the failing total itself is not shown
     assert "1 total failed and is not shown" in _text(html)

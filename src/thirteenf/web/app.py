@@ -9,7 +9,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from fastapi import FastAPI, Form, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
@@ -57,6 +57,13 @@ def no_data(request: Request, exc: data.NoData):
     return render(request, "nodata.html", status_code=503)
 
 
+@app.exception_handler(data.Busy)
+def busy(request: Request, exc: data.Busy):
+    response = render(request, "busy.html", status_code=503)
+    response.headers["Retry-After"] = "30"
+    return response
+
+
 def freshness(latest_period: data.Period) -> dict:
     return {"latest_period": latest_period, "age_days": (date.today() - latest_period.period).days}
 
@@ -78,9 +85,9 @@ def lookup(request: Request, q: str = ""):
         periods = data.periods(con)
         if query:
             results = data.search(con, query)
-            exact = [r for r in results if r["cusip"] == query.upper()]
-            if exact or len(results) == 1:
-                return RedirectResponse(f"/stock/{(exact or results)[0]['cusip']}", status_code=303)
+            target = data.best_match(results, query)
+            if target:
+                return RedirectResponse(f"/stock/{target['cusip']}", status_code=303)
         else:
             results = []
             for cusip in example_cusips():
@@ -90,6 +97,28 @@ def lookup(request: Request, q: str = ""):
         request, "lookup.html", nav="lookup", query=query, results=results,
         on_watchlist=watchlist.cusips(), **freshness(periods[-1]),
     )
+
+
+@app.get("/api/suggest")
+def suggest(q: str = ""):
+    """Up to eight stocks for the search box, as you type."""
+    if len(q.strip()) < 1:
+        return JSONResponse([])
+    with data.connection() as con:
+        results = data.search(con, q, limit=20)
+    if any(r["funds"] for r in results):
+        results = [r for r in results if r["funds"]]  # nobody holds the rest now: old bonds, options
+    results = results[:8]
+    names = [r["name"] for r in results]
+    suggestions = []
+    for r in results:
+        funds = f"{fmt.count(r['funds'])} {'fund' if r['funds'] == 1 else 'funds'}"
+        # Where two suggestions share a name, the class tells them apart.
+        meta = f"{r['title_of_class']} · {funds}" if names.count(r["name"]) > 1 and r["title_of_class"] else funds
+        suggestions.append(
+            {"cusip": r["cusip"], "ticker": r["ticker"], "name": r["name"], "funds": r["funds"], "funds_text": meta}
+        )
+    return JSONResponse(suggestions)
 
 
 @app.get("/stock/{cusip}", response_class=HTMLResponse)
@@ -221,7 +250,7 @@ def overview(request: Request):
             rows.append(
                 WatchRow(
                     cusip=sec.cusip,
-                    ticker=entry.ticker,
+                    ticker=entry.ticker or sec.ticker,
                     name=entry.name or sec.name,
                     latest=latest,
                     spark=Markup(charts.sparkline([funds_by_period.get(p.period) for p in periods])),
@@ -260,11 +289,11 @@ def watchlist_add(q: str = Form(""), cusip: str = Form(""), back: str = Form("/"
             target = sec.stock
         else:
             results = data.search(con, q)
-            exact = [r for r in results if r["cusip"] == q.strip().upper()]
-            if not (exact or len(results) == 1):
+            match = data.best_match(results, q)
+            if match is None:
                 # Several matches, or none: pick from the search results.
                 return RedirectResponse(f"/stock?q={quote(q.strip())}", status_code=303)
-            target = (exact or results)[0]["cusip"]
+            target = match["cusip"]
     watchlist.add(target)
     return RedirectResponse(_back(back), status_code=303)
 

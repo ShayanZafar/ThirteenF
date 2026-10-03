@@ -10,7 +10,8 @@ from datetime import date
 import duckdb
 
 from thirteenf.config import DB_PATH
-from thirteenf.web.format import display_name
+from thirteenf.db import Busy, connect  # noqa: F401  (Busy is raised from here)
+from thirteenf.web.format import display_name, ticker as ticker_text
 
 
 class NoData(RuntimeError):
@@ -19,12 +20,12 @@ class NoData(RuntimeError):
 
 @contextmanager
 def connection():
-    """One read-only connection per request, so ingest can write between requests."""
+    """One read-only connection per request, so ingest can write between requests.
+    Raises Busy when a writer holds the database for more than a moment."""
     if not DB_PATH.exists():
         raise NoData()
-    con = duckdb.connect(str(DB_PATH), read_only=True)
+    con = connect(read_only=True, wait_seconds=3)
     try:
-        con.execute("SET enable_progress_bar = false")
         tables = {r[0] for r in con.execute("SELECT table_name FROM information_schema.tables").fetchall()}
         if "stock_periods" not in tables:
             raise NoData()
@@ -80,6 +81,8 @@ class Security:
     title_of_class: str | None
     figi: str | None
     latest_period: date
+    ticker: str = ""  # from OpenFIGI, as people write it (BRK.B)
+    kind: str | None = None  # OpenFIGI's security type: Common Stock, ETP, ADR, ...
 
 
 def security(con, cusip: str) -> Security | None:
@@ -91,7 +94,8 @@ def security(con, cusip: str) -> Security | None:
                coalesce(st.name_filed, s.name_filed) AS name_filed,
                coalesce(st.name_mixed, s.name_mixed) AS name_mixed,
                coalesce(st.title_of_class, s.title_of_class) AS title_of_class,
-               coalesce(st.figi, s.figi) AS figi
+               coalesce(st.figi, s.figi) AS figi,
+               st.ticker, st.security_type
         FROM securities s
         LEFT JOIN stocks st ON st.cusip = s.stock
         WHERE s.cusip = ?
@@ -109,6 +113,8 @@ def security(con, cusip: str) -> Security | None:
         title_of_class=r["title_of_class"],
         figi=r["figi"],
         latest_period=r["latest_period"],
+        ticker=ticker_text(r["ticker"]),
+        kind=r["security_type"],
     )
 
 
@@ -279,46 +285,108 @@ def left_out_rows(con, stock: str, period: date, limit: int = 10) -> tuple[list[
 
 
 CUSIP = re.compile(r"\b([0-9A-Za-z]{8}[0-9])\b")
+TICKER_KEY = "regexp_replace(upper(coalesce(cur.ticker, '')), '[^A-Z0-9]', '', 'g')"
+SUFFIXES = {
+    "INC", "INCORPORATED", "CORP", "CORPORATION", "CO", "COMPANY", "LTD", "LIMITED",
+    "PLC", "LLC", "LP", "SA", "NV", "AG", "SE", "THE", "COM", "CL", "CLASS", "A",
+}
+
+
+CLASS_HINT = re.compile(r"\b(?:class|cl)\.?\s+([a-z])\b", re.I)
+# Whether a stock's class or name says that share class: CL A, CLASS A.
+CLASS_MATCH = (
+    r"(? <> '' AND regexp_matches(upper(coalesce(cur.title_of_class, '') || ' ' || cur.name_filed),"
+    r" '\bCL(ASS)?\s*' || ? || '\b'))"
+)
+
+
+def compact_key(text: str) -> str:
+    """Letters and digits only, upper case: 'brk.b' and 'BRK/B' both give BRKB."""
+    return re.sub(r"[^0-9A-Z]", "", (text or "").upper())
+
+
+def name_key(text: str) -> str:
+    """A company name without the words that differ between filers: 'Apple' = 'APPLE INC'."""
+    words = [w for w in re.split(r"[^0-9A-Z&]+", (text or "").upper()) if w and w not in SUFFIXES]
+    return "".join(words)
 
 
 def search(con, query: str, limit: int = 25) -> list[dict]:
-    """Stocks matching a CUSIP or every word of a name, most widely held first."""
+    """Stocks matching a ticker, a CUSIP or every word of a name, best match first:
+    an exact ticker, then the most widely held."""
     query = query.strip()
     if not query:
         return []
     latest = con.execute("SELECT max(period) FROM periods").fetchone()[0]
+    key = compact_key(query)
     match = CUSIP.search(query)
-    params: list = [latest]
+    params: list = []
+    share_class = ""
     if match and any(ch.isdigit() for ch in match.group(1)[:8]):
         where = "s.cusip = ?"
         params.append(match.group(1).upper())
     else:
+        # "class A" or "cl A" ranks that share class first instead of having to match.
+        hint = CLASS_HINT.search(query)
+        if hint:
+            share_class = hint.group(1).upper()
+            query = CLASS_HINT.sub(" ", query)
         words = [w for w in re.split(r"[^0-9A-Za-z&]+", query) if w]
         if not words:
             return []
+        # Every word in the name or the share class ("Berkshire Hathaway class B").
         where = " AND ".join(
-            ["(s.name_filed ILIKE ? OR coalesce(s.name_mixed, '') ILIKE ? OR s.cusip ILIKE ?)"] * len(words)
+            [
+                "(s.name_filed ILIKE ? OR coalesce(s.name_mixed, '') ILIKE ? OR s.cusip ILIKE ?"
+                " OR coalesce(s.title_of_class, '') ILIKE ?)"
+            ]
+            * len(words)
         )
         for w in words:
-            params += [f"%{w}%", f"%{w}%", f"{w}%"]
-    # Match any CUSIP a stock was reported under; list each stock once, by its current CUSIP.
+            params += [f"%{w}%", f"%{w}%", f"{w}%", f"%{w}%"]
+    # Match any CUSIP a stock was reported under, or its ticker; list each stock
+    # once, by its current CUSIP.
     rows = _rows(
         con,
         f"""
-        WITH matched AS (SELECT DISTINCT s.stock FROM securities s WHERE {where})
-        SELECT cur.cusip, cur.name_filed, cur.name_mixed, cur.title_of_class,
-               coalesce(h.funds_holding, 0) AS funds
+        WITH matched AS (
+            SELECT DISTINCT s.stock FROM securities s WHERE {where}
+            UNION
+            SELECT cur.cusip FROM stocks cur
+            WHERE length(?) BETWEEN 1 AND 6 AND starts_with({TICKER_KEY}, ?)
+        )
+        SELECT cur.cusip, cur.ticker, cur.security_type, cur.name_filed, cur.name_mixed, cur.title_of_class,
+               coalesce(h.funds_holding, 0) AS funds,
+               {TICKER_KEY} = ? AND ? <> '' AS ticker_match,
+               {CLASS_MATCH} AS class_match
         FROM matched m
         JOIN stocks cur ON cur.cusip = m.stock
         LEFT JOIN holders h ON h.cusip = m.stock AND h.period = ?
-        ORDER BY funds DESC, cur.name_filed
+        ORDER BY ticker_match DESC, class_match DESC, funds DESC, cur.name_filed
         LIMIT {int(limit)}
         """,
-        params[1:] + params[:1],
+        params + [key, key, key, key, share_class, share_class, latest],
     )
     for r in rows:
         r["name"] = display_name(r["name_filed"], r["name_mixed"])
+        r["ticker"] = ticker_text(r["ticker"])
     return rows
+
+
+def best_match(results: list[dict], query: str) -> dict | None:
+    """The one stock a query clearly means: its ticker, its CUSIP, its name, or the only match."""
+    query = query.strip()
+    if not results:
+        return None
+    exact = [r for r in results if r["cusip"] == query.upper() or r.get("ticker_match")]
+    if len(exact) == 1:
+        return exact[0]
+    if len(results) == 1:
+        return results[0]
+    named = [r for r in results if name_key(r["name"]) == name_key(query) and name_key(query)]
+    if len(named) == 1:
+        return named[0]
+    return None
 
 
 RANKINGS = {
@@ -336,7 +404,7 @@ def ranked_changes(con, period: date, minimum: int, by: str, limit: int, most: s
     rows = _rows(
         con,
         f"""
-        SELECT sp.cusip, s.name_filed, s.name_mixed, s.title_of_class,
+        SELECT sp.cusip, s.name_filed, s.name_mixed, s.title_of_class, s.ticker, s.security_type,
                sp.funds_holding AS funds, sp.funds_prev, sp.funds_change, sp.funds_pct,
                sp.filers_pct, sp.vs_tide_pts, sp.market_median_pct, sp.vs_median_pts,
                sp.shares, sp.shares_prev, sp.shares_pct, sp.share_check, sp.streak, sp.direction
@@ -351,6 +419,7 @@ def ranked_changes(con, period: date, minimum: int, by: str, limit: int, most: s
     )
     for r in rows:
         r["name"] = display_name(r["name_filed"], r["name_mixed"])
+        r["ticker"] = ticker_text(r["ticker"])
     return rows
 
 

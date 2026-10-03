@@ -18,7 +18,8 @@ rebuilds them from raw_* exactly.
   changes        per stock and period: managers that opened, added, trimmed, sold out or held
   stock_periods  per stock and period: changes against last period, the tide and the market median
   securities     per CUSIP: the name and class filers use, and its stock
-  stocks         per stock: the name of whichever of its CUSIPs most funds report
+  stocks         per stock: the name of whichever of its CUSIPs most funds report,
+                 and its ticker and kind from OpenFIGI (see thirteenf.tickers)
 
 A stock is identified by its current CUSIP. When a company changes its CUSIP
 (a reverse split, a new holding company, a move abroad), the old CUSIP's
@@ -34,6 +35,7 @@ from datetime import date, datetime
 import duckdb
 
 from thirteenf.db import connect
+from thirteenf.ingest.openfigi import CACHE_DDL as OPENFIGI_DDL
 from thirteenf.model import periods as P
 
 # Implied-price check: flag a position whose value / shares is this many times
@@ -570,18 +572,33 @@ LEFT JOIN classes c USING (cusip)
 """
 
 # A stock's name comes from the CUSIP most funds reported in its latest period:
-# while a change of CUSIP is under way, that is often still the old one.
-SQL_STOCKS = """
+# while a change of CUSIP is under way, that is often still the old one. Its
+# ticker and kind (OpenFIGI's security type) come from its current CUSIP, or
+# else from the most recent of its earlier CUSIPs that OpenFIGI knows.
+SQL_STOCKS = f"""
+{OPENFIGI_DDL};
 CREATE OR REPLACE TABLE stocks AS
 WITH best AS (
     SELECT DISTINCT ON (k.stock) k.stock, k.cusip
     FROM stock_keys k
     JOIN cusip_holders ch USING (cusip)
     ORDER BY k.stock, ch.period DESC, ch.funds DESC, k.cusip
+),
+latest AS (
+    SELECT cusip, max(period) AS period FROM cusip_holders GROUP BY cusip
+),
+listed AS (
+    SELECT DISTINCT ON (k.stock) k.stock, o.ticker, o.security_type, o.name AS figi_name
+    FROM stock_keys k
+    JOIN openfigi o ON o.cusip = k.cusip AND o.found AND o.ticker IS NOT NULL
+    LEFT JOIN latest l ON l.cusip = k.cusip
+    ORDER BY k.stock, (k.cusip = k.stock) DESC, l.period DESC NULLS LAST, k.cusip
 )
-SELECT b.stock AS cusip, s.name_filed, s.name_mixed, s.title_of_class, s.figi, b.cusip AS named_from
+SELECT b.stock AS cusip, s.name_filed, s.name_mixed, s.title_of_class, s.figi, b.cusip AS named_from,
+       t.ticker, t.security_type, t.figi_name
 FROM best b
 JOIN securities s ON s.cusip = b.cusip
+LEFT JOIN listed t ON t.stock = b.stock
 """
 
 STEPS = [

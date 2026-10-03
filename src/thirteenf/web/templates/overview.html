@@ -40,7 +40,7 @@
 {% endif %}
 {% if missing %}<div class="app-small app-caption-muted">Not in the 13F data:{% for e in missing %} {{ e.ticker or e.cusip }} <form method="post" action="/watchlist/remove" class="app-inline-form"><input type="hidden" name="cusip" value="{{ e.cusip }}"><input type="hidden" name="back" value="/"><button type="submit" class="app-link-button" aria-label="Remove {{ e.ticker or e.cusip }} from your watchlist">Remove</button></form>{% if not loop.last %};{% endif %}{% endfor %}</div>{% endif %}
 <form method="post" action="/watchlist/add" class="app-form-row app-add">
-<div class="app-field"><label for="add" class="type-caption app-caption-muted">Add a stock</label><input id="add" name="q" type="search" class="app-input app-input--search" placeholder="Company name or CUSIP" autocomplete="off" required></div>
+<div class="app-field"><label for="add" class="type-caption app-caption-muted">Add a stock</label><input id="add" name="q" type="search" class="app-input app-input--search" placeholder="Ticker, company name or CUSIP" autocomplete="off" required data-suggest="fill"></div>
 <input type="hidden" name="back" value="/">
 <button type="submit" class="app-button">Add</button>
 </form>

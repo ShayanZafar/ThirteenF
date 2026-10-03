@@ -56,6 +56,18 @@ Dates are text such as `30-JUN-2026`; parse them.
 - Held: no change.
 - Not yet filed: the manager held shares last period but has not filed for the new one. Count these separately; never call them sold out.
 
+## Tickers
+
+13F filings carry CUSIPs, not tickers. `python -m thirteenf.tickers` looks each CUSIP up once with the OpenFIGI mapping API and caches the answer, as returned, in the `openfigi` table. Each pass only covers the CUSIPs the one before did not match:
+
+1. The CUSIP on the US composite listing (`ID_CUSIP`; codes that start with a letter are CINS codes, `ID_CINS`, used for foreign issuers).
+2. The CUSIP on any exchange, then that listing's share class on the US composite listing (`ID_BB_GLOBAL_SHARE_CLASS_LEVEL`).
+3. The FIGI filers wrote in `INFOTABLE`, as a FIGI and then as a share class.
+
+CUSIPs whose check digit is wrong (about 5,900: filers' typos and placeholders such as `000000001`) are not sent, since OpenFIGI rejects them, but still get pass 3. A stock's ticker and kind (OpenFIGI's security type: Common Stock, ETP, ADR, REIT, ...) come from its current CUSIP, or else its most recent earlier one. As of Oct 2026, 99% of stocks held by 100 or more funds have a ticker; most of the rest were acquired or delisted in 2026.
+
+The key, free from openfigi.com, goes in `data/settings.toml` (`openfigi_api_key`); an `OPENFIGI_API_KEY` environment variable overrides it.
+
 ## Checks
 
 **Implied price.** For each manager, CUSIP and period, implied price = value ÷ shares. Compare it with the median implied price across all managers holding that CUSIP in that period. Flag rows more than 3 times higher or lower than the median, leave them out of share totals, and list them on the data-check table with the manager's name.

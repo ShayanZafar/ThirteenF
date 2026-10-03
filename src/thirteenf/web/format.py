@@ -37,6 +37,11 @@ def pct_fine(x: float | None) -> str:
     return pct(x, 0)
 
 
+def ticker(text: str | None) -> str:
+    """OpenFIGI writes share classes with a slash (BRK/B); people write BRK.B."""
+    return (text or "").replace("/", ".")
+
+
 def number_word(n: int) -> str:
     return _WORDS[n] if 0 <= n < len(_WORDS) else f"{n:,}"
 

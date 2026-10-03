@@ -22,7 +22,7 @@
 <div class="app-bar__end">
 <form action="/search" method="get" role="search" class="app-row">
 <label for="search" class="sr-only">Search</label>
-<input id="search" name="q" type="search" class="app-input app-input--search" placeholder="Search a company or CUSIP" autocomplete="off">
+<input id="search" name="q" type="search" class="app-input app-input--search" placeholder="Search a ticker, company or CUSIP" autocomplete="off" data-suggest="open">
 </form>
 <button type="button" class="app-button" id="theme-toggle" aria-pressed="{{ 'true' if theme == 'dark' else 'false' }}">{{ "Light" if theme == "dark" else "Dark" }}</button>
 </div>
@@ -44,6 +44,7 @@
   });
 })();
 </script>
+<script src="{{ asset('/static/suggest.js') }}" defer></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

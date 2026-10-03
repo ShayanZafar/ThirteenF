@@ -28,6 +28,19 @@ def main() -> int:
 
     load.load_all()
     build.build_all()
+
+    from thirteenf.config import openfigi_api_key
+    from thirteenf.tickers import update_tickers
+
+    if openfigi_api_key():
+        update_tickers()
+    else:
+        from thirteenf.config import ensure_settings_file
+
+        print(
+            f"Tickers: paste a free OpenFIGI key (openfigi.com) into {ensure_settings_file()}, "
+            "then run python -m thirteenf.tickers"
+        )
     return 0
 
 

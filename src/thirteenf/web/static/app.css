@@ -104,3 +104,15 @@ code { font-family: var(--font-mono); font-size: 0.9em; }
 /* Overview */
 .app-spark-cell { padding: var(--space-1) 0; }
 .app-measure { max-width: 900px; }
+
+/* Search suggestions: a floating layer, so paper-raised with shadow-pop */
+.app-suggest-wrap { position: relative; display: flex; min-width: 0; }
+.app-row--nowrap > .app-suggest-wrap { flex: 1 1 auto; }
+.app-suggest-wrap > .app-input--lg { width: 100%; }
+.app-suggest { position: absolute; z-index: 20; top: calc(100% + var(--space-1)); left: 0; right: 0; min-width: 300px; margin: 0; padding: var(--space-1) 0; list-style: none; background: var(--paper-raised); border: 1px solid var(--rule); border-radius: var(--radius-sm); box-shadow: var(--shadow-pop); }
+.app-bar__end .app-suggest { left: auto; width: max(100%, 360px); }
+.app-suggest[hidden] { display: none; }
+.app-suggest__item { display: flex; align-items: baseline; gap: var(--space-2); padding: var(--space-2) var(--space-3); font-size: 14px; line-height: 20px; color: var(--ink); cursor: pointer; }
+.app-suggest__item:hover, .app-suggest__item[aria-selected="true"] { background: var(--paper-shade); }
+.app-suggest__name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-suggest__meta { flex: none; font-size: 13px; color: var(--ink-muted); font-variant-numeric: tabular-nums; }

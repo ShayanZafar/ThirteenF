@@ -10,7 +10,7 @@
 {% for r in rows %}
 <tr>
 <td class="tf-r tf-muted">{{ loop.index }}</td>
-<td class="app-td-wrap"><div class="app-cell"><a href="/stock/{{ r.cusip }}">{{ r.name }}</a><span class="app-cell__sub"><span class="type-id">{{ r.cusip }}</span>{% if r.title_of_class %} · {{ r.title_of_class }}{% endif %}</span></div></td>
+<td class="app-td-wrap"><div class="app-cell"><span>{% if r.ticker %}<span class="tf-ticker">{{ r.ticker }}</span> {% endif %}<a href="/stock/{{ r.cusip }}">{{ r.name }}</a></span><span class="app-cell__sub"><span class="type-id">{{ r.cusip }}</span>{% if r.title_of_class %} · {{ r.title_of_class }}{% endif %}</span></div></td>
 <td><div class="app-cell">
 {% if by == "tide" %}<span class="app-bar"><span class="app-bar__track{% if most == 'lost' %} app-bar__track--out{% endif %}"><span class="app-bar__fill{% if most == 'lost' %} app-bar__fill--out{% endif %}" style="width: {{ r.bar }}%"></span></span><span class="tf-num app-strong">{{ fmt.pts(r.vs_tide_pts) }}</span></span>{% else %}<span class="tf-num">{{ fmt.pts(r.vs_tide_pts) }}</span>{% endif %}
 <span class="app-cell__sub tf-num">{{ fmt.pct(r.funds_pct) }} against {{ fmt.pct(r.filers_pct) }}</span></div></td>

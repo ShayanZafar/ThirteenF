@@ -4,7 +4,7 @@
 {% with crumb = sec.name, query = sec.name %}{% include "_lookup_form.html" %}{% endwith %}
 
 <section class="app-section app-section--tight">
-<div class="app-eyebrow"><span class="type-caption app-caption-muted">CUSIP {{ sec.cusip }}{% if sec.title_of_class %} · {{ sec.title_of_class }}{% endif %} · 13F holdings by filing period</span>
+<div class="app-eyebrow"><span class="type-caption app-caption-muted">{% if sec.ticker %}<span class="tf-ticker">{{ sec.ticker }}</span> · {% endif %}CUSIP {{ sec.cusip }}{% if sec.title_of_class %} · {{ sec.title_of_class }}{% endif %} · 13F holdings by filing period</span>
 {% if on_watchlist %}<span class="app-row app-hint">On your watchlist <form method="post" action="/watchlist/remove" class="app-inline-form"><input type="hidden" name="cusip" value="{{ sec.cusip }}"><input type="hidden" name="back" value="/stock/{{ sec.cusip }}"><button type="submit" class="app-link-button">Remove</button></form></span>
 {% else %}<form method="post" action="/watchlist/add" class="app-inline-form"><input type="hidden" name="cusip" value="{{ sec.cusip }}"><input type="hidden" name="back" value="/stock/{{ sec.cusip }}"><button type="submit" class="app-button">Add to watchlist</button></form>{% endif %}</div>
 <h1 class="type-display app-title">{{ sec.name }}</h1>

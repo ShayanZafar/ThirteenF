@@ -2,7 +2,7 @@
 <div class="app-crumbs"><a href="/">Overview</a> / {{ crumb }}</div>
 <form action="/stock" method="get" class="app-lookup__form" role="search">
 <label for="lookup" class="type-caption app-caption-muted">Look up a stock</label>
-<div class="app-row app-row--nowrap"><input id="lookup" name="q" type="search" value="{{ query or '' }}" class="app-input app-input--lg" autocomplete="off" placeholder="Company name or CUSIP"><button type="submit" class="app-button app-button--primary">Look up</button></div>
+<div class="app-row app-row--nowrap"><input id="lookup" name="q" type="search" value="{{ query or '' }}" class="app-input app-input--lg" autocomplete="off" placeholder="Ticker, company name or CUSIP" data-suggest="open"><button type="submit" class="app-button app-button--primary">Look up</button></div>
 </form>
-<div class="app-hint">Type a company name or CUSIP. You get one answer first: are more funds holding it, or fewer?</div>
+<div class="app-hint">Type a ticker, a company name or a CUSIP. You get one answer first: are more funds holding it, or fewer?</div>
 </section>

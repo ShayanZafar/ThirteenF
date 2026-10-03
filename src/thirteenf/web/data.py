@@ -82,7 +82,8 @@ class Security:
     figi: str | None
     latest_period: date
     ticker: str = ""  # from OpenFIGI, as people write it (BRK.B)
-    kind: str | None = None  # OpenFIGI's security type: Common Stock, ETP, ADR, ...
+    security_type: str | None = None  # OpenFIGI's: Common Stock, ETP, ADR, ...
+    kind: str = "stock"  # stock, etf or other
 
 
 def security(con, cusip: str) -> Security | None:
@@ -95,7 +96,7 @@ def security(con, cusip: str) -> Security | None:
                coalesce(st.name_mixed, s.name_mixed) AS name_mixed,
                coalesce(st.title_of_class, s.title_of_class) AS title_of_class,
                coalesce(st.figi, s.figi) AS figi,
-               st.ticker, st.security_type
+               st.ticker, st.security_type, st.kind
         FROM securities s
         LEFT JOIN stocks st ON st.cusip = s.stock
         WHERE s.cusip = ?
@@ -114,7 +115,8 @@ def security(con, cusip: str) -> Security | None:
         figi=r["figi"],
         latest_period=r["latest_period"],
         ticker=ticker_text(r["ticker"]),
-        kind=r["security_type"],
+        security_type=r["security_type"],
+        kind=r["kind"] or "stock",
     )
 
 
@@ -355,7 +357,7 @@ def search(con, query: str, limit: int = 25) -> list[dict]:
             SELECT cur.cusip FROM stocks cur
             WHERE length(?) BETWEEN 1 AND 6 AND starts_with({TICKER_KEY}, ?)
         )
-        SELECT cur.cusip, cur.ticker, cur.security_type, cur.name_filed, cur.name_mixed, cur.title_of_class,
+        SELECT cur.cusip, cur.ticker, cur.security_type, cur.kind, cur.name_filed, cur.name_mixed, cur.title_of_class,
                coalesce(h.funds_holding, 0) AS funds,
                {TICKER_KEY} = ? AND ? <> '' AS ticker_match,
                {CLASS_MATCH} AS class_match
@@ -395,27 +397,41 @@ RANKINGS = {
 }
 
 
-def ranked_changes(con, period: date, minimum: int, by: str, limit: int, most: str) -> list[dict]:
+# The tabs on the Biggest changes page: which kinds each one shows.
+KINDS = {"all": None, "stocks": "stock", "etfs": "etf"}
+
+
+def _kind_rule(kind: str) -> tuple[str, list]:
+    """A WHERE fragment (on stocks s) and its parameters for a tab."""
+    wanted = KINDS[kind]
+    return ("AND s.kind = ?", [wanted]) if wanted else ("", [])
+
+
+def ranked_changes(
+    con, period: date, minimum: int, by: str, limit: int, most: str, kind: str = "all"
+) -> list[dict]:
     """Stocks held by at least `minimum` funds in both periods, ranked by their change.
 
-    most="added" ranks from the top, most="lost" from the bottom."""
+    most="added" ranks from the top, most="lost" from the bottom. kind is a tab:
+    all, stocks or etfs."""
     column = RANKINGS[by]
     direction = "DESC" if most == "added" else "ASC"
+    kind_rule, kind_params = _kind_rule(kind)
     rows = _rows(
         con,
         f"""
-        SELECT sp.cusip, s.name_filed, s.name_mixed, s.title_of_class, s.ticker, s.security_type,
+        SELECT sp.cusip, s.name_filed, s.name_mixed, s.title_of_class, s.ticker, s.security_type, s.kind,
                sp.funds_holding AS funds, sp.funds_prev, sp.funds_change, sp.funds_pct,
                sp.filers_pct, sp.vs_tide_pts, sp.market_median_pct, sp.vs_median_pts,
                sp.shares, sp.shares_prev, sp.shares_pct, sp.share_check, sp.streak, sp.direction
         FROM stock_periods sp
         JOIN stocks s ON s.cusip = sp.cusip
         WHERE sp.period = ? AND sp.funds_holding >= ? AND sp.funds_prev >= ?
-          AND sp.{column} {">" if most == "added" else "<"} 0
+          AND sp.{column} {">" if most == "added" else "<"} 0 {kind_rule}
         ORDER BY sp.{column} {direction}, sp.cusip
         LIMIT ?
         """,
-        [period, minimum, minimum, limit],
+        [period, minimum, minimum, *kind_params, limit],
     )
     for r in rows:
         r["name"] = display_name(r["name_filed"], r["name_mixed"])
@@ -423,19 +439,47 @@ def ranked_changes(con, period: date, minimum: int, by: str, limit: int, most: s
     return rows
 
 
-def change_summary(con, period: date, minimum: int) -> dict:
+def change_summary(con, period: date, minimum: int, kind: str = "all") -> dict:
     """How the stocks compared moved in a period, for the page's key figures."""
-    return _rows(
+    kind_rule, kind_params = _kind_rule(kind)
+    summary = _rows(
+        con,
+        f"""
+        SELECT count(*) AS stocks,
+               count(*) FILTER (WHERE sp.funds_change > 0) AS more,
+               count(*) FILTER (WHERE sp.funds_change < 0) AS fewer,
+               median(sp.funds_pct) AS median_pct
+        FROM stock_periods sp
+        JOIN stocks s ON s.cusip = sp.cusip
+        WHERE sp.period = ? AND sp.funds_holding >= ? AND sp.funds_prev >= ? {kind_rule}
+        """,
+        [period, minimum, minimum, *kind_params],
+    )[0]
+    tide = _rows(
         con,
         """
-        SELECT count(*) AS stocks,
-               count(*) FILTER (WHERE funds_change > 0) AS more,
-               count(*) FILTER (WHERE funds_change < 0) AS fewer,
-               median(funds_pct) AS median_pct,
-               any_value(filers_pct) AS filers_pct,
-               any_value(filers) AS filers
-        FROM stock_periods
-        WHERE period = ? AND funds_holding >= ? AND funds_prev >= ?
+        SELECT ft.filers, ft.filers::DOUBLE / NULLIF(prev.filers, 0) - 1 AS filers_pct
+        FROM filers_total ft
+        JOIN periods p USING (period)
+        LEFT JOIN filers_total prev ON prev.period = p.prev_period
+        WHERE ft.period = ?
         """,
-        [period, minimum, minimum],
+        [period],
     )[0]
+    return {**summary, **tide}
+
+
+def kind_counts(con, period: date, minimum: int) -> dict[str, int]:
+    """How many stocks each tab compares."""
+    counts = dict(
+        con.execute(
+            """
+            SELECT s.kind, count(*)
+            FROM stock_periods sp JOIN stocks s ON s.cusip = sp.cusip
+            WHERE sp.period = ? AND sp.funds_holding >= ? AND sp.funds_prev >= ?
+            GROUP BY 1
+            """,
+            [period, minimum, minimum],
+        ).fetchall()
+    )
+    return {"all": sum(counts.values()), "stocks": counts.get("stock", 0), "etfs": counts.get("etf", 0)}

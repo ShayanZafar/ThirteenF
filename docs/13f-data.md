@@ -66,6 +66,8 @@ Dates are text such as `30-JUN-2026`; parse them.
 
 CUSIPs whose check digit is wrong (about 5,900: filers' typos and placeholders such as `000000001`) are not sent, since OpenFIGI rejects them, but still get pass 3. A stock's ticker and kind (OpenFIGI's security type: Common Stock, ETP, ADR, REIT, ...) come from its current CUSIP, or else its most recent earlier one. As of Oct 2026, 99% of stocks held by 100 or more funds have a ticker; most of the rest were acquired or delisted in 2026.
 
+**Kinds.** Every stock is a stock, an ETF or other, from OpenFIGI's security type: stocks are Common Stock, ADR, REIT, MLP, royalty trusts and similar; ETFs are ETP (exchange-traded products); everything else (closed-end and open-end funds, warrants, rights, units, preferreds, notes) is other. Without a security type, the class filers wrote decides: "ETF" makes an ETF, a note or warrant makes other, anything else a stock. The Biggest changes page shows All (the default), Stocks or ETFs.
+
 The key, free from openfigi.com, goes in `data/settings.toml` (`openfigi_api_key`); an `OPENFIGI_API_KEY` environment variable overrides it.
 
 ## Checks

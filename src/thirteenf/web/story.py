@@ -255,19 +255,20 @@ def key_figures(series: list[StockPeriod]) -> list[Figure]:
     return figures
 
 
-def change_summary(summary: dict, period, added: list[dict]) -> str:
-    """One paragraph on how the stocks compared moved in a period."""
+def change_summary(summary: dict, period, added: list[dict], noun: tuple[str, str] = ("stocks", "stock")) -> str:
+    """One paragraph on how the stocks (or ETFs, or both) compared moved in a period."""
+    plural, singular = noun
     if not summary["stocks"]:
-        return f"No stock meets the minimum at both {day(period.prev_period)} and {day(period.period)}."
+        return f"No {singular} meets the minimum at both {day(period.prev_period)} and {day(period.period)}."
     text = (
-        f"More funds held {summary['more']:,} of the {summary['stocks']:,} stocks compared at "
+        f"More funds held {summary['more']:,} of the {summary['stocks']:,} {plural} compared at "
         f"{day(period.period)} than at {short_day(period.prev_period)}, and fewer held {summary['fewer']:,}."
     )
     median, tide = summary["median_pct"], summary["filers_pct"]
     if median is not None and tide is not None:
         moved = "rose" if tide > 0 else "fell" if tide < 0 else "held at"
         text += (
-            f" The typical stock's count changed by {pct(median)}, while the number of 13F filers "
+            f" The typical {singular}'s count changed by {pct(median)}, while the number of 13F filers "
             f"{moved} {pct(tide, signed=False) if tide else count(summary['filers'])}."
         )
     if added:

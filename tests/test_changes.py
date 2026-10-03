@@ -112,3 +112,69 @@ def test_a_cusip_change_is_not_a_mover(client):
     only the stock, counted across both CUSIPs, may appear."""
     html = client.get("/changes?period=2026-06-30&n=100").text
     assert "/stock/438516106" not in html
+
+
+def _kinds_of(con, cusips: list[str]) -> set[str]:
+    if not cusips:
+        return set()
+    marks = ",".join("?" * len(cusips))
+    return {r[0] for r in con.execute(f"SELECT DISTINCT kind FROM stocks WHERE cusip IN ({marks})", cusips).fetchall()}
+
+
+def test_the_default_tab_mixes_every_kind(client, con):
+    html = client.get("/changes?period=2026-06-30&n=100").text
+    assert re.search(r'aria-current="page">All <span', html)
+    lists = _lists(html)
+    assert {"stock", "etf"} <= _kinds_of(con, [r["cusip"] for r in lists["added"] + lists["lost"]])
+
+
+@pytest.mark.parametrize("tab, kind", [("stocks", "stock"), ("etfs", "etf")])
+def test_a_tab_shows_one_kind(client, con, tab, kind):
+    html = client.get(f"/changes?period=2026-06-30&n=100&kind={tab}").text
+    lists = _lists(html)
+    rows = lists["added"] + lists["lost"]
+    assert rows
+    assert _kinds_of(con, [r["cusip"] for r in rows]) == {kind}
+    # Ranked the same way as the plain SQL, restricted to that kind.
+    expected = [
+        r[0]
+        for r in con.execute(
+            """
+            SELECT h.cusip FROM holders h
+            JOIN periods p ON p.period = h.period
+            JOIN holders b ON b.cusip = h.cusip AND b.period = p.prev_period
+            JOIN filers_total ft ON ft.period = h.period
+            JOIN filers_total fb ON fb.period = p.prev_period
+            JOIN stocks s ON s.cusip = h.cusip
+            WHERE h.period = DATE '2026-06-30' AND h.funds_holding >= 100 AND b.funds_holding >= 100 AND s.kind = ?
+              AND (h.funds_holding::DOUBLE / b.funds_holding - ft.filers::DOUBLE / fb.filers) > 0
+            ORDER BY (h.funds_holding::DOUBLE / b.funds_holding - ft.filers::DOUBLE / fb.filers) DESC, h.cusip
+            LIMIT 100
+            """,
+            [kind],
+        ).fetchall()
+    ]
+    assert [r["cusip"] for r in lists["added"]] == expected
+
+
+def test_tab_counts_match_the_data(client, con):
+    html = client.get("/changes?period=2026-06-30").text
+    shown = {label: int(n.replace(",", "")) for label, n in re.findall(r'>(All|Stocks|ETFs) <span class="app-tabs__count">([\d,]+)</span>', html)}
+    counts = dict(
+        con.execute(
+            """
+            SELECT s.kind, count(*) FROM stock_periods sp JOIN stocks s USING (cusip)
+            WHERE sp.period = DATE '2026-06-30' AND sp.funds_holding >= 100 AND sp.funds_prev >= 100
+            GROUP BY 1
+            """
+        ).fetchall()
+    )
+    assert shown == {"All": sum(counts.values()), "Stocks": counts["stock"], "ETFs": counts["etf"]}
+    assert shown["All"] >= shown["Stocks"] + shown["ETFs"]
+
+
+def test_tabs_keep_the_other_choices(client):
+    html = client.get("/changes?period=2025-12-31&min=500&by=count&n=50&kind=etfs").text
+    assert 'href="/changes?period=2025-12-31&amp;min=500&amp;by=count&amp;n=50&amp;kind=stocks"' in html
+    assert 'name="kind" value="etfs"' in html
+    assert "ETFs compared, Q4" in html

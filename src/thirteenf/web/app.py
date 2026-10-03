@@ -115,6 +115,8 @@ def suggest(q: str = ""):
         funds = f"{fmt.count(r['funds'])} {'fund' if r['funds'] == 1 else 'funds'}"
         # Where two suggestions share a name, the class tells them apart.
         meta = f"{r['title_of_class']} · {funds}" if names.count(r["name"]) > 1 and r["title_of_class"] else funds
+        if r.get("kind") == "etf":
+            meta = f"ETF · {meta}"
         suggestions.append(
             {"cusip": r["cusip"], "ticker": r["ticker"], "name": r["name"], "funds": r["funds"], "funds_text": meta}
         )
@@ -162,6 +164,10 @@ def stock_page(request: Request, cusip: str, came_from: str = Query("", alias="f
     )
 
 
+# What a tab calls the things it compares: (plural, singular).
+NOUNS = {"all": ("securities", "security"), "stocks": ("stocks", "stock"), "etfs": ("ETFs", "ETF")}
+
+
 @app.get("/changes", response_class=HTMLResponse)
 def changes_page(
     request: Request,
@@ -169,16 +175,19 @@ def changes_page(
     minimum: int = Query(100, alias="min", ge=1),
     by: str = "tide",
     n: int = 25,
+    kind: str = "all",
 ):
     by = by if by in data.RANKINGS else "tide"
+    kind = kind if kind in data.KINDS else "all"
     limit = n if n in (25, 50, 100) else 25
     with data.connection() as con:
         periods = data.periods(con)
         choices = [p for p in periods if p.prev_period is not None]
         selected = next((p for p in choices if p.period.isoformat() == period), choices[-1])
-        added = data.ranked_changes(con, selected.period, minimum, by, limit, "added")
-        lost = data.ranked_changes(con, selected.period, minimum, by, limit, "lost")
-        summary = data.change_summary(con, selected.period, minimum)
+        added = data.ranked_changes(con, selected.period, minimum, by, limit, "added", kind)
+        lost = data.ranked_changes(con, selected.period, minimum, by, limit, "lost", kind)
+        summary = data.change_summary(con, selected.period, minimum, kind)
+        counts = data.kind_counts(con, selected.period, minimum)
     metric = data.RANKINGS[by]
     for rows in (added, lost):
         widest = max((abs(r[metric]) for r in rows), default=0) or 1
@@ -196,7 +205,10 @@ def changes_page(
         added=added,
         lost=lost,
         summary=summary,
-        summary_text=story.change_summary(summary, selected, added if by == "tide" else []),
+        kind=kind,
+        counts=counts,
+        noun=NOUNS[kind],
+        summary_text=story.change_summary(summary, selected, added if by == "tide" else [], NOUNS[kind]),
         year_end=selected.period.month == 12,
         quarter=f"Q{(selected.period.month - 1) // 3 + 1}",
         **freshness(selected),

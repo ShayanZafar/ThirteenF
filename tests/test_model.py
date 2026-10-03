@@ -194,3 +194,17 @@ def test_a_contingent_value_right_is_not_the_stock(con):
     """Hologic's holders received a CVR one for one when it was acquired; the CVR
     is worth far less than the stock, so Hologic's history is not folded into it."""
     assert con.execute("SELECT stock FROM stock_keys WHERE cusip = '436440101'").fetchone()[0] == "436440101"
+
+
+@pytest.mark.parametrize(
+    "cusip, kind",
+    [
+        ("037833100", "stock"),  # Apple: Common Stock
+        ("464287200", "etf"),  # iShares Core S&P 500: ETP
+        ("25434V708", "etf"),  # a Dimensional ETF OpenFIGI has no type for: its class says ETF
+        ("285512109", "stock"),  # Electronic Arts: no type (delisted), class COM
+        ("G2004J103", "stock"),  # Carnival after its move abroad
+    ],
+)
+def test_every_stock_has_a_kind(con, cusip, kind):
+    assert con.execute("SELECT kind FROM stocks WHERE cusip = ?", [cusip]).fetchone()[0] == kind

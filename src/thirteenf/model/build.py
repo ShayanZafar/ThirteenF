@@ -19,7 +19,8 @@ rebuilds them from raw_* exactly.
   stock_periods  per stock and period: changes against last period, the tide and the market median
   securities     per CUSIP: the name and class filers use, and its stock
   stocks         per stock: the name of whichever of its CUSIPs most funds report,
-                 and its ticker and kind from OpenFIGI (see thirteenf.tickers)
+                 its ticker and security type from OpenFIGI (see thirteenf.tickers),
+                 and its kind: stock, etf or other
 
 A stock is identified by its current CUSIP. When a company changes its CUSIP
 (a reverse split, a new holding company, a move abroad), the old CUSIP's
@@ -571,6 +572,27 @@ LEFT JOIN mixed m USING (cusip)
 LEFT JOIN classes c USING (cusip)
 """
 
+# Kinds, from OpenFIGI's security type. Anything else it reports (closed-end and
+# open-end funds, warrants, rights, units, preferreds, notes) is "other".
+STOCK_TYPES = (
+    "Common Stock", "ADR", "REIT", "MLP", "Royalty Trst", "Ltd Part", "NY Reg Shrs", "GDR",
+    "CDI", "Stapled Security", "NVDR", "Foreign Sh.",
+)
+ETF_TYPES = ("ETP",)
+_TYPES = lambda types: ", ".join(f"'{t}'" for t in types)  # noqa: E731
+# Without a security type (no ticker found, often a company since delisted), the
+# class filers wrote decides: ETF, a note or warrant, or else a stock.
+SQL_KIND = f"""
+    CASE
+        WHEN t.security_type IN ({_TYPES(ETF_TYPES)}) THEN 'etf'
+        WHEN t.security_type IN ({_TYPES(STOCK_TYPES)}) THEN 'stock'
+        WHEN t.security_type IS NOT NULL THEN 'other'
+        WHEN regexp_matches(upper(coalesce(s.title_of_class, '') || ' ' || s.name_filed), '\\bETFS?\\b') THEN 'etf'
+        WHEN regexp_matches(upper(coalesce(s.title_of_class, '')),
+                            '\\b(NOTE|NOTES|PFD|PREF|WT|WTS|WARRANT|WARRANTS|RIGHT|RIGHTS|UNIT|UNITS|DEBT|BOND)\\b') THEN 'other'
+        ELSE 'stock'
+    END"""
+
 # A stock's name comes from the CUSIP most funds reported in its latest period:
 # while a change of CUSIP is under way, that is often still the old one. Its
 # ticker and kind (OpenFIGI's security type) come from its current CUSIP, or
@@ -595,7 +617,7 @@ listed AS (
     ORDER BY k.stock, (k.cusip = k.stock) DESC, l.period DESC NULLS LAST, k.cusip
 )
 SELECT b.stock AS cusip, s.name_filed, s.name_mixed, s.title_of_class, s.figi, b.cusip AS named_from,
-       t.ticker, t.security_type, t.figi_name
+       t.ticker, t.security_type, t.figi_name, {SQL_KIND} AS kind
 FROM best b
 JOIN securities s ON s.cusip = b.cusip
 LEFT JOIN listed t ON t.stock = b.stock

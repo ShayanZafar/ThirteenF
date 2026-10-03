@@ -35,5 +35,6 @@ A personal app, run locally, that answers one question for every US-listed stock
 - `python -m thirteenf.ingest` downloads the Form 13F data sets, loads them and builds the model. `--no-download` loads only the zips already in `data/raw/`.
 - `python -m thirteenf.model` rebuilds the model tables from the raw tables (about a minute).
 - `python -m thirteenf.tickers` maps new CUSIPs to tickers with OpenFIGI and caches them in DuckDB. It reads a free OpenFIGI key from `openfigi_api_key` in `data/settings.toml` (git-ignored; an `OPENFIGI_API_KEY` environment variable overrides it); without a key the first run takes about 2.5 hours. `python -m thirteenf.ingest` runs it too when a key is set.
-- `python -m thirteenf.web` serves the app at http://127.0.0.1:8000.
+- `python -m thirteenf.web` serves the app at http://127.0.0.1:8000. `--open` also opens it in the browser; `--reload` restarts it when the Python code changes.
 - `pytest` runs the tests, including the reference-number checks.
+- `scripts/` wraps these for people running the app: `setup`, `update-data`, `start` and `test`, as `.cmd` for Windows and `.sh` for macOS and Linux. `README.md` has the table; `docs/` has the user and developer documentation.

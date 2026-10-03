@@ -12,13 +12,13 @@
 <td class="tf-r tf-muted">{{ loop.index }}</td>
 <td class="app-td-wrap"><div class="app-cell"><span>{% if r.ticker %}<span class="tf-ticker">{{ r.ticker }}</span> {% endif %}<a href="/stock/{{ r.cusip }}">{{ r.name }}</a></span><span class="app-cell__sub"><span class="type-id">{{ r.cusip }}</span>{% if r.title_of_class %} · {{ r.title_of_class }}{% endif %}</span></div></td>
 <td><div class="app-cell">
-{% if by == "tide" %}<span class="app-bar"><span class="app-bar__track{% if most == 'lost' %} app-bar__track--out{% endif %}"><span class="app-bar__fill{% if most == 'lost' %} app-bar__fill--out{% endif %}" style="width: {{ r.bar }}%"></span></span><span class="tf-num app-strong">{{ fmt.pts(r.vs_tide_pts) }}</span></span>{% else %}<span class="tf-num">{{ fmt.pts(r.vs_tide_pts) }}</span>{% endif %}
-<span class="app-cell__sub tf-num">{{ fmt.pct(r.funds_pct) }} against {{ fmt.pct(r.filers_pct) }}</span></div></td>
+{% if by == "tide" %}<span class="app-bar"><span class="app-bar__track{% if most == 'lost' %} app-bar__track--out{% endif %}"><span class="app-bar__fill{% if most == 'lost' %} app-bar__fill--out{% endif %}" style="width: {{ r.bar }}%"></span></span><span class="tf-num app-strong">{{ fmt.pts(r.vs_tide_pts)|signed }}</span></span>{% else %}<span class="tf-num">{{ fmt.pts(r.vs_tide_pts)|signed }}</span>{% endif %}
+<span class="app-cell__sub tf-num">{{ fmt.pct(r.funds_pct)|signed }} against {{ fmt.pct(r.filers_pct)|signed }}</span></div></td>
 <td class="tf-r"><div class="app-cell"><span class="tf-num">{{ fmt.count(r.funds) }}</span><span class="app-cell__sub tf-num">from {{ fmt.count(r.funds_prev) }}</span></div></td>
 <td><div class="app-cell">
-{% if by == "count" %}<span class="app-bar"><span class="app-bar__track{% if most == 'lost' %} app-bar__track--out{% endif %}"><span class="app-bar__fill{% if most == 'lost' %} app-bar__fill--out{% endif %}" style="width: {{ r.bar }}%"></span></span><span class="tf-num app-strong">{{ fmt.signed_count(r.funds_change) }}</span></span>{% else %}<span class="tf-num">{% if r.funds_change > 0 %}<span class="tf-dir tf-dir--in"></span>{% elif r.funds_change < 0 %}<span class="tf-dir tf-dir--out"></span>{% endif %}{{ fmt.signed_count(r.funds_change) }}</span>{% endif %}
-<span class="app-cell__sub tf-num">{{ fmt.pct(r.funds_pct) }}</span></div></td>
-<td class="tf-r">{% if r.share_check == "ok" %}<div class="app-cell"><span class="tf-num">{{ fmt.pct(r.shares_pct) }}</span><span class="app-cell__sub tf-num">{{ fmt.compact(r.shares) }} sh</span></div>{% elif r.share_check == "outran" %}<span class="tf-stamp tf-stamp--stale"><b>Check</b><i>·</i>Shares outran value</span>{% else %}<span class="tf-muted">—</span>{% endif %}</td>
+{% if by == "count" %}<span class="app-bar"><span class="app-bar__track{% if most == 'lost' %} app-bar__track--out{% endif %}"><span class="app-bar__fill{% if most == 'lost' %} app-bar__fill--out{% endif %}" style="width: {{ r.bar }}%"></span></span><span class="tf-num app-strong">{{ fmt.signed_count(r.funds_change)|signed }}</span></span>{% else %}<span class="tf-num">{% if r.funds_change > 0 %}<span class="tf-dir tf-dir--in"></span>{% elif r.funds_change < 0 %}<span class="tf-dir tf-dir--out"></span>{% endif %}{{ fmt.signed_count(r.funds_change)|signed }}</span>{% endif %}
+<span class="app-cell__sub tf-num">{{ fmt.pct(r.funds_pct)|signed }}</span></div></td>
+<td class="tf-r">{% if r.share_check == "ok" %}<div class="app-cell"><span class="tf-num">{{ fmt.pct(r.shares_pct)|signed }}</span><span class="app-cell__sub tf-num">{{ fmt.compact(r.shares) }} sh</span></div>{% elif r.share_check == "outran" %}<span class="tf-stamp tf-stamp--stale"><b>Check</b><i>·</i>Shares outran value</span>{% else %}<span class="tf-muted">—</span>{% endif %}</td>
 <td>{{ streak(r) }}</td>
 </tr>
 {% endfor %}
@@ -40,8 +40,8 @@
 <div class="tf-kfrow">
 <div class="tf-kf"><span class="tf-kf__label">{{ noun[0][:1]|upper }}{{ noun[0][1:] }} compared, {{ quarter }}</span><span class="tf-kf__value">{{ fmt.count(summary.stocks) }}</span><span class="tf-kf__delta">Held by {{ fmt.count(minimum) }}+ funds at both dates</span></div>
 <div class="tf-kf"><span class="tf-kf__label">{{ noun[0][:1]|upper }}{{ noun[0][1:] }} with more funds</span><span class="tf-kf__value">{{ fmt.count(summary.more) }}<span class="tf-kf__unit"> of {{ fmt.count(summary.stocks) }}</span></span><span class="tf-kf__delta">{{ fmt.count(summary.fewer) }} with fewer</span></div>
-<div class="tf-kf"><span class="tf-kf__label">Typical {{ noun[1] }}, {{ quarter }}</span><span class="tf-kf__value">{{ fmt.pct(summary.median_pct) }}</span><span class="tf-kf__delta">Median change in funds holding</span></div>
-<div class="tf-kf"><span class="tf-kf__label">All 13F filers, {{ quarter }}</span><span class="tf-kf__value">{{ fmt.pct(summary.filers_pct) }}</span><span class="tf-kf__delta">{{ fmt.count(summary.filers) }} managers filed holdings</span></div>
+<div class="tf-kf"><span class="tf-kf__label">Typical {{ noun[1] }}, {{ quarter }}</span><span class="tf-kf__value">{{ fmt.pct(summary.median_pct)|signed }}</span><span class="tf-kf__delta">Median change in funds holding</span></div>
+<div class="tf-kf"><span class="tf-kf__label">All 13F filers, {{ quarter }}</span><span class="tf-kf__value">{{ fmt.pct(summary.filers_pct)|signed }}</span><span class="tf-kf__delta">{{ fmt.count(summary.filers) }} managers filed holdings</span></div>
 </div>
 
 <form class="app-form-row" method="get" action="/changes" aria-label="Filters">

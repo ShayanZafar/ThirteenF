@@ -23,7 +23,7 @@
 <td class="tf-r tf-muted">{{ loop.index }}</td>
 <td class="app-td-wrap"><a href="/manager/{{ r.cik }}">{{ r.name }}</a></td>
 <td class="tf-r">{{ fmt.money(r.value) }}</td>
-<td class="tf-r">{% if r.value_prev %}{{ fmt.pct(r.value / r.value_prev - 1) }}{% else %}<span class="tf-muted">first 13F</span>{% endif %}</td>
+<td class="tf-r">{% if r.value_prev %}{{ fmt.pct(r.value / r.value_prev - 1)|signed }}{% else %}<span class="tf-muted">first 13F</span>{% endif %}</td>
 <td class="tf-r">{{ fmt.count(r.positions) }}</td>
 <td class="tf-r">{{ fmt.short_day(r.filed) if r.filed else "" }}</td>
 </tr>

@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from html import escape
 
-from thirteenf.web.format import DASH, count, signed_count
+from thirteenf.web.format import DASH, count, flow, signed_count
 
 NICE_STEPS = [1, 2, 2.5, 3, 4, 5, 6, 8, 10]
 
@@ -20,6 +20,11 @@ def nice_ticks(top: float, intervals: int = 4) -> list[float]:
     if step >= 1:
         step = round(step)
     return [step * i for i in range(intervals + 1)]
+
+
+def _tone(text: str) -> str:
+    """The class that paints a signed label by its sign: green for +, red for −, none for 0."""
+    return {"in": " app-svg-pos", "out": " app-svg-neg"}.get(flow(text), "")
 
 
 def _tick_text(v: float) -> str:
@@ -82,7 +87,8 @@ def funds_bar_chart(points: list[dict], name: str) -> str:
             else:
                 tri = f'<polygon class="tf-map__out" points="{tx - 4:.1f},275 {tx + 4:.1f},275 {tx:.1f},282"></polygon>'
             out.append(tri)
-            out.append(f'<text class="tf-map__label" x="{cx - 18:.1f}" y="286">{signed_count(change)}</text>')
+            text = signed_count(change)
+            out.append(f'<text class="tf-map__label{_tone(text)}" x="{cx - 18:.1f}" y="286">{text}</text>')
 
     out.append(f'<line class="tf-map__zero" x1="{x0}" y1="{zero_y}" x2="{x1}" y2="{zero_y}"></line>')
 
@@ -178,7 +184,8 @@ def flow_chart(points: list[dict], name: str) -> str:
         if height > 0:
             out.append(f'<path class="{cls}" d="{d}"><title>{escape(tip)}</title></path>')
         if i in extremes:
-            out.append(f'<text class="tf-map__label" x="{cx:.1f}" y="{label_y:.1f}" style="text-anchor: middle">{escape(money_signed(p["net"]))}</text>')
+            text = money_signed(p["net"])
+            out.append(f'<text class="tf-map__label{_tone(text)}" x="{cx:.1f}" y="{label_y:.1f}" style="text-anchor: middle">{escape(text)}</text>')
     out.append(f'<line class="tf-map__zero" x1="{x0}" y1="{zero:.1f}" x2="{x1}" y2="{zero:.1f}"></line>')
     values_text = ", ".join(f'{p["label"]} {money_signed(p["net"])}' for p in points if p["net"] is not None)
     label = f"Net 13F flow into {name} by quarter: {values_text}."

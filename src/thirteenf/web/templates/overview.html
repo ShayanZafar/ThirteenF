@@ -11,7 +11,7 @@
 {% if rows %}
 <div class="tf-kfrow">
 {% for f in figures %}
-<div class="tf-kf"><span class="tf-kf__label">{{ f.label }}</span><span class="tf-kf__value">{{ f.value }}{% if f.unit %}<span class="tf-kf__unit">{{ f.unit }}</span>{% endif %}</span><span class="tf-kf__delta{% if f.direction %} tf-kf__delta--{{ f.direction }}{% endif %}">{{ f.delta }}</span></div>
+<div class="tf-kf"><span class="tf-kf__label">{{ f.label }}</span><span class="tf-kf__value{% if fmt.flow(f.value) %} app-{{ 'pos' if fmt.flow(f.value) == 'in' else 'neg' }}{% endif %}">{{ f.value }}{% if f.unit %}<span class="tf-kf__unit">{{ f.unit }}</span>{% endif %}</span><span class="tf-kf__delta{% if f.direction %} tf-kf__delta--{{ f.direction }}{% endif %}">{{ f.delta }}</span></div>
 {% endfor %}
 </div>
 {% endif %}
@@ -27,11 +27,11 @@
 <tr>
 <td class="app-td-wrap">{% if r.ticker %}<span class="tf-ticker">{{ r.ticker }}</span> {% endif %}<a href="/stock/{{ r.cusip }}">{{ r.name }}</a></td>
 <td class="tf-r">{{ fmt.count(l.funds) }}</td>
-<td class="tf-r">{% if l.funds_change is none %}<span class="tf-muted">—</span>{% else %}{% if l.funds_change > 0 %}<span class="tf-dir tf-dir--in"></span>{% elif l.funds_change < 0 %}<span class="tf-dir tf-dir--out"></span>{% endif %}{{ fmt.signed_count(l.funds_change) }}{% if l.funds_pct is not none %} <span class="tf-muted">({{ fmt.pct(l.funds_pct) }})</span>{% endif %}{% endif %}</td>
-<td class="tf-r">{% if l.vs_median_pts is none %}<span class="tf-muted">—</span>{% else %}{% set t = fmt.pts(l.vs_median_pts) %}{% if fmt.flow(t) %}<span class="tf-dir tf-dir--{{ fmt.flow(t) }}"></span>{% endif %}{{ t }}{% endif %}</td>
+<td class="tf-r">{% if l.funds_change is none %}<span class="tf-muted">—</span>{% else %}{% if l.funds_change > 0 %}<span class="tf-dir tf-dir--in"></span>{% elif l.funds_change < 0 %}<span class="tf-dir tf-dir--out"></span>{% endif %}{{ fmt.signed_count(l.funds_change)|signed }}{% if l.funds_pct is not none %} <span class="tf-muted">({{ fmt.pct(l.funds_pct)|signed }})</span>{% endif %}{% endif %}</td>
+<td class="tf-r">{% if l.vs_median_pts is none %}<span class="tf-muted">—</span>{% else %}{% set t = fmt.pts(l.vs_median_pts) %}{% if fmt.flow(t) %}<span class="tf-dir tf-dir--{{ fmt.flow(t) }}"></span>{% endif %}{{ t|signed }}{% endif %}</td>
 <td><div class="app-spark-cell">{{ r.spark }}</div></td>
 <td>{% if l.direction and l.direction > 0 %}<span class="tf-dir tf-dir--in"></span>Up {{ l.streak }}{% elif l.direction and l.direction < 0 %}<span class="tf-dir tf-dir--out"></span>Down {{ l.streak }}{% else %}<span class="tf-muted">Same</span>{% endif %}</td>
-<td class="tf-r">{% if r.long_change is none %}<span class="tf-muted">—</span>{% else %}{{ fmt.pct(r.long_change, 0) }}{% if r.since %} <span class="tf-muted">since {{ r.since }}</span>{% endif %}{% endif %}</td>
+<td class="tf-r">{% if r.long_change is none %}<span class="tf-muted">—</span>{% else %}{{ fmt.pct(r.long_change, 0)|signed }}{% if r.since %} <span class="tf-muted">since {{ r.since }}</span>{% endif %}{% endif %}</td>
 <td><form method="post" action="/watchlist/remove" class="app-inline-form"><input type="hidden" name="cusip" value="{{ r.cusip }}"><input type="hidden" name="back" value="/"><button type="submit" class="app-link-button" aria-label="Remove {{ r.name }} from your watchlist">Remove</button></form></td>
 </tr>
 {% endfor %}
@@ -62,12 +62,12 @@
 <td>{% if r.ticker %}<span class="tf-ticker">{{ r.ticker }}</span>{% else %}{{ r.name }}{% endif %}</td>
 {% if l.held and l.share_check == "outran" %}
 <td class="tf-r"><span class="tf-muted">—</span></td><td class="tf-r"><span class="tf-muted">—</span></td>
-<td class="tf-r">{{ fmt.pct(l.value_pct, 0) }}</td>
+<td class="tf-r">{{ fmt.pct(l.value_pct, 0)|signed }}</td>
 <td><span class="tf-stamp tf-stamp--stale"><b>Check</b><i>·</i>Shares outran value by {{ "%.0f"|format(l.shares_vs_value_pts|abs) }} pts</span></td>
 {% elif l.shares_change_shown %}
 <td class="tf-r">{{ fmt.compact(l.shares_prev) }} → {{ fmt.compact(l.shares) }}</td>
-<td class="tf-r">{{ fmt.pct(l.shares_pct, 0) }}</td>
-<td class="tf-r">{{ fmt.pct(l.value_pct, 0) }}</td>
+<td class="tf-r">{{ fmt.pct(l.shares_pct, 0)|signed }}</td>
+<td class="tf-r">{{ fmt.pct(l.value_pct, 0)|signed }}</td>
 <td><span class="tf-stamp"><b>OK</b><i>·</i>{% if r.left_out_total %}{{ fmt.count(r.left_out_total) }} {{ "report" if r.left_out_total == 1 else "reports" }} left out{% else %}In line{% endif %}</span></td>
 {% else %}
 <td class="tf-r"><span class="tf-muted">—</span></td><td class="tf-r"><span class="tf-muted">—</span></td><td class="tf-r"><span class="tf-muted">—</span></td>

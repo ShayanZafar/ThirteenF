@@ -14,7 +14,7 @@ scripts\start.cmd --reload
 scripts\test.cmd
 ```
 
-or `.venv\Scripts\python -m pytest`. About 125 tests, two kinds:
+or `.venv\Scripts\python -m pytest`. About 135 tests, two kinds:
 
 - **Unit tests** need nothing loaded: period deadlines, the zip loader on a tiny fake zip, the OpenFIGI client against a fake OpenFIGI, settings.
 - **Data tests** (marked `data`) use the loaded database and skip until it exists. They check the model against 13f.info's published figures in `docs/reference/13finfo-holdings.csv`, render every page, and test the rankings against plain SQL.
@@ -28,6 +28,7 @@ or `.venv\Scripts\python -m pytest`. About 125 tests, two kinds:
 | `tests/test_overview.py` | The overview and the watchlist (on a temporary watchlist file) |
 | `tests/test_openfigi.py`, `tests/test_tickers.py` | Ticker mapping and search |
 | `tests/test_flows.py` | Net 13F flow, who moved, the typical stock, manager pages |
+| `tests/test_signed.py` | Every signed number painted by its sign, on every page |
 | `tests/test_periods.py`, `tests/test_config.py` | Deadlines and settings |
 
 Run one file or one test: `scripts\test.cmd tests\test_flows.py -k alphabet`.
@@ -37,7 +38,7 @@ Run one file or one test: `scripts\test.cmd tests\test_flows.py -k alphabet`.
 The rules in [../CLAUDE.md](../CLAUDE.md) apply to every change. In short:
 
 - Nothing is specific to one company; every page works for any CUSIP.
-- UI comes from the design system: its CSS variables and `tf-` classes, never hard-coded colors (a test checks). `flow-in` and `flow-out` mean only money in and money out.
+- UI comes from the design system: its CSS variables and `tf-` classes, never hard-coded colors (a test checks). `flow-in` and `flow-out` mean only money in and money out. Signed numbers go through the `|signed` filter, which paints + green and − red with those two colors; SVG labels use `app-svg-pos` and `app-svg-neg`.
 - Copy follows [../design-system/README.md](../design-system/README.md): plain, dated, sentence case, no buy or sell language. Every number shows its as-of date and source.
 - Raw SEC files are never edited; everything is derived from the raw tables.
 - A share total that fails a data check is never shown; the check is shown instead.

@@ -12,7 +12,7 @@ from fastapi import FastAPI, Form, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from markupsafe import Markup
+from markupsafe import Markup, escape
 
 from thirteenf.config import DESIGN_SYSTEM_DIR, WATCHLIST_CSV
 from thirteenf.web import charts, data, format as fmt, story, watchlist
@@ -24,6 +24,18 @@ app.mount("/ds", StaticFiles(directory=DESIGN_SYSTEM_DIR), name="ds")
 app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
 templates = Jinja2Templates(directory=HERE / "templates")
 templates.env.globals["fmt"] = fmt
+
+
+def signed(text) -> Markup:
+    """A signed value painted by its sign: green (flow-in) for +, red (flow-out) for −."""
+    text = str(text)
+    direction = fmt.flow(text)
+    if not direction:
+        return Markup(escape(text))
+    return Markup(f'<span class="app-{"pos" if direction == "in" else "neg"}">{escape(text)}</span>')
+
+
+templates.env.filters["signed"] = signed
 
 ASSET_DIRS = {"/ds/": DESIGN_SYSTEM_DIR, "/static/": HERE / "static"}
 

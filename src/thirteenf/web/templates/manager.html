@@ -20,7 +20,7 @@
 
 <div class="tf-kfrow">
 {% for f in figures %}
-<div class="tf-kf"><span class="tf-kf__label">{{ f.label }}</span><span class="tf-kf__value">{{ f.value }}{% if f.unit %}<span class="tf-kf__unit">{{ f.unit }}</span>{% endif %}</span><span class="tf-kf__delta{% if f.direction %} tf-kf__delta--{{ f.direction }}{% endif %}">{{ f.delta }}</span></div>
+<div class="tf-kf"><span class="tf-kf__label">{{ f.label }}</span><span class="tf-kf__value{% if fmt.flow(f.value) %} app-{{ 'pos' if fmt.flow(f.value) == 'in' else 'neg' }}{% endif %}">{{ f.value }}{% if f.unit %}<span class="tf-kf__unit">{{ f.unit }}</span>{% endif %}</span><span class="tf-kf__delta{% if f.direction %} tf-kf__delta--{{ f.direction }}{% endif %}">{{ f.delta }}</span></div>
 {% endfor %}
 </div>
 
@@ -52,8 +52,8 @@
 <td class="tf-r">{{ fmt.count(p.shares_now|round|int) if p.shares_now else "—" }}</td>
 {% if comparable %}
 <td>{{ m.tag(p.action) }}</td>
-<td class="tf-r">{% if p.action in ("hold", "check") %}<span class="tf-muted">—</span>{% else %}{{ fmt.signed_compact(p.delta) }}{% if p.delta_pct is not none and p.action in ("add", "trim") %} <span class="tf-muted">({{ fmt.pct(p.delta_pct, 0) }})</span>{% endif %}{% endif %}</td>
-<td class="tf-r">{% if p.flow is none or p.action == "hold" %}<span class="tf-muted">—</span>{% else %}{{ fmt.money_signed(p.flow) }}{% endif %}</td>
+<td class="tf-r">{% if p.action in ("hold", "check") %}<span class="tf-muted">—</span>{% else %}{{ fmt.signed_compact(p.delta)|signed }}{% if p.delta_pct is not none and p.action in ("add", "trim") %} <span class="tf-muted">({{ fmt.pct(p.delta_pct, 0)|signed }})</span>{% endif %}{% endif %}</td>
+<td class="tf-r">{% if p.flow is none or p.action == "hold" %}<span class="tf-muted">—</span>{% else %}{{ fmt.money_signed(p.flow)|signed }}{% endif %}</td>
 {% endif %}
 </tr>
 {% endfor %}

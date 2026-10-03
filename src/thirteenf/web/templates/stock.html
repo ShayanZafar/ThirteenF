@@ -17,7 +17,7 @@
 
 <div class="tf-kfrow">
 {% for f in figures %}
-<div class="tf-kf"><span class="tf-kf__label">{{ f.label }}</span><span class="tf-kf__value">{{ f.value }}{% if f.unit %}<span class="tf-kf__unit">{{ f.unit }}</span>{% endif %}</span><span class="tf-kf__delta{% if f.direction %} tf-kf__delta--{{ f.direction }}{% endif %}">{{ f.delta }}</span></div>
+<div class="tf-kf"><span class="tf-kf__label">{{ f.label }}</span><span class="tf-kf__value{% if fmt.flow(f.value) %} app-{{ 'pos' if fmt.flow(f.value) == 'in' else 'neg' }}{% endif %}">{{ f.value }}{% if f.unit %}<span class="tf-kf__unit">{{ f.unit }}</span>{% endif %}</span><span class="tf-kf__delta{% if f.direction %} tf-kf__delta--{{ f.direction }}{% endif %}">{{ f.delta }}</span></div>
 {% endfor %}
 </div>
 
@@ -45,10 +45,10 @@
 <tr>
 <td class="app-td-wrap"><a href="/manager/{{ mv.cik }}?period={{ latest.period.isoformat() }}">{{ mv.manager }}</a></td>
 <td>{{ m.tag(mv.action) }}</td>
-<td class="tf-r">{{ fmt.signed_compact(mv.delta) }}{% if mv.delta_pct is not none and mv.action in ("add", "trim") %} <span class="tf-muted">({{ fmt.pct(mv.delta_pct, 0) }})</span>{% endif %}</td>
+<td class="tf-r">{{ fmt.signed_compact(mv.delta)|signed }}{% if mv.delta_pct is not none and mv.action in ("add", "trim") %} <span class="tf-muted">({{ fmt.pct(mv.delta_pct, 0)|signed }})</span>{% endif %}</td>
 <td class="tf-r">{% if mv.value_now %}{{ fmt.money(mv.value_now) }}{% else %}<span class="tf-muted">—</span>{% endif %}</td>
 <td>{{ m.mini_meter(mv.weight_now, mv.weight_prev, mv.action) }}</td>
-<td class="tf-r">{% if mv.flow is none %}<span class="tf-muted">—</span>{% else %}{{ fmt.money_signed(mv.flow) }}{% endif %}</td>
+<td class="tf-r">{% if mv.flow is none %}<span class="tf-muted">—</span>{% else %}{{ fmt.money_signed(mv.flow)|signed }}{% endif %}</td>
 <td class="tf-r">{{ fmt.short_day(mv.filed) if mv.filed else "" }}</td>
 </tr>
 {% endfor %}
@@ -79,20 +79,20 @@
 <tr>
 <td class="app-strong">{{ r.label }}</td>
 <td class="tf-r">{{ fmt.count(r.funds) }}</td>
-<td class="tf-r">{% if r.funds_change is none %}<span class="tf-muted">—</span>{% else %}{% if r.funds_change > 0 %}<span class="tf-dir tf-dir--in"></span>{% elif r.funds_change < 0 %}<span class="tf-dir tf-dir--out"></span>{% endif %}{{ fmt.signed_count(r.funds_change) }}{% endif %}</td>
-<td class="tf-r">{% if r.funds_pct is none %}<span class="tf-muted">—</span>{% else %}{{ fmt.pct(r.funds_pct) }}{% endif %}</td>
-<td class="tf-r tf-muted">{{ fmt.pct(r.market_median_pct) if r.funds_pct is not none else "—" }}</td>
-<td class="tf-r tf-muted">{{ fmt.pct(r.filers_pct) if r.funds_pct is not none else "—" }}</td>
+<td class="tf-r">{% if r.funds_change is none %}<span class="tf-muted">—</span>{% else %}{% if r.funds_change > 0 %}<span class="tf-dir tf-dir--in"></span>{% elif r.funds_change < 0 %}<span class="tf-dir tf-dir--out"></span>{% endif %}{{ fmt.signed_count(r.funds_change)|signed }}{% endif %}</td>
+<td class="tf-r">{% if r.funds_pct is none %}<span class="tf-muted">—</span>{% else %}{{ fmt.pct(r.funds_pct)|signed }}{% endif %}</td>
+<td class="tf-r tf-muted">{{ (fmt.pct(r.market_median_pct) if r.funds_pct is not none else "—")|signed }}</td>
+<td class="tf-r tf-muted">{{ (fmt.pct(r.filers_pct) if r.funds_pct is not none else "—")|signed }}</td>
 <td class="tf-r">{{ fmt.pct(r.share_of_filers, signed=False) }}</td>
 {% if r.shares_shown %}
 <td class="tf-r">{{ fmt.compact(r.shares) }}</td>
-<td class="tf-r">{% if r.shares_change is none %}<span class="tf-muted">—</span>{% else %}{% set t = fmt.signed_compact(r.shares_change, r.shares) %}{% if fmt.flow(t) %}<span class="tf-dir tf-dir--{{ fmt.flow(t) }}"></span>{% endif %}{{ t }}{% endif %}</td>
+<td class="tf-r">{% if r.shares_change is none %}<span class="tf-muted">—</span>{% else %}{% set t = fmt.signed_compact(r.shares_change, r.shares) %}{% if fmt.flow(t) %}<span class="tf-dir tf-dir--{{ fmt.flow(t) }}"></span>{% endif %}{{ t|signed }}{% endif %}</td>
 {% elif r.held %}
 <td class="tf-r" colspan="2"><span class="tf-stamp tf-stamp--stale"><b>Check</b><i>·</i>Shares outran value</span></td>
 {% else %}
 <td class="tf-r"><span class="tf-muted">—</span></td><td class="tf-r"><span class="tf-muted">—</span></td>
 {% endif %}
-<td class="tf-r">{% if r.net_flow is none %}<span class="tf-muted">—</span>{% else %}{{ fmt.money_signed(r.net_flow) }}{% endif %}</td>
+<td class="tf-r">{% if r.net_flow is none %}<span class="tf-muted">—</span>{% else %}{{ fmt.money_signed(r.net_flow)|signed }}{% endif %}</td>
 <td class="tf-r">{{ fmt.money(r.value) if r.held else "—" }}</td>
 </tr>
 {% endfor %}

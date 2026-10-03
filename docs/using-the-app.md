@@ -39,6 +39,7 @@ Every stock held by at least 100 funds in both periods, ranked by its change in 
 
 ## Reading the numbers
 
+- **Green and red**: a number with a + is green and a number with a − is red, the colors of the bars and triangles. A portfolio's value also moves with prices, so on the Managers page green or red is not all buying and selling.
 - **Funds holding** counts managers (one per SEC CIK) with shares in the stock at the quarter end. Options and bond principal are left out.
 - **The tide**: every Dec 31 most stocks gain holders, because managers that grew past $100M file their first 13F. Compare a stock with all 13F filers, or with the typical stock, rather than with zero.
 - **Typical stock, typical ETF**: the middle change in funds holding across every stock (or ETF) held by at least 100 funds in both quarters.

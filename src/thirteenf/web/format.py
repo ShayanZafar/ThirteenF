@@ -23,9 +23,10 @@ def sign(x: float) -> str:
 
 def flow(text: str) -> str:
     """The flow direction a formatted change shows: in, out, or none when it rounds to zero."""
+    text = str(text).strip()
     if text.startswith("+"):
         return "in"
-    if text.startswith(MINUS):
+    if text.startswith(MINUS) or text.startswith("-"):
         return "out"
     return ""
 

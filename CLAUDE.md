@@ -23,7 +23,7 @@ A personal app, run locally, that answers one question for every US-listed stock
 
 - Nothing is specific to one company. Shopify and the other names in the designs are examples and test fixtures only; every page must work for any CUSIP in the data.
 - Build in the order of `docs/build-plan.md`. Finish a phase's check before starting the next phase.
-- UI comes from the design system: use its CSS variables and `tf-` classes, never hard-coded colors. `flow-in` and `flow-out` mean only more or fewer funds (money in or out). Every number shows its as-of date and source with a freshness stamp.
+- UI comes from the design system: use its CSS variables and `tf-` classes, never hard-coded colors. `flow-in` and `flow-out` mean only more or fewer funds (money in or out). Signed numbers take the color of their sign through the `|signed` template filter: + in `flow-in` green, − in `flow-out` red (the user asked for this). Every number shows its as-of date and source with a freshness stamp.
 - Copy follows `design-system/README.md`: plain, dated, sentence case, no buy or sell language.
 - Raw SEC files are never edited. Load them as they are and derive everything from them, so every number can be rebuilt from the raw tables.
 - Never show a share total that fails the implied-price check in `docs/13f-data.md`; show the check instead.

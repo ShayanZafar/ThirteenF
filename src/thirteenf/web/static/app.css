@@ -129,3 +129,9 @@ code { font-family: var(--font-mono); font-size: 0.9em; }
 .app-meters { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--space-6) var(--space-8); }
 .tf-flow__name a { color: var(--ink); text-decoration: none; }
 .tf-flow__name a:hover { text-decoration: underline; }
+
+/* Signed values: green (flow-in) when positive, red (flow-out) when negative */
+.app-pos, .tf-kf__value.app-pos { color: var(--flow-in); }
+.app-neg, .tf-kf__value.app-neg { color: var(--flow-out); }
+.tf-map__label.app-svg-pos { fill: var(--flow-in); }
+.tf-map__label.app-svg-neg { fill: var(--flow-out); }

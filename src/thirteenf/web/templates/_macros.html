@@ -27,7 +27,7 @@
 <figure class="tf-flow" aria-label="{{ label }}">
 <div class="tf-flow__axis" aria-hidden="true"><span>{{ first_column }}</span><span><span><span class="tf-dir tf-dir--out"></span>Out</span><span>In<span class="tf-dir tf-dir--in app-dir-after"></span></span></span><span class="tf-r">Net</span></div>
 <ol class="tf-flow__rows">
-{% for r in rows %}<li class="tf-flow__row"><span class="tf-flow__name">{% if r.ticker %}<span class="tf-ticker">{{ r.ticker }}</span>{% endif %}<span><a href="{{ r.href }}">{{ r.name }}</a></span></span><span class="tf-flow__track"><span class="tf-flow__bar tf-flow__bar--{{ 'in' if r.flow > 0 else 'out' }}" style="--w: {{ r.w }}%" title="{{ fmt.money_signed(r.flow) }} · {{ r.name }}"></span></span><span class="tf-flow__value">{{ fmt.money_signed(r.flow) }}</span></li>
+{% for r in rows %}<li class="tf-flow__row"><span class="tf-flow__name">{% if r.ticker %}<span class="tf-ticker">{{ r.ticker }}</span>{% endif %}<span><a href="{{ r.href }}">{{ r.name }}</a></span></span><span class="tf-flow__track"><span class="tf-flow__bar tf-flow__bar--{{ 'in' if r.flow > 0 else 'out' }}" style="--w: {{ r.w }}%" title="{{ fmt.money_signed(r.flow) }} · {{ r.name }}"></span></span><span class="tf-flow__value">{{ fmt.money_signed(r.flow)|signed }}</span></li>
 {% endfor %}
 </ol>
 </figure>

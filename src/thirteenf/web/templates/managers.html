@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Managers · ThirteenF{% endblock %}
+{% block main %}
+<section class="app-section app-section--tight">
+<div class="app-eyebrow"><span class="type-caption app-caption-muted">13F filers · {{ latest_period.label }}</span></div>
+<h1 class="type-display app-title">Managers, {{ latest_period.label }}</h1>
+{% include "_stamps.html" %}
+<p class="app-answer">{{ fmt.count(total) }} managers filed 13F holdings for {{ fmt.day(latest_period.period) }}. {% if query %}{{ fmt.count(managers|length) }} {{ "matches" if managers|length == 1 else "match" }} “{{ query }}”.{% else %}The {{ managers|length }} largest by reported portfolio are listed.{% endif %}</p>
+</section>
+
+<form class="app-form-row" method="get" action="/managers" role="search">
+<div class="app-field"><label for="mq" class="type-caption app-caption-muted">Find a manager</label><input id="mq" name="q" type="search" value="{{ query }}" class="app-input app-input--search" placeholder="Manager name" autocomplete="off"></div>
+<button type="submit" class="app-button">Find</button>
+</form>
+
+<section class="app-section">
+{% if managers %}
+<div class="tf-tablewrap"><table class="tf-table">
+<thead><tr><th scope="col" class="tf-r">#</th><th scope="col">Manager</th><th scope="col" class="tf-r">Reported 13F portfolio</th><th scope="col" class="tf-r">Change</th><th scope="col" class="tf-r">Positions</th><th scope="col" class="tf-r">Filed</th></tr></thead>
+<tbody>
+{% for r in managers %}
+<tr>
+<td class="tf-r tf-muted">{{ loop.index }}</td>
+<td class="app-td-wrap"><a href="/manager/{{ r.cik }}">{{ r.name }}</a></td>
+<td class="tf-r">{{ fmt.money(r.value) }}</td>
+<td class="tf-r">{% if r.value_prev %}{{ fmt.pct(r.value / r.value_prev - 1) }}{% else %}<span class="tf-muted">first 13F</span>{% endif %}</td>
+<td class="tf-r">{{ fmt.count(r.positions) }}</td>
+<td class="tf-r">{{ fmt.short_day(r.filed) if r.filed else "" }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table></div>
+{% else %}
+<p class="app-empty">No manager that filed for {{ latest_period.label }} matches “{{ query }}”.</p>
+{% endif %}
+</section>
+
+<section id="method" class="app-method">
+<h2 class="type-title">Method</h2>
+<p class="type-note">The reported 13F portfolio is the value of a manager’s share positions in its 13F-HR report, with amendments applied; options, bond principal, shorts and cash are not in it. The change compares with the manager’s report for the period before, and moves with prices as well as with buying and selling.</p>
+</section>
+{% endblock %}

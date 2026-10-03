@@ -81,6 +81,6 @@ Design: `design/screens/overview.html`.
 
 Build only after Phases 1 to 5 work with real data. These designs use fictional sample data:
 
-- Who moved: on the lookup page, the managers who opened, added, trimmed or sold out, and how big the position is in each manager's portfolio. Design: the holder table and conviction meters in `design/screens/company.html`.
-- Manager pages: `design/screens/manager.html`.
+- Who moved: on the lookup page, the managers who opened, added, trimmed or sold out, and how big the position is in each manager's portfolio. Design: the holder table and conviction meters in `design/screens/company.html`. Built Oct 3, 2026, with the net 13F flow by quarter and the biggest moves as flow bars (see `docs/13f-data.md`).
+- Manager pages: `design/screens/manager.html`. Built Oct 3, 2026: every position with its weight and its change from the period before, a CSV download, and a Managers list.
 - Estimated value and "priced in?": these need company financials and daily prices, which 13F does not provide. Leave them out of the first version.

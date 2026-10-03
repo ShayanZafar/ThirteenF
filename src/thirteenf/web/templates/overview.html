@@ -20,7 +20,7 @@
 <div class="app-section__head"><h2 class="type-title">Funds holding each stock</h2><span class="type-caption app-caption-muted">{{ fmt.day(latest_period.period) }} against {{ fmt.short_day(latest_period.prev_period) }}</span></div>
 {% if rows %}
 <div class="tf-tablewrap"><table class="tf-table">
-<thead><tr><th scope="col">Stock</th><th scope="col" class="tf-r">Funds holding</th><th scope="col" class="tf-r">Change</th><th scope="col" class="tf-r">Vs market median</th><th scope="col">{{ periods[0].label }} to {{ latest_period.label }}</th><th scope="col">Streak</th><th scope="col" class="tf-r">{% if periods|length == 9 %}2 years{% else %}Since {{ periods[0].label }}{% endif %}</th><th scope="col"><span class="sr-only">Remove</span></th></tr></thead>
+<thead><tr><th scope="col">Stock</th><th scope="col" class="tf-r">Funds holding</th><th scope="col" class="tf-r">Change</th><th scope="col" class="tf-r">Vs typical</th><th scope="col">{{ periods[0].label }} to {{ latest_period.label }}</th><th scope="col">Streak</th><th scope="col" class="tf-r">{% if periods|length == 9 %}2 years{% else %}Since {{ periods[0].label }}{% endif %}</th><th scope="col"><span class="sr-only">Remove</span></th></tr></thead>
 <tbody>
 {% for r in rows %}
 {% set l = r.latest %}
@@ -44,7 +44,7 @@
 <input type="hidden" name="back" value="/">
 <button type="submit" class="app-button">Add</button>
 </form>
-<p class="app-small">Every Dec 31 the count jumps for most stocks, because funds that grew past $100M file their first 13F then. So judge a stock against the market median for the same period, not against zero. <a href="/changes">See the biggest changes across all stocks</a>.</p>
+<p class="app-small">Every Dec 31 the count jumps for most stocks, because funds that grew past $100M file their first 13F then. So judge a stock against the typical stock for the same period, not against zero. <a href="/changes">See the biggest changes across all stocks</a>.</p>
 </section>
 
 {% if rows %}
@@ -83,7 +83,7 @@
 <section id="method" class="app-method">
 <h2 class="type-title">Method</h2>
 <p class="type-note">Funds holding counts the managers whose 13F-HR report for each quarter end lists shares of the stock, from the SEC’s Form 13F data sets. Each manager counts once, with amendments applied; options and bond principal are left out.</p>
-<p class="type-note">The market median is the middle change in funds holding across every stock held by at least 100 funds in both periods{% if latest_period.market_median_stocks %} ({{ fmt.count(latest_period.market_median_stocks) }} stocks in {{ latest_period.label }}){% endif %}. Every Dec 31 most stocks gain funds as newly large managers file their first 13F, so compare with the median rather than with zero.</p>
+<p class="type-note">Vs typical compares each stock’s change in funds holding with the typical stock’s: the middle change across every stock held by at least 100 funds in both periods{% if latest_period.typical_count("stock") %} ({{ fmt.count(latest_period.typical_count("stock")) }} in {{ latest_period.label }}){% endif %}. An ETF is compared with the typical ETF. Every Dec 31 most stocks gain funds as newly large managers file their first 13F, so compare with the typical change rather than with zero.</p>
 <p class="type-note">Your watchlist is kept on this computer in data/watchlist.csv. It started from the example list in config/watchlist.csv.</p>
 <p class="type-note">13F covers managers with $100M or more in US-listed securities, and long positions only. Filings made after {{ fmt.day(latest_period.data_through) }} arrive in the SEC’s next data set, so late filers can still add a few funds to the latest quarter.</p>
 </section>

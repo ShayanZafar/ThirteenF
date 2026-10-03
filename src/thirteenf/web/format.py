@@ -107,6 +107,26 @@ def money(x: float | None) -> str:
     return f"{MINUS if x < 0 else ''}${text}"
 
 
+def money_signed(x: float | None) -> str:
+    """+$377M · −$36M"""
+    if x is None:
+        return DASH
+    text = compact(abs(x))
+    return f"{sign(x)}${text}" if text != "0" else "$0"
+
+
+def weight(x: float | None) -> str:
+    """A position's share of a manager's book: 8.9%."""
+    if x is None:
+        return DASH
+    return f"{x * 100:.1f}%" if x * 100 >= 0.05 else "<0.1%"
+
+
+def meter_pct(x: float | None, scale: float = 0.10) -> float:
+    """Where a weight sits on a conviction meter's 0 to 10% scale; 10% or more pins to the end."""
+    return round(min(max(x or 0, 0) / scale, 1) * 100, 1)
+
+
 def unit_for(total: float) -> tuple[float, str]:
     a = abs(total)
     for size, unit in _UNITS:

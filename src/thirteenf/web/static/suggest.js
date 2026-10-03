@@ -51,7 +51,7 @@
 
     function ask(q) {
       var mine = ++asked;
-      fetch("/api/suggest?q=" + encodeURIComponent(q))
+      fetch("/api/suggest?q=" + encodeURIComponent(q) + (mode === "fill" ? "&scope=stocks" : ""))
         .then(function (response) { return response.ok ? response.json() : []; })
         .then(function (found) {
           if (mine !== asked) return; // a newer keystroke has asked since
@@ -110,7 +110,7 @@
         input.value = item.cusip;
         if (input.form.requestSubmit) input.form.requestSubmit(); else input.form.submit();
       } else {
-        window.location.href = "/stock/" + encodeURIComponent(item.cusip);
+        window.location.href = item.url || "/stock/" + encodeURIComponent(item.cusip);
       }
     }
 

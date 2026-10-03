@@ -123,3 +123,9 @@ code { font-family: var(--font-mono); font-size: 0.9em; }
 .app-tabs a:hover { color: var(--ink); }
 .app-tabs a[aria-current="page"] { color: var(--ink); border-bottom-color: var(--ink); }
 .app-tabs__count { font-size: 13px; font-weight: 500; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+
+/* Money flow */
+.app-dir-after { margin: 0 0 0 var(--space-1); }
+.app-meters { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--space-6) var(--space-8); }
+.tf-flow__name a { color: var(--ink); text-decoration: none; }
+.tf-flow__name a:hover { text-decoration: underline; }

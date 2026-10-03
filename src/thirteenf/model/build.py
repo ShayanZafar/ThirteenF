@@ -15,8 +15,11 @@ rebuilds them from raw_* exactly.
   stock_keys     each CUSIP's stock (its latest CUSIP) and the ratio to today's shares
   holders        per stock and period: funds holding, shares held, value
   filers_total   per period: managers that filed holdings
-  changes        per stock and period: managers that opened, added, trimmed, sold out or held
-  stock_periods  per stock and period: changes against last period, the tide and the market median
+  manager_totals per manager and period: the reported 13F portfolio (value, positions)
+  changes        per stock and period: managers that opened, added, trimmed, sold out or held,
+                 and the shares they bought and sold
+  stock_periods  per stock and period: changes against last period, the tide, the typical
+                 stock or ETF, and the net 13F flow in dollars
   securities     per CUSIP: the name and class filers use, and its stock
   stocks         per stock: the name of whichever of its CUSIPs most funds report,
                  its ticker and security type from OpenFIGI (see thirteenf.tickers),
@@ -48,7 +51,8 @@ VALUE_THOUSANDS = 1000
 # Shares-against-value check: flag a share total that moves this many
 # percentage points beyond its value from one period to the next.
 SHARES_VS_VALUE_PTS = 25.0
-# Market median: stocks held by at least this many funds in both periods.
+# The typical change: the median across stocks of the same kind (stock, ETF,
+# other) held by at least this many funds in both periods.
 MEDIAN_MIN_FUNDS = 100
 # CUSIP changes. Funds that left an old CUSIP (held by at least CHANGE_MIN_FUNDS
 # funds) opened a new CUSIP, and at least half of the new CUSIP's new holders
@@ -171,6 +175,9 @@ WHERE h.accession = b.accession
        AND (b.accession IS NULL OR (h.filing_date, h.accession) > (b.filing_date, b.accession)))
 """
 
+# A report is incomplete when the data set's holdings table has fewer than half the
+# holdings its own summary page declares (Norges Bank's Q1 2026 report: 1 of 1,507).
+# Such a manager counts as not having filed for flows and changes.
 SQL_FILINGS = """
 CREATE OR REPLACE TABLE filings AS
 WITH lines AS (
@@ -178,21 +185,30 @@ WITH lines AS (
     FROM raw_infotable i
     WHERE i.ACCESSION_NUMBER IN (SELECT accession FROM filing_parts)
     GROUP BY 1
+),
+parts AS (
+    SELECT
+        fp.cik,
+        fp.period,
+        arg_max(fp.accession, fp.role <> 'new holdings')   AS base_accession,
+        count(*) - 1                                        AS new_holdings_amendments,
+        bool_or(fp.role = 'restatement')                    AS restated,
+        max(fp.filing_date)                                 AS filing_date,
+        min(fp.filing_date)                                 AS first_filing_date,
+        coalesce(sum(l.lines), 0)                           AS lines,
+        arg_max(s.manager_name, (fp.filing_date, fp.accession)) AS manager_name
+    FROM filing_parts fp
+    JOIN submissions s USING (accession)
+    LEFT JOIN lines l USING (accession)
+    GROUP BY fp.cik, fp.period
 )
-SELECT
-    fp.cik,
-    fp.period,
-    arg_max(fp.accession, fp.role <> 'new holdings')   AS base_accession,
-    count(*) - 1                                        AS new_holdings_amendments,
-    bool_or(fp.role = 'restatement')                    AS restated,
-    max(fp.filing_date)                                 AS filing_date,
-    min(fp.filing_date)                                 AS first_filing_date,
-    coalesce(sum(l.lines), 0)                           AS lines,
-    arg_max(s.manager_name, (fp.filing_date, fp.accession)) AS manager_name
-FROM filing_parts fp
-JOIN submissions s USING (accession)
-LEFT JOIN lines l USING (accession)
-GROUP BY fp.cik, fp.period
+SELECT parts.*,
+       coalesce(bl.lines, 0) AS base_lines,
+       coalesce(bs.table_entry_total, 0) AS base_declared,
+       coalesce(bs.table_entry_total, 0) = 0 OR coalesce(bl.lines, 0) >= 0.5 * bs.table_entry_total AS complete
+FROM parts
+LEFT JOIN lines bl ON bl.accession = parts.base_accession
+LEFT JOIN submissions bs ON bs.accession = parts.base_accession
 """
 
 SQL_MANAGERS = """
@@ -415,38 +431,52 @@ LEFT JOIN filings f USING (period)
 GROUP BY p.period
 """
 
+# Each manager's reported 13F portfolio: the value of its share positions (options
+# and principal left out, and reports the implied-price check leaves out).
+SQL_MANAGER_TOTALS = """
+CREATE OR REPLACE TABLE manager_totals AS
+SELECT f.cik, f.period,
+       coalesce(sum(p.value_checked) FILTER (WHERE p.shares > 0 AND NOT p.price_flag), 0)::BIGINT AS value,
+       count(p.cik) FILTER (WHERE p.shares > 0) AS positions,
+       f.manager_name, f.filing_date, f.base_accession AS accession
+FROM filings f
+LEFT JOIN positions p ON p.cik = f.cik AND p.period = f.period
+GROUP BY f.cik, f.period, f.manager_name, f.filing_date, f.base_accession
+"""
+
 # Per manager, between a period and the one before it. A manager that held
 # shares last period and has not filed for this one is "not yet filed", never "sold out".
 SQL_CHANGES = f"""
 CREATE OR REPLACE TABLE changes AS
 WITH cur AS (
-    SELECT cusip, period, cik, shares::DOUBLE AS shares, false AS converted
+    SELECT cusip, period, cik, shares::DOUBLE AS shares, false AS converted, price_flag AS flagged
     FROM positions
     WHERE shares > 0 AND cusip NOT IN {LINKED}
     UNION ALL
     SELECT k.stock AS cusip, p.period, p.cik, sum(p.shares * k.ratio) AS shares,
-           bool_or(k.cusip <> k.stock) AS converted
+           bool_or(k.cusip <> k.stock) AS converted, bool_or(p.price_flag) AS flagged
     FROM positions p
     JOIN stock_keys k ON k.cusip = p.cusip
     WHERE p.shares > 0 AND p.cusip IN {LINKED}
     GROUP BY ALL
 ),
 now AS (
-    SELECT c.cik, c.cusip, c.shares, p.period FROM cur c JOIN periods p ON c.period = p.period
+    SELECT c.cik, c.cusip, c.shares, c.flagged, p.period FROM cur c JOIN periods p ON c.period = p.period
     WHERE p.prev_period IS NOT NULL
 ),
 before AS (
-    SELECT c.cik, c.cusip, c.shares, c.converted, p.period FROM cur c JOIN periods p ON c.period = p.prev_period
+    SELECT c.cik, c.cusip, c.shares, c.converted, c.flagged, p.period FROM cur c JOIN periods p ON c.period = p.prev_period
 ),
 pairs AS (
     SELECT coalesce(n.period, b.period) AS period, coalesce(n.cusip, b.cusip) AS cusip,
            coalesce(n.cik, b.cik) AS cik, b.shares AS prev_shares, n.shares AS shares,
            -- Shares converted from an old CUSIP rarely match to the share: within 1% is held.
            CASE WHEN b.converted THEN abs(n.shares - b.shares) <= 0.01 * b.shares
-                ELSE n.shares = b.shares END AS same
+                ELSE n.shares = b.shares END AS same,
+           coalesce(n.flagged, false) OR coalesce(b.flagged, false) AS flagged
     FROM now n FULL OUTER JOIN before b ON n.period = b.period AND n.cik = b.cik AND n.cusip = b.cusip
 ),
-filed AS (SELECT cik, period FROM filings WHERE lines > 0)
+filed AS (SELECT cik, period FROM filings WHERE lines > 0 AND complete)
 SELECT
     pairs.cusip, pairs.period,
     count(*) FILTER (WHERE prev_shares IS NULL AND shares IS NOT NULL)           AS opened,
@@ -454,9 +484,20 @@ SELECT
     count(*) FILTER (WHERE prev_shares IS NOT NULL AND same)                     AS held,
     count(*) FILTER (WHERE prev_shares IS NOT NULL AND NOT same AND shares < prev_shares) AS trimmed,
     count(*) FILTER (WHERE prev_shares IS NOT NULL AND shares IS NULL AND filed.cik IS NOT NULL) AS sold_out,
-    count(*) FILTER (WHERE prev_shares IS NOT NULL AND shares IS NULL AND filed.cik IS NULL)     AS not_yet_filed
+    count(*) FILTER (WHERE prev_shares IS NOT NULL AND shares IS NULL AND filed.cik IS NULL)     AS not_yet_filed,
+    -- Shares bought and sold, only by managers that filed for both periods. A manager
+    -- that has not filed yet has not sold, and one filing for the first time (newly
+    -- over $100M, or a new legal entity, as Vanguard's were in 2026) has not bought:
+    -- its positions may be years old. A report the price check leaves out is not counted.
+    coalesce(sum(CASE WHEN same THEN 0 ELSE greatest(coalesce(shares, 0) - coalesce(prev_shares, 0), 0) END)
+        FILTER (WHERE NOT flagged AND filed.cik IS NOT NULL AND filed_before.cik IS NOT NULL), 0) AS bought_shares,
+    coalesce(sum(CASE WHEN same THEN 0 ELSE greatest(coalesce(prev_shares, 0) - coalesce(shares, 0), 0) END)
+        FILTER (WHERE NOT flagged AND filed.cik IS NOT NULL AND filed_before.cik IS NOT NULL), 0) AS sold_shares,
+    count(*) FILTER (WHERE shares IS NOT NULL AND filed_before.cik IS NULL) AS first_filers
 FROM pairs
+JOIN periods per ON per.period = pairs.period
 LEFT JOIN filed ON filed.cik = pairs.cik AND filed.period = pairs.period
+LEFT JOIN filed AS filed_before ON filed_before.cik = pairs.cik AND filed_before.period = per.prev_period
 GROUP BY ALL
 """
 
@@ -471,13 +512,22 @@ WITH tide AS (
 ),
 base AS (
     SELECT h.cusip, h.period, t.seq, t.prev_period, t.filers, t.filers_pct,
+           coalesce(st.kind, 'stock') AS kind,
            h.funds_holding, h.shares, h.value, h.shares_filed, h.value_filed,
            h.flagged_rows, h.flagged_shares, h.median_price,
            prev.funds_holding AS funds_prev, prev.shares AS shares_prev, prev.value AS value_prev,
-           prev.median_price AS median_price_prev
+           prev.median_price AS median_price_prev,
+           -- Net 13F flow: shares bought and sold, at the period-end price (the median
+           -- value per share across all funds holding it).
+           c.bought_shares, c.sold_shares,
+           c.bought_shares * h.median_price AS bought_value,
+           c.sold_shares * h.median_price AS sold_value,
+           (c.bought_shares - c.sold_shares) * h.median_price AS net_flow
     FROM holders h
     JOIN tide t USING (period)
+    LEFT JOIN stocks st ON st.cusip = h.cusip
     LEFT JOIN holders prev ON prev.cusip = h.cusip AND prev.period = t.prev_period
+    LEFT JOIN changes c ON c.cusip = h.cusip AND c.period = h.period
 ),
 changed AS (
     SELECT *,
@@ -489,10 +539,11 @@ changed AS (
     FROM base
 ),
 medians AS (
-    SELECT period, median(funds_pct) AS market_median_pct, count(*) AS market_median_stocks
+    -- The typical change for each kind: a stock against stocks, an ETF against ETFs.
+    SELECT period, kind, median(funds_pct) AS market_median_pct, count(*) AS market_median_stocks
     FROM changed
     WHERE funds_holding >= {MEDIAN_MIN_FUNDS} AND funds_prev >= {MEDIAN_MIN_FUNDS}
-    GROUP BY period
+    GROUP BY period, kind
 ),
 checked AS (
     SELECT c.*, m.market_median_pct, m.market_median_stocks,
@@ -512,7 +563,7 @@ checked AS (
             ELSE 'outran'
         END AS share_check
     FROM changed c
-    LEFT JOIN medians m USING (period)
+    LEFT JOIN medians m USING (period, kind)
 ),
 signed AS (
     SELECT *, CASE WHEN funds_prev IS NULL THEN NULL ELSE sign(funds_change) END AS direction
@@ -634,12 +685,13 @@ STEPS = [
     ("cusip_holders", SQL_CUSIP_HOLDERS),
     ("cusip_changes", SQL_CUSIP_CHANGES),
     ("stock_keys", build_stock_keys),
-    ("holders", SQL_HOLDERS),
-    ("filers_total", SQL_FILERS_TOTAL),
-    ("changes", SQL_CHANGES),
-    ("stock_periods", SQL_STOCK_PERIODS),
     ("securities", SQL_SECURITIES),
     ("stocks", SQL_STOCKS),
+    ("holders", SQL_HOLDERS),
+    ("filers_total", SQL_FILERS_TOTAL),
+    ("manager_totals", SQL_MANAGER_TOTALS),
+    ("changes", SQL_CHANGES),
+    ("stock_periods", SQL_STOCK_PERIODS),
 ]
 
 

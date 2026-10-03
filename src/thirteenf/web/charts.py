@@ -118,3 +118,72 @@ def sparkline(values: list[float | None]) -> str:
         f'<circle class="app-spark__dot" cx="{lx:.1f}" cy="{ly:.1f}" r="3.5"></circle>'
         "</svg>"
     )
+
+
+
+def flow_chart(points: list[dict], name: str) -> str:
+    """Net 13F flow per period: bars up (flow-in) for net buying, down (flow-out) for
+    net selling, from one zero line. points: [{"label", "net"}], oldest first; net None
+    when there is no earlier period to compare with."""
+    from thirteenf.web.format import money_signed
+
+    width, x0, x1, top_y, bottom_y = 1200, 88, 1188, 24, 236
+    values = [p["net"] for p in points if p["net"] is not None]
+    if not values:
+        return ""
+    high, low = max(max(values), 0), min(min(values), 0)
+    span = (high - low) or 1
+    # Round the scale to tidy steps on both sides of zero.
+    step = nice_ticks(span, 4)[1]
+    top = step * math.ceil(high / step) if high > 0 else 0
+    bottom = -step * math.ceil(-low / step) if low < 0 else 0
+    if top == bottom:
+        top = step
+    scale = (bottom_y - top_y) / (top - bottom)
+    zero = top_y + top * scale
+    n = max(len(points), 1)
+    slot = (x1 - x0) / n
+    bar = min(24, slot * 0.5)
+    out = []
+    tick = bottom
+    while tick <= top + step / 2:
+        y = top_y + (top - tick) * scale
+        if abs(tick) > step / 1e6:
+            out.append(f'<line class="tf-map__grid" x1="{x0}" y1="{y:.1f}" x2="{x1}" y2="{y:.1f}"></line>')
+        label = "0" if abs(tick) < step / 1e6 else money_signed(tick)
+        out.append(f'<text class="tf-map__tick" x="{x0 - 10}" y="{y + 4:.1f}" style="text-anchor: end">{escape(label)}</text>')
+        tick += step
+    extremes = {max(range(n), key=lambda i: points[i]["net"] if points[i]["net"] is not None else -math.inf),
+                min(range(n), key=lambda i: points[i]["net"] if points[i]["net"] is not None else math.inf),
+                n - 1}
+    for i, p in enumerate(points):
+        cx = x0 + slot * i + slot / 2
+        out.append(f'<text class="tf-map__tick" x="{cx:.1f}" y="{bottom_y + 22}" style="text-anchor: middle">{escape(p["label"])}</text>')
+        if p["net"] is None:
+            continue
+        height = abs(p["net"]) * scale
+        left, right = cx - bar / 2, cx + bar / 2
+        r = min(4, height, bar / 2)
+        if p["net"] >= 0:
+            end = zero - height
+            d = (f"M{left:.1f} {zero:.1f} V{end + r:.1f} Q{left:.1f} {end:.1f} {left + r:.1f} {end:.1f} "
+                 f"H{right - r:.1f} Q{right:.1f} {end:.1f} {right:.1f} {end + r:.1f} V{zero:.1f} Z")
+            cls, label_y = "tf-map__in", end - 8
+        else:
+            end = zero + height
+            d = (f"M{left:.1f} {zero:.1f} V{end - r:.1f} Q{left:.1f} {end:.1f} {left + r:.1f} {end:.1f} "
+                 f"H{right - r:.1f} Q{right:.1f} {end:.1f} {right:.1f} {end - r:.1f} V{zero:.1f} Z")
+            cls, label_y = "tf-map__out", end + 16
+        tip = f'{money_signed(p["net"])} · {p["label"]}'
+        if height > 0:
+            out.append(f'<path class="{cls}" d="{d}"><title>{escape(tip)}</title></path>')
+        if i in extremes:
+            out.append(f'<text class="tf-map__label" x="{cx:.1f}" y="{label_y:.1f}" style="text-anchor: middle">{escape(money_signed(p["net"]))}</text>')
+    out.append(f'<line class="tf-map__zero" x1="{x0}" y1="{zero:.1f}" x2="{x1}" y2="{zero:.1f}"></line>')
+    values_text = ", ".join(f'{p["label"]} {money_signed(p["net"])}' for p in points if p["net"] is not None)
+    label = f"Net 13F flow into {name} by quarter: {values_text}."
+    return (
+        f'<svg class="app-chart" viewBox="0 0 {width} {bottom_y + 34}" role="img" aria-label="{escape(label)}">'
+        + "".join(out)
+        + "</svg>"
+    )

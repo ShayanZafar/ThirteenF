@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_macros.html" as m %}
 {% block title %}{{ sec.name }} · ThirteenF{% endblock %}
 {% block main %}
 {% with crumb = sec.name, query = sec.name %}{% include "_lookup_form.html" %}{% endwith %}
@@ -25,15 +26,58 @@
 <figure class="app-figure">{{ chart }}</figure>
 </section>
 
+{% if flow_chart %}
+<section class="app-section">
+<div class="app-section__head"><h2 class="type-title">Net 13F flow into {{ sec.name }}, by filing period</h2><span class="type-caption app-caption-muted">Shares bought minus sold, at each period-end price</span></div>
+<figure class="app-figure">{{ flow_chart }}</figure>
+{% if flow_text %}<p class="app-small">{{ flow_text }}</p>{% endif %}
+</section>
+{% endif %}
+
+{% if moves and (moves.moves or moves.not_filed) %}
+<section class="app-section" id="moves">
+<div class="app-section__head"><h2 class="type-title">Who added, who left, {{ latest.label }}</h2><span class="type-caption app-caption-muted">{{ fmt.day(latest.period) }} against {{ fmt.short_day(latest.prev_period) }}</span></div>
+{% if flow_rows %}{{ m.flow_bars(flow_rows, "Biggest moves in " ~ sec.name ~ ", " ~ latest.label, "Manager") }}{% endif %}
+<div class="tf-tablewrap"><table class="tf-table">
+<thead><tr><th scope="col">Manager</th><th scope="col">Change</th><th scope="col" class="tf-r">Shares</th><th scope="col" class="tf-r">Value, {{ fmt.short_day(latest.period) }}</th><th scope="col">Weight in book</th><th scope="col" class="tf-r">Net flow</th><th scope="col" class="tf-r">Filed</th></tr></thead>
+<tbody>
+{% for mv in shown_moves %}
+<tr>
+<td class="app-td-wrap"><a href="/manager/{{ mv.cik }}?period={{ latest.period.isoformat() }}">{{ mv.manager }}</a></td>
+<td>{{ m.tag(mv.action) }}</td>
+<td class="tf-r">{{ fmt.signed_compact(mv.delta) }}{% if mv.delta_pct is not none and mv.action in ("add", "trim") %} <span class="tf-muted">({{ fmt.pct(mv.delta_pct, 0) }})</span>{% endif %}</td>
+<td class="tf-r">{% if mv.value_now %}{{ fmt.money(mv.value_now) }}{% else %}<span class="tf-muted">—</span>{% endif %}</td>
+<td>{{ m.mini_meter(mv.weight_now, mv.weight_prev, mv.action) }}</td>
+<td class="tf-r">{% if mv.flow is none %}<span class="tf-muted">—</span>{% else %}{{ fmt.money_signed(mv.flow) }}{% endif %}</td>
+<td class="tf-r">{{ fmt.short_day(mv.filed) if mv.filed else "" }}</td>
+</tr>
+{% endfor %}
+</tbody>
+<tfoot><tr><td colspan="7">{{ fmt.count(shown_moves|length) }} of {{ fmt.count(moves.moves|length) }} managers whose position changed{% if moves.held %} · {{ fmt.count(moves.held) }} held theirs{% endif %}{% if moves.not_filed %} · {{ fmt.count(moves.not_filed|length) }} that held it at {{ fmt.short_day(latest.prev_period) }} have not filed yet{% endif %}{% if moves.incomplete %} · {{ fmt.count(moves.incomplete|length) }} {{ "report is" if moves.incomplete|length == 1 else "reports are" }} incomplete in the SEC data ({{ moves.incomplete[:3]|join(", ") }}{% if moves.incomplete|length > 3 %} and others{% endif %}){% endif %}. Weight is the position as a share of the manager’s reported 13F portfolio.
+{% if moves.moves|length > shown_moves|length %} <a href="?moves=all#moves">Show all {{ fmt.count(moves.moves|length) }}</a>{% elif all_moves and moves.moves|length > 25 %} <a href="?#moves">Show the largest 25</a>{% endif %}</td></tr></tfoot>
+</table></div>
+</section>
+{% endif %}
+
+{% if weights %}
+<section class="app-section">
+<div class="app-section__head"><h2 class="type-title">Where {{ sec.name }} sits in each book</h2><span class="type-caption app-caption-muted">Managers with 10 or more positions · scale 0 to 10%</span></div>
+<div class="app-meters">
+{% for h in weights %}{{ m.meter("/manager/" ~ h.cik ~ "?period=" ~ latest.period.isoformat(), h.manager, h.weight, h.weight_prev, h.rank, h.positions, quarter_before) }}
+{% endfor %}
+</div>
+<p class="app-small app-caption-muted">The managers with the most of their reported 13F portfolio in {{ sec.name }} at {{ fmt.day(latest.period) }}. A large weight in a concentrated book says more than a large dollar amount in an index fund’s.</p>
+</section>
+{% endif %}
+
 <section class="app-section">
 <div class="app-section__head"><h2 class="type-title">Every filing period</h2><span class="type-caption app-caption-muted">Newest first</span></div>
 <div class="tf-tablewrap"><table class="tf-table">
-<thead><tr><th scope="col">Period</th><th scope="col">Positions as of</th><th scope="col" class="tf-r">Funds holding</th><th scope="col" class="tf-r">Change</th><th scope="col" class="tf-r">Change %</th><th scope="col" class="tf-r">Market median</th><th scope="col" class="tf-r">All filers</th><th scope="col" class="tf-r">Of all filers</th><th scope="col" class="tf-r">Shares held</th><th scope="col" class="tf-r">Change</th><th scope="col" class="tf-r">Value</th></tr></thead>
+<thead><tr><th scope="col">Period</th><th scope="col" class="tf-r">Funds holding</th><th scope="col" class="tf-r">Change</th><th scope="col" class="tf-r">Change %</th><th scope="col" class="tf-r">Typical {{ "ETF" if sec.kind == "etf" else "stock" }}</th><th scope="col" class="tf-r">All filers</th><th scope="col" class="tf-r">Of all filers</th><th scope="col" class="tf-r">Shares held</th><th scope="col" class="tf-r">Change</th><th scope="col" class="tf-r">Net 13F flow</th><th scope="col" class="tf-r">Value</th></tr></thead>
 <tbody>
 {% for r in rows %}
 <tr>
 <td class="app-strong">{{ r.label }}</td>
-<td>{{ fmt.day(r.period) }}</td>
 <td class="tf-r">{{ fmt.count(r.funds) }}</td>
 <td class="tf-r">{% if r.funds_change is none %}<span class="tf-muted">—</span>{% else %}{% if r.funds_change > 0 %}<span class="tf-dir tf-dir--in"></span>{% elif r.funds_change < 0 %}<span class="tf-dir tf-dir--out"></span>{% endif %}{{ fmt.signed_count(r.funds_change) }}{% endif %}</td>
 <td class="tf-r">{% if r.funds_pct is none %}<span class="tf-muted">—</span>{% else %}{{ fmt.pct(r.funds_pct) }}{% endif %}</td>
@@ -48,6 +92,7 @@
 {% else %}
 <td class="tf-r"><span class="tf-muted">—</span></td><td class="tf-r"><span class="tf-muted">—</span></td>
 {% endif %}
+<td class="tf-r">{% if r.net_flow is none %}<span class="tf-muted">—</span>{% else %}{{ fmt.money_signed(r.net_flow) }}{% endif %}</td>
 <td class="tf-r">{{ fmt.money(r.value) if r.held else "—" }}</td>
 </tr>
 {% endfor %}
@@ -77,7 +122,8 @@
 <h2 class="type-title">Method</h2>
 <p class="type-note">Funds holding counts the managers whose 13F-HR report for each quarter end lists shares of {{ sec.name }}, from the SEC’s Form 13F data sets. Each manager counts once: a restatement replaces its report, and a new-holdings amendment adds to it. Options and bond principal are left out.</p>
 <p class="type-note">Shares and value come from the same rows. A report whose value per share is more than 3 times above or below the median across all funds holding the stock is left out of the share total and listed under Data check. Reports from managers that still give value in thousands of dollars are kept, with their value scaled. Value moves with the share price, so a lower value does not by itself mean funds sold.</p>
-<p class="type-note">The market median is the middle change in funds holding across every stock held by at least 100 funds in both periods{% if latest_period.market_median_stocks %} ({{ fmt.count(latest_period.market_median_stocks) }} stocks in {{ latest_period.label }}){% endif %}. All 13F filers is the change in the number of managers filing holdings. Every Dec 31 both jump, because newly large managers file their first 13F, so compare a stock with them rather than with zero.</p>
+<p class="type-note">{{ sec.name }} is compared with {{ "the typical ETF: the middle change in funds holding across every ETF" if sec.kind == "etf" else "the typical stock: the middle change in funds holding across every stock" }} held by at least 100 funds in both periods{% if latest_period.typical_count(sec.kind) %} ({{ fmt.count(latest_period.typical_count(sec.kind)) }} in {{ latest_period.label }}){% endif %}, and with all 13F filers, the change in the number of managers filing holdings. Every Dec 31 both jump, because newly large managers file their first 13F, so compare with them rather than with zero.</p>
+<p class="type-note">Net 13F flow is the shares bought minus the shares sold by managers that filed complete reports for both periods, at the period-end price (the median value per share across all funds holding it). A manager filing its first 13F, newly over $100M or under a new legal name, has not bought: its positions may be years old. One that has not filed yet has not sold. Weight in book is a position’s value as a share of the manager’s reported 13F portfolio, long positions only.</p>
 <p class="type-note">13F covers managers with $100M or more in US-listed securities, and long positions only. Filings made after {{ fmt.day(latest_period.data_through) }} arrive in the SEC’s next data set, so late filers can still add a few funds to the latest quarter.</p>
 </section>
 {% endblock %}

@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}{{ book.name }} · ThirteenF{% endblock %}
+{% block main %}
+<section class="app-section app-section--tight">
+<div class="app-crumbs"><a href="/managers">Managers</a> / {{ book.name }}</div>
+<div class="app-eyebrow"><span class="type-caption app-caption-muted">Manager · CIK {{ book.cik }} · 13F holdings, {{ book_label }}</span></div>
+<h1 class="type-display app-title">{{ book.name }}</h1>
+<div class="app-stamps">
+<span class="tf-stamp"><b>13F-HR</b><i>·</i>As of {{ fmt.day(book.period) }}<i>·</i>{{ age_days }}d</span>
+{% if book.filed %}<span class="tf-stamp"><b>Filed</b><i>·</i>{{ fmt.day(book.filed) }}</span>{% endif %}
+<span class="tf-stamp"><b>Source</b><i>·</i>SEC Form 13F data sets</span>
+{% if sec_url %}<a class="app-small" href="{{ sec_url }}" rel="noopener">View the filing on sec.gov</a>{% endif %}
+</div>
+<p class="app-answer">{{ answer }}</p>
+{% if not book.complete %}<p class="app-answer-more">The SEC’s data set holds {{ fmt.count(book.lines) }} of the {{ fmt.count(book.declared) }} holdings this report declares, so the positions below are incomplete and its changes are not shown.</p>
+{% elif book.first_filing %}<p class="app-answer-more">This is their first 13F in this data, so there is no earlier quarter to compare with.</p>
+{% elif not book.complete_before %}<p class="app-answer-more">The SEC’s data set holds only part of their {{ prev_label }} report, so changes from it are not shown.</p>{% endif %}
+</section>
+
+<div class="tf-kfrow">
+{% for f in figures %}
+<div class="tf-kf"><span class="tf-kf__label">{{ f.label }}</span><span class="tf-kf__value">{{ f.value }}{% if f.unit %}<span class="tf-kf__unit">{{ f.unit }}</span>{% endif %}</span><span class="tf-kf__delta{% if f.direction %} tf-kf__delta--{{ f.direction }}{% endif %}">{{ f.delta }}</span></div>
+{% endfor %}
+</div>
+
+<form class="app-form-row" method="get" action="/manager/{{ book.cik }}" aria-label="Period">
+<div class="app-field"><label for="period" class="type-caption app-caption-muted">Period</label><select id="period" name="period" class="app-select" onchange="this.form.submit()">{% for p in manager_periods|reverse %}<option value="{{ p.isoformat() }}"{% if p == book.period %} selected{% endif %}>{{ fmt.quarter_label(p) }} · positions {{ fmt.short_day(p) }}</option>{% endfor %}</select></div>
+<noscript><button type="submit" class="app-button">Show</button></noscript>
+</form>
+
+{% if flow_rows %}
+<section class="app-section">
+<div class="app-section__head"><h2 class="type-title">Biggest moves, {{ book_label }}</h2><span class="type-caption app-caption-muted">Shares changed × {{ fmt.short_day(book.period) }} price</span></div>
+{{ m.flow_bars(flow_rows, "Biggest moves by " ~ book.name ~ ", " ~ book_label, "Stock") }}
+</section>
+{% endif %}
+
+<section class="app-section">
+<div class="app-section__head"><h2 class="type-title">Every position, {{ fmt.day(book.period) }}</h2><span class="type-caption app-caption-muted"><a href="/manager/{{ book.cik }}/positions.csv?period={{ book.period.isoformat() }}">Download CSV</a></span></div>
+<div class="tf-tablewrap"><table class="tf-table">
+<thead><tr><th scope="col" class="tf-r">#</th><th scope="col">Stock</th><th scope="col">Class</th><th scope="col">CUSIP</th><th scope="col" class="tf-r">Value</th><th scope="col">Weight in book</th><th scope="col" class="tf-r">Shares</th>{% if comparable %}<th scope="col">Change</th><th scope="col" class="tf-r">Shares changed</th><th scope="col" class="tf-r">Net buying</th>{% endif %}</tr></thead>
+<tbody>
+{% for p in positions %}
+<tr>
+<td class="tf-r tf-muted">{% if p.shares_now %}{{ loop.index }}{% endif %}</td>
+<td class="app-td-wrap">{% if p.ticker %}<span class="tf-ticker">{{ p.ticker }}</span> {% endif %}<a href="/stock/{{ p.cusip }}">{{ p.name }}</a>{% if p.kind == "etf" %} <span class="tf-muted">ETF</span>{% endif %}</td>
+<td class="tf-muted">{{ p.title_of_class or "" }}</td>
+<td><span class="type-id">{{ p.cusip }}</span></td>
+<td class="tf-r">{% if p.value_now %}{{ fmt.money(p.value_now) }}{% elif p.shares_now %}<span class="tf-stamp tf-stamp--stale"><b>Check</b></span>{% else %}<span class="tf-muted">—</span>{% endif %}</td>
+<td>{% if comparable %}{{ m.mini_meter(p.weight_now, p.weight_prev, p.action) }}{% else %}{{ fmt.weight(p.weight_now) }}{% endif %}</td>
+<td class="tf-r">{{ fmt.count(p.shares_now|round|int) if p.shares_now else "—" }}</td>
+{% if comparable %}
+<td>{{ m.tag(p.action) }}</td>
+<td class="tf-r">{% if p.action in ("hold", "check") %}<span class="tf-muted">—</span>{% else %}{{ fmt.signed_compact(p.delta) }}{% if p.delta_pct is not none and p.action in ("add", "trim") %} <span class="tf-muted">({{ fmt.pct(p.delta_pct, 0) }})</span>{% endif %}{% endif %}</td>
+<td class="tf-r">{% if p.flow is none or p.action == "hold" %}<span class="tf-muted">—</span>{% else %}{{ fmt.money_signed(p.flow) }}{% endif %}</td>
+{% endif %}
+</tr>
+{% endfor %}
+</tbody>
+{% if position_count > 100 %}<tfoot><tr><td colspan="10">{% if all_rows %}All {{ fmt.count(position_count) }} rows. <a href="?period={{ book.period.isoformat() }}">Show the largest 100</a>{% else %}The largest 100 of {{ fmt.count(position_count) }} rows, by value. <a href="?period={{ book.period.isoformat() }}&amp;rows=all">Show all</a> or download the CSV.{% endif %}</td></tr></tfoot>{% endif %}
+</table></div>
+</section>
+
+<section id="method" class="app-method">
+<h2 class="type-title">Method</h2>
+<p class="type-note">Positions come from {{ book.name }}’s 13F-HR report for {{ book_label }} in the SEC’s Form 13F data sets, with amendments applied: a restatement replaces the report, and a new-holdings amendment adds to it. Share positions only; options and bond principal are left out, as are shorts and cash, which 13F does not cover.</p>
+<p class="type-note">Weight in book is a position’s value as a share of the reported 13F portfolio. Shares changed compares with the {{ prev_label }} report, counting a company’s change of CUSIP as the same stock; net buying is shares changed × the {{ fmt.short_day(book.period) }} price, the median value per share across all funds holding the stock.</p>
+<p class="type-note">A report whose value per share is more than 3 times off the median is marked Check, and its value is left out of the portfolio total.</p>
+</section>
+{% endblock %}

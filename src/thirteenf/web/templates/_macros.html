@@ -1,0 +1,34 @@
+{# Shared pieces of the design system's Holder table, Conviction meter and Flow bar. #}
+
+{% macro tag(action) -%}
+{%- if action == "new" -%}<span class="tf-tag tf-tag--new">New</span>
+{%- elif action == "add" -%}<span class="tf-tag tf-tag--add">Add</span>
+{%- elif action == "trim" -%}<span class="tf-tag tf-tag--trim">Trim</span>
+{%- elif action == "exit" -%}<span class="tf-tag tf-tag--exit">Exit</span>
+{%- elif action == "first" -%}<span class="tf-tag tf-tag--hold">First 13F</span>
+{%- elif action == "check" -%}<span class="tf-tag tf-tag--hold">Check</span>
+{%- else -%}<span class="tf-tag tf-tag--hold">Hold</span>
+{%- endif -%}
+{%- endmacro %}
+
+{% macro mini_meter(now, before, action) -%}
+<span class="tf-meter tf-meter--mini"><span class="tf-meter__track">{% if now %}<span class="tf-meter__fill" style="--pct: {{ fmt.meter_pct(now) }}%"></span>{% endif %}{% if before and action not in ("new", "first") %}<span class="tf-meter__prior" style="--pct: {{ fmt.meter_pct(before) }}%"></span>{% endif %}</span><span class="tf-num">{{ fmt.weight(now) }} <span class="tf-was">{% if action == "new" %}new{% elif action == "first" %}first 13F{% elif before %}was {{ fmt.weight(before) }}{% endif %}</span></span></span>
+{%- endmacro %}
+
+{% macro meter(href, name, weight, before, rank, positions, quarter_before) -%}
+<div class="tf-meter" role="meter" aria-valuemin="0" aria-valuemax="10" aria-valuenow="{{ '%.1f' % (weight * 100) }}" aria-label="{{ name }}: {{ fmt.weight(weight) }} of reported portfolio{% if before %}, was {{ fmt.weight(before) }}{% endif %}">
+<div class="tf-meter__head"><span><a href="{{ href }}">{{ name }}</a></span><span class="tf-meter__value">{{ fmt.weight(weight) }}</span></div>
+<div class="tf-meter__track"><span class="tf-meter__fill" style="--pct: {{ fmt.meter_pct(weight) }}%"></span>{% if before %}<span class="tf-meter__prior" style="--pct: {{ fmt.meter_pct(before) }}%"></span>{% endif %}<span class="tf-meter__mark" style="--pct: 50%"></span></div>
+<div class="tf-meter__foot"><span>#{{ rank }} of {{ fmt.count(positions) }} positions</span><span>{% if before %}was {{ fmt.weight(before) }} in {{ quarter_before }}{% else %}new this quarter{% endif %}</span></div>
+</div>
+{%- endmacro %}
+
+{% macro flow_bars(rows, label, first_column) -%}
+<figure class="tf-flow" aria-label="{{ label }}">
+<div class="tf-flow__axis" aria-hidden="true"><span>{{ first_column }}</span><span><span><span class="tf-dir tf-dir--out"></span>Out</span><span>In<span class="tf-dir tf-dir--in app-dir-after"></span></span></span><span class="tf-r">Net</span></div>
+<ol class="tf-flow__rows">
+{% for r in rows %}<li class="tf-flow__row"><span class="tf-flow__name">{% if r.ticker %}<span class="tf-ticker">{{ r.ticker }}</span>{% endif %}<span><a href="{{ r.href }}">{{ r.name }}</a></span></span><span class="tf-flow__track"><span class="tf-flow__bar tf-flow__bar--{{ 'in' if r.flow > 0 else 'out' }}" style="--w: {{ r.w }}%" title="{{ fmt.money_signed(r.flow) }} · {{ r.name }}"></span></span><span class="tf-flow__value">{{ fmt.money_signed(r.flow) }}</span></li>
+{% endfor %}
+</ol>
+</figure>
+{%- endmacro %}

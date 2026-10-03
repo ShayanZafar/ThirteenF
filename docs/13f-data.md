@@ -47,7 +47,13 @@ Dates are text such as `30-JUN-2026`; parse them.
 
 **Change against the tide.** A stock's percentage change in funds holding minus the percentage change in all 13F filers, in points. If funds holding rose 3.0% while all filers rose 1.2%, that is +1.8 pts. It ranks the Biggest changes page and sits beside every stock's own change.
 
-**Market median.** The middle percentage change in funds holding across every stock held by at least 100 funds in both periods: what the typical stock did. The designs show a "watchlist median" in this place because they were drawn from eight stocks; the app uses the market median.
+**Typical change.** The middle percentage change in funds holding across every stock of the same kind (stock, ETF or other; see Tickers) held by at least 100 funds in both periods: what the typical stock, or the typical ETF, did. A stock is compared with the typical stock and an ETF with the typical ETF, decided Oct 3, 2026: in Q2 2026 the typical stock gained 2.8% more funds and the typical ETF 3.8%. The designs show a "watchlist median" in this place because they were drawn from eight stocks.
+
+**Net 13F flow.** For a stock and period: the shares bought minus the shares sold, valued at the period-end price (the median value per share across all funds holding it). Only managers with complete reports for both periods count, decided Oct 3, 2026: a manager filing its first 13F (newly over $100M, or a new legal entity, as Vanguard's became in 2026) has not bought, since its positions may be years old, and one that has not filed yet has not sold. Reports the implied-price check flags are left out. It is a flow at period-end prices, not the dollars actually traded.
+
+**Weight in book.** A position's value as a share of the manager's reported 13F portfolio (the value of its share positions, options and principal left out). It shows conviction: a large weight in a concentrated book says more than a large dollar amount in an index fund's. The stock page lists the managers with the largest weights among those with 10 or more positions.
+
+**Incomplete reports.** A report is incomplete when the data set's holdings table has fewer than half the holdings its own summary page declares (`TABLEENTRYTOTAL`): 7 to 12 reports a period, among them Norges Bank's Q3 2025 and Q1 2026 reports, each with 1 of about 1,500 holdings. Such a manager counts as not having filed for changes and flows, and its manager page says so. The missing holdings cannot be rebuilt from the data sets.
 
 **Changes between two periods, per manager.**
 - Opened: no shares last period, shares now.

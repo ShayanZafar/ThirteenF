@@ -9,7 +9,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from fastapi import FastAPI, Form, Query, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
@@ -100,12 +100,17 @@ def lookup(request: Request, q: str = ""):
 
 
 @app.get("/api/suggest")
-def suggest(q: str = ""):
-    """Up to eight stocks for the search box, as you type."""
+def suggest(q: str = "", scope: str = "all"):
+    """Up to eight stocks for the search box, as you type, then up to three managers
+    (scope=stocks leaves managers out, for adding to the watchlist)."""
     if len(q.strip()) < 1:
         return JSONResponse([])
     with data.connection() as con:
         results = data.search(con, q, limit=20)
+        found_managers = (
+            data.managers_list(con, data.periods(con)[-1].period, q, limit=3)
+            if scope != "stocks" and len(q.strip()) >= 3 else []
+        )
     if any(r["funds"] for r in results):
         results = [r for r in results if r["funds"]]  # nobody holds the rest now: old bonds, options
     results = results[:8]
@@ -118,13 +123,32 @@ def suggest(q: str = ""):
         if r.get("kind") == "etf":
             meta = f"ETF · {meta}"
         suggestions.append(
-            {"cusip": r["cusip"], "ticker": r["ticker"], "name": r["name"], "funds": r["funds"], "funds_text": meta}
+            {"cusip": r["cusip"], "ticker": r["ticker"], "name": r["name"], "funds": r["funds"], "funds_text": meta,
+             "url": f"/stock/{r['cusip']}"}
+        )
+    for mgr in found_managers:
+        suggestions.append(
+            {"cusip": "", "ticker": "", "name": mgr["name"], "funds": 0,
+             "funds_text": f"Manager · {fmt.money(mgr['value'])}", "url": f"/manager/{mgr['cik']}"}
         )
     return JSONResponse(suggestions)
 
 
+def flow_rows(items: list, name, href, ticker=lambda _: "", limit: int = 7) -> list[dict]:
+    """The largest inflows, then the largest outflows, for a Flow bar: signed, largest in first."""
+    with_flow = [x for x in items if x.flow]
+    ins = sorted((x for x in with_flow if x.flow > 0), key=lambda x: -x.flow)[:limit]
+    outs = sorted((x for x in with_flow if x.flow < 0), key=lambda x: x.flow)[:limit]
+    chosen = ins + sorted(outs, key=lambda x: -x.flow)
+    widest = max((abs(x.flow) for x in chosen), default=0) or 1
+    return [
+        {"name": name(x), "href": href(x), "ticker": ticker(x), "flow": x.flow, "w": round(100 * abs(x.flow) / widest, 1)}
+        for x in chosen
+    ]
+
+
 @app.get("/stock/{cusip}", response_class=HTMLResponse)
-def stock_page(request: Request, cusip: str, came_from: str = Query("", alias="from")):
+def stock_page(request: Request, cusip: str, came_from: str = Query("", alias="from"), moves: str = ""):
     with data.connection() as con:
         periods = data.periods(con)
         sec = data.security(con, cusip)
@@ -139,9 +163,12 @@ def stock_page(request: Request, cusip: str, came_from: str = Query("", alias="f
         left_out, left_out_total = (
             data.left_out_rows(con, sec.cusip, latest.period) if latest.held else ([], 0)
         )
+        who = data.who_moved(con, sec.cusip, latest.period, latest.prev_period, latest.median_price)
+        weights = data.largest_weights(con, sec.cusip, latest.period, latest.prev_period) if latest.held else []
     chart = charts.funds_bar_chart(
         [{"label": r.label, "funds": r.funds, "change": r.funds_change} for r in series], sec.name
     )
+    all_moves = moves == "all"
     return render(
         request,
         "stock.html",
@@ -154,6 +181,17 @@ def stock_page(request: Request, cusip: str, came_from: str = Query("", alias="f
         over_time=story.over_time(series, sec.name),
         figures=story.key_figures(series),
         chart=Markup(chart),
+        flow_chart=Markup(charts.flow_chart([{"label": r.label, "net": r.net_flow} for r in series], sec.name)),
+        flow_text=story.flow_sentence(series, sec.name),
+        moves=who,
+        shown_moves=who.moves if all_moves else who.moves[:25],
+        all_moves=all_moves,
+        flow_rows=flow_rows(
+            who.moves, name=lambda mv: mv.manager,
+            href=lambda mv: f"/manager/{mv.cik}?period={latest.period.isoformat()}",
+        ),
+        weights=weights,
+        quarter_before=fmt.quarter_label(latest.prev_period) if latest.prev_period else "",
         left_out=left_out,
         left_out_total=left_out_total,
         outran=[r.label for r in series if r.held and r.share_check == "outran"],
@@ -314,3 +352,90 @@ def watchlist_add(q: str = Form(""), cusip: str = Form(""), back: str = Form("/"
 def watchlist_remove(cusip: str = Form(...), back: str = Form("/")):
     watchlist.remove(cusip)
     return RedirectResponse(_back(back), status_code=303)
+
+
+
+def _book(con, cik: int, period: str):
+    periods = data.periods(con)
+    filed = data.manager_periods(con, cik)
+    if not filed:
+        return None
+    chosen = next((d for d in filed if d.isoformat() == period), filed[-1])
+    found = data.manager_book(con, cik, chosen)
+    if found is None:
+        return None
+    return periods, filed, found
+
+
+@app.get("/manager/{cik}", response_class=HTMLResponse)
+def manager_page(request: Request, cik: int, period: str = "", rows: str = ""):
+    with data.connection() as con:
+        found = _book(con, cik, period)
+    if found is None:
+        return render(request, "notfound.html", nav="managers", what=f"a 13F report for CIK {cik}", status_code=404)
+    periods, filed, (book, positions) = found
+    comparable = not book.first_filing and book.complete and book.complete_before
+    by_period = {p.period: p for p in periods}
+    return render(
+        request,
+        "manager.html",
+        nav="managers",
+        book=book,
+        positions=positions if rows == "all" else positions[:100],
+        all_rows=rows == "all",
+        position_count=len(positions),
+        comparable=comparable,
+        manager_periods=filed,
+        book_label=fmt.quarter_label(book.period),
+        prev_label=fmt.quarter_label(book.prev_period) if book.prev_period else "",
+        answer=story.manager_answer(book, positions, book.name),
+        figures=story.manager_figures(book, positions),
+        flow_rows=flow_rows(
+            positions if comparable else [], name=lambda p: p.name, href=lambda p: f"/stock/{p.cusip}",
+            ticker=lambda p: p.ticker,
+        ),
+        sec_url=(
+            f"https://www.sec.gov/Archives/edgar/data/{book.cik}/{book.accession.replace('-', '')}/"
+            if book.accession else ""
+        ),
+        latest_period=by_period[book.period],
+        age_days=(date.today() - book.period).days,
+    )
+
+
+@app.get("/manager/{cik}/positions.csv")
+def manager_csv(cik: int, period: str = ""):
+    """Every position in a manager's report, as a spreadsheet."""
+    import io
+
+    with data.connection() as con:
+        found = _book(con, cik, period)
+    if found is None:
+        return PlainTextResponse("No 13F report for that manager", status_code=404)
+    _, _, (book, positions) = found
+    out = io.StringIO()
+    writer = csv.writer(out)
+    writer.writerow(["ticker", "name", "class", "cusip", "kind", "value_usd", "weight", "shares",
+                     "shares_before", "change", "net_buying_usd"])
+    for p in positions:
+        writer.writerow([
+            p.ticker, p.name, p.title_of_class or "", p.cusip, p.kind,
+            round(p.value_now) if p.value_now else "", f"{p.weight_now:.6f}" if p.weight_now else "",
+            round(p.shares_now) if p.shares_now else 0, round(p.shares_prev) if p.shares_prev else 0,
+            p.action, round(p.flow) if p.flow is not None else "",
+        ])
+    filename = f"13f-{book.cik}-{book.period.isoformat()}.csv"
+    return PlainTextResponse(
+        out.getvalue(), media_type="text/csv", headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
+
+@app.get("/managers", response_class=HTMLResponse)
+def managers_page(request: Request, q: str = ""):
+    query = q.strip()
+    with data.connection() as con:
+        periods = data.periods(con)
+        latest = periods[-1]
+        found = data.managers_list(con, latest.period, query, limit=100 if not query else 200)
+        total = con.execute("SELECT count(*) FROM manager_totals WHERE period = ?", [latest.period]).fetchone()[0]
+    return render(request, "managers.html", nav="managers", managers=found, query=query, total=total, **freshness(latest))

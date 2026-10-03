@@ -13,8 +13,8 @@ from markupsafe import Markup, escape
 
 from thirteenf.web.data import StockPeriod
 from thirteenf.web.format import (
-    compact, count, day, flow as flow_of, month_name, number_word, pct, pct_fine, pts, short_day,
-    signed_compact, signed_count,
+    compact, count, day, flow as flow_of, money, money_signed, month_name, number_word, pct, pct_fine, pts,
+    short_day, signed_compact, signed_count,
 )
 
 
@@ -94,6 +94,11 @@ def answer(series: list[StockPeriod], name: str) -> str:
     return text
 
 
+def typical(kind: str) -> str:
+    """What a stock is compared with: 'the typical stock', 'the typical ETF'."""
+    return {"etf": "the typical ETF", "other": "the typical fund or security of its kind"}.get(kind, "the typical stock")
+
+
 def comparison(series: list[StockPeriod], name: str) -> str:
     latest = series[-1]
     compared = [r for r in series if r.vs_median_pts is not None][-8:]
@@ -107,7 +112,7 @@ def comparison(series: list[StockPeriod], name: str) -> str:
         else:
             how_often = f"in {number_word(ahead)}"
         text = (
-            f"Funds holding {name} ran ahead of the market median {how_often} "
+            f"Funds holding {name} grew faster than for {typical(latest.kind)} {how_often} "
             f"of the last {number_word(len(compared))} periods."
         )
     if latest.funds_pct is not None and latest.market_median_pct is not None:
@@ -116,8 +121,8 @@ def comparison(series: list[StockPeriod], name: str) -> str:
         else:
             moved = f"was {'up' if latest.funds_pct > 0 else 'down'} {pct(latest.funds_pct, signed=False)}"
         text += (
-            f" In the {month_name(latest.period)} quarter it {moved}, against a market median of "
-            f"{pct(latest.market_median_pct)} and {pct(latest.filers_pct)} for all 13F filers."
+            f" In the {month_name(latest.period)} quarter it {moved}, against {pct(latest.market_median_pct)} for "
+            f"{typical(latest.kind)} and {pct(latest.filers_pct)} for all 13F filers."
         )
     return text.strip()
 
@@ -140,7 +145,7 @@ def over_time(series: list[StockPeriod], name: str) -> str:
         share_diff = latest.shares - first.shares
         join = "and" if (diff >= 0) == (share_diff >= 0) else "but"
         text += (
-            f", {join} they hold {signed_compact(abs(share_diff), latest.shares).lstrip('+')} "
+            f", {join} they hold {signed_compact(abs(share_diff)).lstrip('+')} "
             f"{'more' if share_diff >= 0 else 'fewer'} shares ({pct_fine(latest.shares / first.shares - 1)})."
         )
         if diff > 0 and share_diff < 0:
@@ -166,18 +171,21 @@ def _dir(direction: str) -> Markup:
 
 
 def _split_unit(text: str) -> tuple[str, str]:
+    """838M -> (838, M); +$72.1B -> (+$72.1, B)."""
     if text and text[-1] in "KMBT":
         return text[:-1], text[-1]
     return text, ""
+
+
+def flow(x: float | None) -> str:
+    """The flow direction of a signed number: in, out, or none for zero."""
+    return "" if not x else ("in" if x > 0 else "out")
 
 
 def key_figures(series: list[StockPeriod]) -> list[Figure]:
     latest = series[-1]
     prev = series[-2] if len(series) > 1 else None
     figures: list[Figure] = []
-
-    def flow(x: float | None) -> str:
-        return "" if not x else ("in" if x > 0 else "out")
 
     # Funds holding
     f = Figure(label=f"Funds holding, {day(latest.period)}", value=count(latest.funds))
@@ -221,23 +229,24 @@ def key_figures(series: list[StockPeriod]) -> list[Figure]:
     elif latest.held:
         figures.append(Figure(label="Shares held by funds", value="Check", delta=Markup("Shares outran value; not shown")))
 
-    # Periods with more funds
-    changes = [r for r in series if r.direction is not None][-8:]
-    if changes:
-        more = sum(1 for r in changes if r.direction > 0)
-        d, n = latest.direction, latest.streak
-        if d is None or d == 0:
-            streak = "Unchanged in the latest period"
-        else:
-            word = "More" if d > 0 else "Fewer"
-            streak = f"{word} in the latest {number_word(n)}" if n >= 2 else f"{word} in the latest period"
-        figures.append(Figure(label="Periods with more funds", value=str(more), unit=f" of last {len(changes)}", delta=Markup(escape(streak))))
-
     quarter = f"Q{(latest.period.month - 1) // 3 + 1}"
+    # Net 13F flow: shares bought minus sold by managers that filed both periods
+    if latest.net_flow is not None:
+        d = flow(latest.net_flow)
+        number, unit = _split_unit(money_signed(latest.net_flow))
+        figures.append(
+            Figure(
+                label=f"Net 13F flow, {quarter}", value=number, unit=unit, direction=d,
+                delta=Markup(
+                    f"Bought {escape(money(latest.bought_value))} · sold {escape(money(latest.sold_value))}"
+                ),
+            )
+        )
+
     if latest.vs_median_pts is not None:
         figures.append(
             Figure(
-                label=f"Vs market median, {quarter}", value=pts(latest.vs_median_pts)[:-4], unit=" pts",
+                label=f"Vs {typical(latest.kind)[4:]}, {quarter}", value=pts(latest.vs_median_pts)[:-4], unit=" pts",
                 direction=flow(round(latest.vs_median_pts, 1)),
                 delta=_dir(flow(round(latest.vs_median_pts, 1)))
                 + Markup(f"<b>{escape(pct(latest.funds_pct))}</b> against {escape(pct(latest.market_median_pct))}"),
@@ -328,12 +337,12 @@ def watchlist_figures(rows: list, period) -> list[Figure]:
     figures = [
         Figure(label=f"Stocks that gained funds, {quarter}", value=str(more), unit=f" of {len(rows)}",
                delta=Markup(escape(f"Against {short_day(period.prev_period)}"))),
-        Figure(label=f"Market median, {quarter}", value=pct(period.market_median_pct),
-               delta=Markup("Typical change in funds holding")),
+        Figure(label=f"Typical stock, {quarter}", value=pct(period.typical_pct("stock")),
+               delta=Markup("Change in funds holding; ETFs against the typical ETF")),
     ]
     ranked = sorted((r for r in rows if r.latest.vs_median_pts is not None), key=lambda r: r.latest.vs_median_pts)
     if len(ranked) >= 2:
-        best = "Furthest ahead of the median" if ranked[-1].latest.vs_median_pts > 0 else "Nearest the median"
+        best = "Furthest ahead of its kind" if ranked[-1].latest.vs_median_pts > 0 else "Nearest its kind"
         for label, r in ((best, ranked[-1]), ("Furthest behind", ranked[0])):
             d = "in" if r.latest.vs_median_pts > 0 else "out" if r.latest.vs_median_pts < 0 else ""
             figures.append(
@@ -342,4 +351,84 @@ def watchlist_figures(rows: list, period) -> list[Figure]:
                     delta=_dir(d) + Markup(f"<b>{escape(r.name)}</b>, {escape(pct(r.latest.funds_pct))}"),
                 )
             )
+    return figures
+
+
+
+def flow_sentence(series: list[StockPeriod], name: str) -> str:
+    """The run of net buying or selling, newest period first."""
+    flows = [r for r in series if r.net_flow is not None]
+    if not flows:
+        return ""
+    latest = flows[-1]
+    sign = (latest.net_flow > 0) - (latest.net_flow < 0)
+    run = 0
+    for r in reversed(flows):
+        if (r.net_flow > 0) - (r.net_flow < 0) != sign:
+            break
+        run += 1
+    word = "bought more than they sold" if sign > 0 else "sold more than they bought" if sign < 0 else "bought as much as they sold"
+    if run >= 2:
+        return (
+            f"Funds that filed both periods {word} in each of the last {number_word(run)} periods: "
+            f"{money_signed(latest.net_flow)} in {latest.label}."
+        )
+    text = f"Funds that filed both periods {word} in {latest.label}: {money_signed(latest.net_flow)}"
+    if len(flows) >= 2:
+        before = flows[-2]
+        text += f", after {money_signed(before.net_flow)} in {before.label}"
+    return text + "."
+
+
+def manager_answer(book, positions: list, name: str) -> str:
+    held = [p for p in positions if p.shares_now]
+    if not held:
+        return f"{name} reported no share positions for {book.period:%b} {book.period.day}, {book.period.year}."
+    top10 = sum(sorted((p.weight_now or 0 for p in held), reverse=True)[:10])
+    if top10 >= 0.6:
+        lead = f"A concentrated book: {len(held):,} positions, the ten largest are {pct(top10, 0, signed=False)} of it."
+    elif top10 <= 0.2:
+        lead = f"A broad book: {len(held):,} positions, the ten largest are {pct(top10, 0, signed=False)} of it."
+    else:
+        lead = f"{len(held):,} positions; the ten largest are {pct(top10, 0, signed=False)} of the book."
+    if book.first_filing or not (book.complete and book.complete_before):
+        return lead
+    counts = {a: sum(1 for p in positions if p.action == a) for a in ("new", "add", "trim", "exit")}
+    quarter = f"Q{(book.period.month - 1) // 3 + 1}"
+    return (
+        f"{lead} In {quarter} they opened {counts['new']:,} {'position' if counts['new'] == 1 else 'positions'}, "
+        f"added to {counts['add']:,}, trimmed {counts['trim']:,} and exited {counts['exit']:,}."
+    )
+
+
+def manager_figures(book, positions: list) -> list[Figure]:
+    quarter = f"Q{(book.period.month - 1) // 3 + 1}"
+    prev_q = f"Q{(book.prev_period.month - 1) // 3 + 1}" if book.prev_period else ""
+    held = [p for p in positions if p.shares_now]
+    figures = []
+    number, unit = _split_unit(money(book.value))
+    figures.append(Figure(
+        label="Reported 13F portfolio", value=number, unit=unit,
+        delta=Markup(escape(f"{money(book.value_prev)} in {prev_q}" if book.value_prev else "First 13F in this data")),
+    ))
+    new = sum(1 for p in positions if p.action == "new")
+    exits = sum(1 for p in positions if p.action == "exit")
+    figures.append(Figure(label="Positions", value=f"{len(held):,}", delta=Markup(escape(f"{new:,} new · {exits:,} exited"))))
+    top10 = sum(sorted((p.weight_now or 0 for p in held), reverse=True)[:10])
+    top10_prev = sum(sorted((p.weight_prev or 0 for p in positions if p.shares_prev), reverse=True)[:10])
+    figures.append(Figure(
+        label="Ten largest, share of book", value=f"{round(top10 * 100):.0f}", unit="%",
+        delta=Markup(escape(f"{round(top10_prev * 100):.0f}% in {prev_q}" if top10_prev else "")),
+    ))
+    flows = [p.flow for p in positions if p.flow is not None]
+    if flows and not book.first_filing:
+        bought = sum(f for f in flows if f > 0)
+        sold = -sum(f for f in flows if f < 0)
+        net = bought - sold
+        number, unit = _split_unit(money_signed(net))
+        d = flow(net)
+        figures.append(Figure(
+            label=f"Net buying, {quarter}", value=number, unit=unit, direction=d,
+            delta=Markup(f"Bought {escape(money(bought))} · sold {escape(money(sold))}"),
+        ))
     return figures

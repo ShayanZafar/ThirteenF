@@ -31,7 +31,7 @@ def _period_rows(html: str) -> dict[str, int]:
     for row in re.findall(r"<tr>(.*?)</tr>", table, re.S):
         cells = [_text(c).strip() for c in re.findall(r"<td[^>]*>(.*?)</td>", row, re.S)]
         if cells:
-            rows[cells[0]] = int(cells[2].replace(",", ""))
+            rows[cells[0]] = int(cells[1].replace(",", ""))  # Period | Funds holding | ...
     return rows
 
 

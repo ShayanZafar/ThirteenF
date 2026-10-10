@@ -1,6 +1,7 @@
 # Claude reviews each pull request once, when it's opened or marked ready, and
 # posts findings as inline comments. It runs on the Claude subscription through
 # the CLAUDE_CODE_OAUTH_TOKEN secret (created with `claude setup-token`).
+# Until that secret is set, the job passes with a warning instead of failing.
 # Drafts and pull requests from forks are skipped. To review again after a
 # push, re-run the workflow from the Actions tab, or add `synchronize` to the
 # types below (that reviews every push, which costs more plan usage).
@@ -23,12 +24,20 @@ jobs:
       pull-requests: read
       issues: read
       id-token: write
+    env:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
     steps:
+      - name: Skip without a token
+        if: env.CLAUDE_CODE_OAUTH_TOKEN == ''
+        run: echo "::warning::No review ran. Add the CLAUDE_CODE_OAUTH_TOKEN secret (from claude setup-token) under Settings > Secrets and variables > Actions, then re-run this job."
+
       - uses: actions/checkout@v7
+        if: env.CLAUDE_CODE_OAUTH_TOKEN != ''
         with:
           fetch-depth: 1
 
       - uses: anthropics/claude-code-action@v1
+        if: env.CLAUDE_CODE_OAUTH_TOKEN != ''
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           plugin_marketplaces: "https://github.com/anthropics/claude-code.git"

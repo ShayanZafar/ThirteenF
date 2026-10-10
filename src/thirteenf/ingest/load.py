@@ -10,13 +10,13 @@ from __future__ import annotations
 import hashlib
 import shutil
 import zipfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import duckdb
 
 from thirteenf.config import DATA_DIR, RAW_DIR
-from thirteenf.db import connect
+from thirteenf.db import connect, scalar
 
 # SEC file name -> DuckDB table
 RAW_TABLES = {
@@ -79,15 +79,11 @@ def ensure_load_log(con: duckdb.DuckDBPyConnection) -> None:
 
 
 def already_loaded(con: duckdb.DuckDBPyConnection, zip_name: str, sha: str) -> bool:
-    row = con.execute(
-        "SELECT count(*) FROM load_log WHERE source_zip = ? AND zip_sha256 = ?", [zip_name, sha]
-    ).fetchone()
-    return row[0] == len(RAW_TABLES)
+    loaded = scalar(con, "SELECT count(*) FROM load_log WHERE source_zip = ? AND zip_sha256 = ?", [zip_name, sha])
+    return loaded == len(RAW_TABLES)
 
 
-def load_zip(
-    con: duckdb.DuckDBPyConnection, zip_path: Path, log=print, work_root: Path | None = None
-) -> bool:
+def load_zip(con: duckdb.DuckDBPyConnection, zip_path: Path, log=print, work_root: Path | None = None) -> bool:
     """Load one zip. Returns False when the same file was already loaded."""
     zip_name = zip_path.name
     sha = sha256_of(zip_path)
@@ -102,15 +98,14 @@ def load_zip(
         with zipfile.ZipFile(zip_path) as archive:
             extracted = {t: Path(archive.extract(_member(archive, t), work)) for t in RAW_TABLES}
 
-        loaded_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        loaded_at = datetime.now(UTC).replace(tzinfo=None)
         con.execute("BEGIN TRANSACTION")
         try:
             con.execute("DELETE FROM load_log WHERE source_zip = ?", [zip_name])
             for sec_name, table in RAW_TABLES.items():
                 source = _read_tsv(extracted[sec_name])
                 con.execute(
-                    f"CREATE TABLE IF NOT EXISTS {table} AS "
-                    f"SELECT *, ''::VARCHAR AS source_zip FROM {source} LIMIT 0"
+                    f"CREATE TABLE IF NOT EXISTS {table} AS SELECT *, ''::VARCHAR AS source_zip FROM {source} LIMIT 0"
                 )
                 # Loading the same zip twice replaces its rows rather than adding to them.
                 con.execute(f"DELETE FROM {table} WHERE source_zip = ?", [zip_name])
@@ -118,14 +113,10 @@ def load_zip(
                     f"INSERT INTO {table} BY NAME SELECT *, ?::VARCHAR AS source_zip FROM {source}",
                     [zip_name],
                 )
-                rows = con.execute(
-                    f"SELECT count(*) FROM {table} WHERE source_zip = ?", [zip_name]
-                ).fetchone()[0]
+                rows = scalar(con, f"SELECT count(*) FROM {table} WHERE source_zip = ?", [zip_name])
                 expected = count_data_lines(extracted[sec_name])
                 if rows != expected:
-                    raise ValueError(
-                        f"{zip_name} {sec_name}: loaded {rows:,} rows but the file has {expected:,}"
-                    )
+                    raise ValueError(f"{zip_name} {sec_name}: loaded {rows:,} rows but the file has {expected:,}")
                 con.execute(
                     "INSERT INTO load_log VALUES (?, ?, ?, ?, ?, ?)",
                     [zip_name, table, rows, zip_path.stat().st_size, sha, loaded_at],

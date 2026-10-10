@@ -37,7 +37,11 @@ def load() -> list[Entry]:
         shutil.copyfile(config.WATCHLIST_CSV, target)
     with open(target, newline="", encoding="utf-8") as f:
         entries = [
-            Entry(cusip=row["cusip"].strip().upper(), ticker=(row.get("ticker") or "").strip().upper(), name=(row.get("name") or "").strip())
+            Entry(
+                cusip=row["cusip"].strip().upper(),
+                ticker=(row.get("ticker") or "").strip().upper(),
+                name=(row.get("name") or "").strip(),
+            )
             for row in csv.DictReader(f)
             if (row.get("cusip") or "").strip()
         ]

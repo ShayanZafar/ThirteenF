@@ -24,9 +24,18 @@ class FakeClock:
 
 
 def _listing(ticker, exch="US", kind="Common Stock", share_class=None):
-    return {"figi": f"F-{ticker}-{exch}", "name": f"{ticker} INC", "ticker": ticker, "exchCode": exch,
-            "compositeFIGI": f"C-{ticker}", "securityType": kind, "marketSector": "Equity",
-            "shareClassFIGI": share_class or f"S-{ticker}", "securityType2": kind, "securityDescription": ticker}
+    return {
+        "figi": f"F-{ticker}-{exch}",
+        "name": f"{ticker} INC",
+        "ticker": ticker,
+        "exchCode": exch,
+        "compositeFIGI": f"C-{ticker}",
+        "securityType": kind,
+        "marketSector": "Equity",
+        "shareClassFIGI": share_class or f"S-{ticker}",
+        "securityType2": kind,
+        "securityDescription": ticker,
+    }
 
 
 KNOWN = {
@@ -97,7 +106,10 @@ def test_maps_cusips_then_filers_figis_and_caches_answers(con):
     transport = fake_openfigi(seen, error_for={FAILING}, rejected={REJECTED_BY_FIGI}, lopsided_with={UNKNOWN})
     client = openfigi.OpenFigiClient("key", transport=transport, sleep=clock.sleep, clock=clock.clock)
     counts = openfigi.update(lambda: nullcontext(con), client, log=lambda *_: None)
-    rows = {r[0]: r for r in con.execute("SELECT cusip, found, ticker, security_type, id_type, exch_code FROM openfigi").fetchall()}
+    rows = {
+        r[0]: r
+        for r in con.execute("SELECT cusip, found, ticker, security_type, id_type, exch_code FROM openfigi").fetchall()
+    }
     assert rows["037833100"][1:4] == (True, "AAPL", "Common Stock")
     assert rows["037833100"][5] == "US"  # the US composite listing, not the first one
     assert rows["464287200"][3] == "ETP"
@@ -149,7 +161,9 @@ def test_batches_and_paces_requests_to_the_limits():
 
 def test_waits_and_retries_when_told_to_slow_down():
     seen, clock = [], FakeClock()
-    client = openfigi.OpenFigiClient("key", transport=fake_openfigi(seen, fail_first=2), sleep=clock.sleep, clock=clock.clock)
+    client = openfigi.OpenFigiClient(
+        "key", transport=fake_openfigi(seen, fail_first=2), sleep=clock.sleep, clock=clock.clock
+    )
     result = client.map([{"idType": "ID_CUSIP", "idValue": "037833100", "exchCode": "US"}])
     assert result[0]["data"][0]["ticker"] == "AAPL"
     assert len(seen) == 3 and clock.slept[:2] == [3.0, 3.0]
@@ -158,7 +172,22 @@ def test_waits_and_retries_when_told_to_slow_down():
 def test_text_with_quotes_is_stored_safely():
     c = duckdb.connect()
     c.execute(openfigi.CACHE_DDL)
-    row = ("123456789", "ID_CUSIP", "123456789", True, "X", "O'NEIL'S; DROP TABLE x", "US", None, None,
-           None, None, None, None, '{"a":"it\'s"}', openfigi.datetime(2026, 10, 2))
+    row = (
+        "123456789",
+        "ID_CUSIP",
+        "123456789",
+        True,
+        "X",
+        "O'NEIL'S; DROP TABLE x",
+        "US",
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        '{"a":"it\'s"}',
+        openfigi.datetime(2026, 10, 2),
+    )
     openfigi._store(c, [row])
     assert c.execute("SELECT name FROM openfigi").fetchone()[0] == "O'NEIL'S; DROP TABLE x"

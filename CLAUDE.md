@@ -30,6 +30,12 @@ A personal app, run locally, that answers one question for every US-listed stock
 - SEC access: send the User-Agent from the `SEC_USER_AGENT` environment variable (for example `ThirteenF you@example.com`). If it is not set, stop and ask the user for it. Stay under 10 requests per second.
 - Keep `data/` and `.venv/` out of git.
 
+## Definition of done
+
+- `scripts/verify.sh` passes. Show its last lines in your summary.
+- A change at a seam (a route, the build, tickers, a network call) comes with a test that runs without the SEC download; `tests/minidata.py` builds a small made-up data set for that.
+- Never loosen a test tolerance, a threshold in `docs/13f-data.md`, the complexity ceiling in `pyproject.toml` or a check without asking the user first. Record the reason with a date.
+
 ## Commands (add them as you build)
 
 - `python -m thirteenf.ingest` downloads the Form 13F data sets, loads them and builds the model. `--no-download` loads only the zips already in `data/raw/`.
@@ -37,4 +43,5 @@ A personal app, run locally, that answers one question for every US-listed stock
 - `python -m thirteenf.tickers` maps new CUSIPs to tickers with OpenFIGI and caches them in DuckDB. It reads a free OpenFIGI key from `openfigi_api_key` in `data/settings.toml` (git-ignored; an `OPENFIGI_API_KEY` environment variable overrides it); without a key the first run takes about 2.5 hours. `python -m thirteenf.ingest` runs it too when a key is set.
 - `python -m thirteenf.web` serves the app at http://127.0.0.1:8000. `--open` also opens it in the browser; `--reload` restarts it when the Python code changes.
 - `pytest` runs the tests, including the reference-number checks.
+- `scripts/verify.sh` (or `scripts\verify.cmd`) is the one check: ruff format, ruff lint, mypy, then the tests. CI runs the same script on every pull request.
 - `scripts/` wraps these for people running the app: `setup`, `update-data`, `start` and `test`, as `.cmd` for Windows and `.sh` for macOS and Linux. `README.md` has the table; `docs/` has the user and developer documentation.

@@ -55,6 +55,7 @@ scripts/start.sh
 | `scripts\update-data.cmd` / `scripts/update-data.sh` | `python -m thirteenf.ingest` | Downloads new SEC data sets, loads them, rebuilds the model, maps new tickers |
 | `scripts\start.cmd` / `scripts/start.sh` | `python -m thirteenf.web --open` | Serves the app at <http://127.0.0.1:8000> and opens it |
 | `scripts\test.cmd` / `scripts/test.sh` | `python -m pytest` | Runs the tests |
+| `scripts\verify.cmd` / `scripts/verify.sh` | | Checks formatting, lint and types, then runs the tests; CI runs the same |
 | | `python -m thirteenf.model` | Rebuilds the model tables from the loaded data (a few minutes) |
 | | `python -m thirteenf.tickers` | Maps new CUSIPs to tickers with OpenFIGI |
 

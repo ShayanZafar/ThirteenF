@@ -201,8 +201,32 @@ def ratio(x: float | None) -> str:
 
 
 _KEEP_UPPER = {
-    "ETF", "ETN", "REIT", "ADR", "ADS", "LLC", "LP", "PLC", "NV", "SA", "AG", "SE", "AB", "ASA",
-    "USA", "US", "II", "III", "IV", "MSCI", "S&P", "ESG", "NYSE", "AI", "TR", "SPDR",
+    "ETF",
+    "ETN",
+    "REIT",
+    "ADR",
+    "ADS",
+    "LLC",
+    "LP",
+    "PLC",
+    "NV",
+    "SA",
+    "AG",
+    "SE",
+    "AB",
+    "ASA",
+    "USA",
+    "US",
+    "II",
+    "III",
+    "IV",
+    "MSCI",
+    "S&P",
+    "ESG",
+    "NYSE",
+    "AI",
+    "TR",
+    "SPDR",
 }
 
 

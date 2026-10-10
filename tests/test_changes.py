@@ -159,7 +159,10 @@ def test_a_tab_shows_one_kind(client, con, tab, kind):
 
 def test_tab_counts_match_the_data(client, con):
     html = client.get("/changes?period=2026-06-30").text
-    shown = {label: int(n.replace(",", "")) for label, n in re.findall(r'>(All|Stocks|ETFs) <span class="app-tabs__count">([\d,]+)</span>', html)}
+    shown = {
+        label: int(n.replace(",", ""))
+        for label, n in re.findall(r'>(All|Stocks|ETFs) <span class="app-tabs__count">([\d,]+)</span>', html)
+    }
     counts = dict(
         con.execute(
             """

@@ -31,8 +31,14 @@ def test_chart_labels_take_the_printed_sign():
 @pytest.mark.data
 @pytest.mark.parametrize(
     "path",
-    ["/stock/037833100", "/", "/changes", "/changes?by=count&kind=etfs", "/managers",
-     f"/manager/{ALPHABET_MANAGER}?period=2026-03-31"],
+    [
+        "/stock/037833100",
+        "/",
+        "/changes",
+        "/changes?by=count&kind=etfs",
+        "/managers",
+        f"/manager/{ALPHABET_MANAGER}?period=2026-03-31",
+    ],
 )
 def test_every_painted_number_matches_its_sign(con, path):
     html = TestClient(app).get(path).text

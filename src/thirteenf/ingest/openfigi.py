@@ -17,9 +17,9 @@ from __future__ import annotations
 import json
 import time
 from collections import deque
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Callable, Iterable
+from datetime import UTC, datetime
 
 import duckdb
 import httpx
@@ -118,12 +118,19 @@ class OpenFigiClient:
         self._sent.append(now)
 
     def map(self, jobs: list[dict]) -> list[dict]:
-        """One mapping request. Waits and retries when OpenFIGI says to slow down."""
+        """One mapping request. Waits and retries when OpenFIGI says to slow down,
+        or when the connection fails (a DNS blip, a dropped connection, a timeout)."""
         if len(jobs) > self.limits.jobs_per_request:
             raise ValueError(f"{len(jobs)} jobs; OpenFIGI takes {self.limits.jobs_per_request} per request")
         for attempt in range(1, 7):
             self._wait_turn()
-            response = self._client.post(API, json=jobs)
+            try:
+                response = self._client.post(API, json=jobs)
+            except httpx.TransportError:
+                if attempt == 6:
+                    raise
+                self._sleep(5.0 * attempt)
+                continue
             if response.status_code == 429 or response.status_code >= 500:
                 reset = float(response.headers.get("ratelimit-reset") or self.limits.window_seconds)
                 self._sleep(max(reset, 1.0) * (1 if response.status_code == 429 else attempt))
@@ -165,19 +172,42 @@ def _store(con: duckdb.DuckDBPyConnection, rows: list[tuple]) -> None:
 
 def _row(cusip: str, job: dict, result: dict, fetched_at: datetime) -> tuple | None:
     """A cache row for one answer, or None for an error (asked again next run)."""
-    if "data" in result and result["data"]:
+    if result.get("data"):
         d = choose(result["data"])
         return (
-            cusip, job["idType"], job["idValue"], True,
-            d.get("ticker"), d.get("name"), d.get("exchCode"), d.get("securityType"),
-            d.get("securityType2"), d.get("marketSector"), d.get("figi"), d.get("compositeFIGI"),
-            d.get("shareClassFIGI"), json.dumps(result, separators=(",", ":")), fetched_at,
+            cusip,
+            job["idType"],
+            job["idValue"],
+            True,
+            d.get("ticker"),
+            d.get("name"),
+            d.get("exchCode"),
+            d.get("securityType"),
+            d.get("securityType2"),
+            d.get("marketSector"),
+            d.get("figi"),
+            d.get("compositeFIGI"),
+            d.get("shareClassFIGI"),
+            json.dumps(result, separators=(",", ":")),
+            fetched_at,
         )
     if "warning" in result or "data" in result or result.get("error") == REJECTED:
         return (
-            cusip, job["idType"], job["idValue"], False,
-            None, None, None, None, None, None, None, None, None,
-            json.dumps(result, separators=(",", ":")), fetched_at,
+            cusip,
+            job["idType"],
+            job["idValue"],
+            False,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            json.dumps(result, separators=(",", ":")),
+            fetched_at,
         )
     return None  # an error: not cached
 
@@ -185,7 +215,7 @@ def _row(cusip: str, job: dict, result: dict, fetched_at: datetime) -> tuple | N
 def _ask(client: OpenFigiClient, batch: list[tuple[str, dict]]) -> list[tuple[tuple[str, dict], dict]]:
     """Each job with its answer. A batch OpenFIGI answers oddly is asked again in halves."""
     try:
-        return list(zip(batch, client.map([job for _, job in batch])))
+        return list(zip(batch, client.map([job for _, job in batch]), strict=True))
     except BatchError:
         if len(batch) == 1:
             return [(batch[0], {"error": "OpenFIGI could not answer this job"})]
@@ -261,7 +291,7 @@ def update(open_db: Callable, client: OpenFigiClient, log=print) -> dict:
         for n, batch in enumerate(_batches(work, size), start=1):
             answered = _ask(client, batch)
             counts["asked"] += len(batch)
-            rows = handle(answered, datetime.now(timezone.utc).replace(tzinfo=None))
+            rows = handle(answered, datetime.now(UTC).replace(tzinfo=None))
             if rows:
                 with open_db() as con:
                     _store(con, rows)
@@ -286,7 +316,7 @@ def update(open_db: Callable, client: OpenFigiClient, log=print) -> dict:
         cusips = pending_cusips(con)
     invalid = [c for c in cusips if not valid_cusip(c)]
     if invalid:
-        fetched_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        fetched_at = datetime.now(UTC).replace(tzinfo=None)
         note = json.dumps({"error": "Not sent: the CUSIP's check digit is wrong."})
         with open_db() as con:
             for batch in _batches(invalid, 1000):
@@ -315,8 +345,12 @@ def update(open_db: Callable, client: OpenFigiClient, log=print) -> dict:
                 rows.append((cusip, STAGE_ANY, job["idValue"], False) + (None,) * 9 + (response, fetched_at))
         return rows
 
-    ask_all([(c, cusip_job(c, us_only=False)) for c in unmatched], "unmatched CUSIPs on any exchange",
-            any_exchange, report=False)
+    ask_all(
+        [(c, cusip_job(c, us_only=False)) for c in unmatched],
+        "unmatched CUSIPs on any exchange",
+        any_exchange,
+        report=False,
+    )
     ask_all(share_classes, "their share classes on the US listing", answers)
 
     # Pass 3: the FIGI filers wrote, for what is still unmatched.
@@ -338,7 +372,7 @@ def update(open_db: Callable, client: OpenFigiClient, log=print) -> dict:
 
     def last_try(answered: list, fetched_at: datetime) -> list[tuple]:
         rows = answers(answered, fetched_at)
-        return [row if row[3] else (row[0], STAGE_DONE) + row[2:] for row in rows]
+        return [row if row[3] else (row[0], STAGE_DONE, *row[2:]) for row in rows]
 
     ask_all(class_work, "filers' FIGIs as share classes on the US listing", last_try)
     return counts

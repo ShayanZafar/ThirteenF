@@ -14,9 +14,9 @@ scripts\start.cmd --reload
 scripts\test.cmd
 ```
 
-or `.venv\Scripts\python -m pytest`. About 135 tests, two kinds:
+or `.venv\Scripts\python -m pytest`. About 140 tests, two kinds:
 
-- **Unit tests** need nothing loaded: period deadlines, the zip loader on a tiny fake zip, the OpenFIGI client against a fake OpenFIGI, settings.
+- **Unit tests** need nothing loaded: period deadlines, the zip loader on a tiny fake zip, the OpenFIGI client against a fake OpenFIGI, settings, and the seam tests, which load and build a small made-up data set (`tests/minidata.py`) end to end.
 - **Data tests** (marked `data`) use the loaded database and skip until it exists. They check the model against 13f.info's published figures in `docs/reference/13finfo-holdings.csv`, render every page, and test the rankings against plain SQL.
 
 | File | Covers |
@@ -30,8 +30,17 @@ or `.venv\Scripts\python -m pytest`. About 135 tests, two kinds:
 | `tests/test_flows.py` | Net 13F flow, who moved, the typical stock, manager pages |
 | `tests/test_signed.py` | Every signed number painted by its sign, on every page |
 | `tests/test_periods.py`, `tests/test_config.py` | Deadlines and settings |
+| `tests/test_seams.py` | Where steps meet: search redirects, build then tickers, OpenFIGI retries |
 
 Run one file or one test: `scripts\test.cmd tests\test_flows.py -k alphabet`.
+
+## Before a change is done
+
+```bat
+scripts\verify.cmd
+```
+
+or `scripts/verify.sh`. It runs `ruff format --check`, `ruff check`, `mypy` and the tests, in that order, and stops at the first failure. GitHub Actions runs the same script on every pull request, so a change that passes here passes there. `ruff format src tests` fixes formatting; the lint rules and the complexity ceiling (25, to be lowered as functions are split) are in `pyproject.toml`.
 
 ## Conventions
 

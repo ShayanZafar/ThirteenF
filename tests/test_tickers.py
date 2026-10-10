@@ -21,9 +21,10 @@ STOCKS = [
 
 @pytest.fixture(scope="module")
 def client(con):
-    mapped = con.execute(
-        "SELECT count(*) FROM information_schema.tables WHERE table_name = 'openfigi'"
-    ).fetchone()[0] and con.execute("SELECT count(*) FROM stocks WHERE ticker IS NOT NULL").fetchone()[0]
+    mapped = (
+        con.execute("SELECT count(*) FROM information_schema.tables WHERE table_name = 'openfigi'").fetchone()[0]
+        and con.execute("SELECT count(*) FROM stocks WHERE ticker IS NOT NULL").fetchone()[0]
+    )
     if not mapped:
         pytest.skip("No tickers yet: run python -m thirteenf.tickers")
     return TestClient(app)

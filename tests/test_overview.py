@@ -93,7 +93,9 @@ def test_add_from_the_stock_page_and_remove(client):
 
 
 def test_redirects_stay_inside_the_app(client):
-    response = client.post("/watchlist/remove", data={"cusip": "X", "back": "https://example.com/"}, follow_redirects=False)
+    response = client.post(
+        "/watchlist/remove", data={"cusip": "X", "back": "https://example.com/"}, follow_redirects=False
+    )
     assert response.headers["location"] == "/"
 
 
@@ -114,16 +116,19 @@ def test_the_data_check_is_live_from_price_check(client, con):
 
 def test_a_failing_share_total_is_flagged_not_shown(client, con):
     """Versigent's Q2 2026 share total moved 40+ points beyond its value."""
-    assert con.execute(
-        "SELECT share_check FROM stock_periods WHERE cusip = 'G9600F104' AND period = ?", [Q2_2026]
-    ).fetchone()[0] == "outran"
+    assert (
+        con.execute(
+            "SELECT share_check FROM stock_periods WHERE cusip = 'G9600F104' AND period = ?", [Q2_2026]
+        ).fetchone()[0]
+        == "outran"
+    )
     client.post("/watchlist/add", data={"cusip": "G9600F104"})
     html = client.get("/").text
     check = html.split("Data check,", 1)[1].split("</table>", 1)[0]
     # The row shows the ticker when OpenFIGI has one, else the name.
     ticker = con.execute("SELECT ticker FROM stocks WHERE cusip = 'G9600F104'").fetchone()[0]
     label = f'<span class="tf-ticker">{ticker.replace("/", ".")}</span>' if ticker else "Versigent"
-    row = [r for r in re.findall(r"<tr>(.*?)</tr>", check, re.S) if label in r][0]
+    row = next(r for r in re.findall(r"<tr>(.*?)</tr>", check, re.S) if label in r)
     assert "Shares outran value" in row
     assert "→" not in _text(row)  # the failing total itself is not shown
     assert "1 total failed and is not shown" in _text(html)

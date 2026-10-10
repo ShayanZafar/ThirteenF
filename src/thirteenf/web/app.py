@@ -15,7 +15,8 @@ from fastapi.templating import Jinja2Templates
 from markupsafe import Markup, escape
 
 from thirteenf.config import DESIGN_SYSTEM_DIR, WATCHLIST_CSV
-from thirteenf.web import charts, data, format as fmt, story, watchlist
+from thirteenf.web import charts, data, story, watchlist
+from thirteenf.web import format as fmt
 
 HERE = Path(__file__).resolve().parent
 
@@ -45,7 +46,7 @@ def asset(url: str) -> str:
     for prefix, folder in ASSET_DIRS.items():
         if url.startswith(prefix):
             try:
-                return f"{url}?v={int((folder / url[len(prefix):]).stat().st_mtime)}"
+                return f"{url}?v={int((folder / url[len(prefix) :]).stat().st_mtime)}"
             except OSError:
                 return url
     return url
@@ -87,7 +88,7 @@ def example_cusips() -> list[str]:
 
 @app.get("/search")
 def search_redirect(q: str = ""):
-    return RedirectResponse(f"/stock?q={q}" if q else "/stock", status_code=303)
+    return RedirectResponse(f"/stock?q={quote(q)}" if q else "/stock", status_code=303)
 
 
 @app.get("/stock", response_class=HTMLResponse)
@@ -106,8 +107,13 @@ def lookup(request: Request, q: str = ""):
                 results += data.search(con, cusip, limit=1)
             results.sort(key=lambda r: -r["funds"])
     return render(
-        request, "lookup.html", nav="lookup", query=query, results=results,
-        on_watchlist=watchlist.cusips(), **freshness(periods[-1]),
+        request,
+        "lookup.html",
+        nav="lookup",
+        query=query,
+        results=results,
+        on_watchlist=watchlist.cusips(),
+        **freshness(periods[-1]),
     )
 
 
@@ -121,7 +127,8 @@ def suggest(q: str = "", scope: str = "all"):
         results = data.search(con, q, limit=20)
         found_managers = (
             data.managers_list(con, data.periods(con)[-1].period, q, limit=3)
-            if scope != "stocks" and len(q.strip()) >= 3 else []
+            if scope != "stocks" and len(q.strip()) >= 3
+            else []
         )
     if any(r["funds"] for r in results):
         results = [r for r in results if r["funds"]]  # nobody holds the rest now: old bonds, options
@@ -135,13 +142,25 @@ def suggest(q: str = "", scope: str = "all"):
         if r.get("kind") == "etf":
             meta = f"ETF · {meta}"
         suggestions.append(
-            {"cusip": r["cusip"], "ticker": r["ticker"], "name": r["name"], "funds": r["funds"], "funds_text": meta,
-             "url": f"/stock/{r['cusip']}"}
+            {
+                "cusip": r["cusip"],
+                "ticker": r["ticker"],
+                "name": r["name"],
+                "funds": r["funds"],
+                "funds_text": meta,
+                "url": f"/stock/{r['cusip']}",
+            }
         )
     for mgr in found_managers:
         suggestions.append(
-            {"cusip": "", "ticker": "", "name": mgr["name"], "funds": 0,
-             "funds_text": f"Manager · {fmt.money(mgr['value'])}", "url": f"/manager/{mgr['cik']}"}
+            {
+                "cusip": "",
+                "ticker": "",
+                "name": mgr["name"],
+                "funds": 0,
+                "funds_text": f"Manager · {fmt.money(mgr['value'])}",
+                "url": f"/manager/{mgr['cik']}",
+            }
         )
     return JSONResponse(suggestions)
 
@@ -154,7 +173,13 @@ def flow_rows(items: list, name, href, ticker=lambda _: "", limit: int = 7) -> l
     chosen = ins + sorted(outs, key=lambda x: -x.flow)
     widest = max((abs(x.flow) for x in chosen), default=0) or 1
     return [
-        {"name": name(x), "href": href(x), "ticker": ticker(x), "flow": x.flow, "w": round(100 * abs(x.flow) / widest, 1)}
+        {
+            "name": name(x),
+            "href": href(x),
+            "ticker": ticker(x),
+            "flow": x.flow,
+            "w": round(100 * abs(x.flow) / widest, 1),
+        }
         for x in chosen
     ]
 
@@ -172,9 +197,7 @@ def stock_page(request: Request, cusip: str, came_from: str = Query("", alias="f
         earlier = data.earlier_cusips(con, sec.cusip)
         series = data.stock_series(con, sec.cusip, periods)
         latest = series[-1]
-        left_out, left_out_total = (
-            data.left_out_rows(con, sec.cusip, latest.period) if latest.held else ([], 0)
-        )
+        left_out, left_out_total = data.left_out_rows(con, sec.cusip, latest.period) if latest.held else ([], 0)
         who = data.who_moved(con, sec.cusip, latest.period, latest.prev_period, latest.median_price)
         weights = data.largest_weights(con, sec.cusip, latest.period, latest.prev_period) if latest.held else []
     chart = charts.funds_bar_chart(
@@ -199,7 +222,8 @@ def stock_page(request: Request, cusip: str, came_from: str = Query("", alias="f
         shown_moves=who.moves if all_moves else who.moves[:25],
         all_moves=all_moves,
         flow_rows=flow_rows(
-            who.moves, name=lambda mv: mv.manager,
+            who.moves,
+            name=lambda mv: mv.manager,
             href=lambda mv: f"/manager/{mv.cik}?period={latest.period.isoformat()}",
         ),
         weights=weights,
@@ -366,7 +390,6 @@ def watchlist_remove(cusip: str = Form(...), back: str = Form("/")):
     return RedirectResponse(_back(back), status_code=303)
 
 
-
 def _book(con, cik: int, period: str):
     periods = data.periods(con)
     filed = data.manager_periods(con, cik)
@@ -403,12 +426,15 @@ def manager_page(request: Request, cik: int, period: str = "", rows: str = ""):
         answer=story.manager_answer(book, positions, book.name),
         figures=story.manager_figures(book, positions),
         flow_rows=flow_rows(
-            positions if comparable else [], name=lambda p: p.name, href=lambda p: f"/stock/{p.cusip}",
+            positions if comparable else [],
+            name=lambda p: p.name,
+            href=lambda p: f"/stock/{p.cusip}",
             ticker=lambda p: p.ticker,
         ),
         sec_url=(
             f"https://www.sec.gov/Archives/edgar/data/{book.cik}/{book.accession.replace('-', '')}/"
-            if book.accession else ""
+            if book.accession
+            else ""
         ),
         latest_period=by_period[book.period],
         age_days=(date.today() - book.period).days,
@@ -427,15 +453,37 @@ def manager_csv(cik: int, period: str = ""):
     _, _, (book, positions) = found
     out = io.StringIO()
     writer = csv.writer(out)
-    writer.writerow(["ticker", "name", "class", "cusip", "kind", "value_usd", "weight", "shares",
-                     "shares_before", "change", "net_buying_usd"])
+    writer.writerow(
+        [
+            "ticker",
+            "name",
+            "class",
+            "cusip",
+            "kind",
+            "value_usd",
+            "weight",
+            "shares",
+            "shares_before",
+            "change",
+            "net_buying_usd",
+        ]
+    )
     for p in positions:
-        writer.writerow([
-            p.ticker, p.name, p.title_of_class or "", p.cusip, p.kind,
-            round(p.value_now) if p.value_now else "", f"{p.weight_now:.6f}" if p.weight_now else "",
-            round(p.shares_now) if p.shares_now else 0, round(p.shares_prev) if p.shares_prev else 0,
-            p.action, round(p.flow) if p.flow is not None else "",
-        ])
+        writer.writerow(
+            [
+                p.ticker,
+                p.name,
+                p.title_of_class or "",
+                p.cusip,
+                p.kind,
+                round(p.value_now) if p.value_now else "",
+                f"{p.weight_now:.6f}" if p.weight_now else "",
+                round(p.shares_now) if p.shares_now else 0,
+                round(p.shares_prev) if p.shares_prev else 0,
+                p.action,
+                round(p.flow) if p.flow is not None else "",
+            ]
+        )
     filename = f"13f-{book.cik}-{book.period.isoformat()}.csv"
     return PlainTextResponse(
         out.getvalue(), media_type="text/csv", headers={"Content-Disposition": f'attachment; filename="{filename}"'}
@@ -450,4 +498,6 @@ def managers_page(request: Request, q: str = ""):
         latest = periods[-1]
         found = data.managers_list(con, latest.period, query, limit=100 if not query else 200)
         total = con.execute("SELECT count(*) FROM manager_totals WHERE period = ?", [latest.period]).fetchone()[0]
-    return render(request, "managers.html", nav="managers", managers=found, query=query, total=total, **freshness(latest))
+    return render(
+        request, "managers.html", nav="managers", managers=found, query=query, total=total, **freshness(latest)
+    )

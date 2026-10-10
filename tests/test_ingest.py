@@ -9,8 +9,14 @@ import pytest
 from thirteenf.ingest import load, sec
 
 TEST_STOCKS = {
-    "SHOP": "82509L107", "AAPL": "037833100", "MSFT": "594918104", "NVDA": "67066G104",
-    "AMZN": "023135106", "GOOGL": "02079K305", "META": "30303M102", "TSLA": "88160R101",
+    "SHOP": "82509L107",
+    "AAPL": "037833100",
+    "MSFT": "594918104",
+    "NVDA": "67066G104",
+    "AMZN": "023135106",
+    "GOOGL": "02079K305",
+    "META": "30303M102",
+    "TSLA": "88160R101",
 }
 
 
@@ -29,9 +35,7 @@ def test_links_come_from_the_page_in_either_folder():
     ]
     assert found[-1].url.startswith("https://www.sec.gov/files/datastandardsinnovation/")
     assert found[-1].start == date(2026, 6, 1) and found[-1].end == date(2026, 8, 31)
-    assert [d.name for d in sec.wanted(found)] == [
-        "01jun2024-31aug2024_form13f.zip", "01jun2026-31aug2026_form13f.zip"
-    ]
+    assert [d.name for d in sec.wanted(found)] == ["01jun2024-31aug2024_form13f.zip", "01jun2026-31aug2026_form13f.zip"]
 
 
 def _tiny_zip(path):
@@ -39,7 +43,7 @@ def _tiny_zip(path):
         "SUBMISSION.tsv": "ACCESSION_NUMBER\tFILING_DATE\tSUBMISSIONTYPE\tCIK\tPERIODOFREPORT\n"
         "0001-24-000001\t31-JUL-2024\t13F-HR\t0000000001\t30-JUN-2024\n",
         "COVERPAGE.tsv": "ACCESSION_NUMBER\tISAMENDMENT\tAMENDMENTTYPE\tREPORTTYPE\tFILINGMANAGER_NAME\n"
-        "0001-24-000001\tN\t\t13F HOLDINGS REPORT\tTest \"Quoted\" Manager\n",
+        '0001-24-000001\tN\t\t13F HOLDINGS REPORT\tTest "Quoted" Manager\n',
         "SUMMARYPAGE.tsv": "ACCESSION_NUMBER\tTABLEENTRYTOTAL\tTABLEVALUETOTAL\n0001-24-000001\t2\t3000\n",
         "INFOTABLE.tsv": "ACCESSION_NUMBER\tINFOTABLE_SK\tNAMEOFISSUER\tCUSIP\tVALUE\tSSHPRNAMT\tSSHPRNAMTTYPE\tPUTCALL\n"
         "0001-24-000001\t1\tAPPLE INC\t037833100\t2000\t10\tSH\t\n"
@@ -74,9 +78,7 @@ def test_loading_the_same_zip_twice_does_not_duplicate_rows(tmp_path):
 
 @pytest.mark.data
 def test_load_log_lists_every_zip_and_table(con):
-    rows = con.execute(
-        "SELECT source_zip, count(*), min(row_count) FROM load_log GROUP BY 1 ORDER BY 1"
-    ).fetchall()
+    rows = con.execute("SELECT source_zip, count(*), min(row_count) FROM load_log GROUP BY 1 ORDER BY 1").fetchall()
     assert len(rows) >= 9
     for source_zip, tables, fewest_rows in rows:
         assert tables == 4, source_zip

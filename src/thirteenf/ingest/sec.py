@@ -93,7 +93,7 @@ class SecClient:
                         log(f"  {dest.name}: {done / 1e6:,.0f} of {total / 1e6:,.0f} MB")
                         next_report += 0.25
         if total and part.stat().st_size != total:
-            raise IOError(f"{dest.name}: got {part.stat().st_size} bytes, expected {total}")
+            raise OSError(f"{dest.name}: got {part.stat().st_size} bytes, expected {total}")
         part.replace(dest)
 
     def close(self) -> None:

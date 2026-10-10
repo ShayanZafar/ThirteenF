@@ -1,0 +1,18 @@
+# Monthly dependency updates, grouped into one pull request per ecosystem so
+# the Tests workflow checks them together. Security updates still arrive as
+# soon as GitHub publishes an advisory.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      python-dependencies:
+        patterns: ["*"]
+    open-pull-requests-limit: 3
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

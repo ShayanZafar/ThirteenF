@@ -32,6 +32,10 @@ Rules:
 - Prefer the smallest change that removes the problem; formatting is whatever `ruff format` does to the files you touched.
 - One cleanup per commit, each independently revertable, with a message that says what is now easier to change.
 
+## 2b. Pin behavior before touching untested code
+
+If the code you'll change has no test that would fail when its behavior changed, write characterization tests first: call it with the inputs it sees today (`tests/minidata.py` has a small data set; the reference CSV has published numbers) and assert the outputs you observe now. Commit them on their own, then refactor against them. If you can't characterize it cheaply, pick another cleanup.
+
 ## 3. Verify each one
 
 After every cleanup, run `scripts/verify.sh 2>&1 | tail -40` (or `scripts/verify.cmd`). It must pass before the commit; tests marked `data` skipping is fine. If a cleanup needs more than a small test change to keep it green, revert it and pick another.

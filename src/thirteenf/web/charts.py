@@ -13,7 +13,7 @@ NICE_STEPS = [1, 2, 2.5, 3, 4, 5, 6, 8, 10]
 def nice_ticks(top: float, intervals: int = 4) -> list[float]:
     """0 and `intervals` evenly spaced round numbers covering `top`."""
     if top <= 0:
-        return [0, 1, 2, 3, 4][: intervals + 1]
+        return [0.0, 1, 2, 3, 4][: intervals + 1]
     raw = top / intervals
     power = 10 ** math.floor(math.log10(raw))
     step = next(s * power for s in NICE_STEPS if s * power >= raw)

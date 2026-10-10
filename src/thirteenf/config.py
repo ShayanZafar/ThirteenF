@@ -2,6 +2,7 @@
 
 import os
 import re
+import sys
 import tomllib
 from pathlib import Path
 
@@ -56,7 +57,7 @@ def user_setting(name: str) -> str:
     programs started afterwards; reading the user's settings directly means a
     terminal that was already open sees it too."""
     value = os.environ.get(name, "").strip()
-    if value or os.name != "nt":
+    if value or sys.platform != "win32":
         return value
     try:
         import winreg

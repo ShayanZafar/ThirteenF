@@ -61,7 +61,9 @@ def answer(series: list[StockPeriod], name: str) -> str:
             return text + " That is the first filing period in this data."
         return text + f" No 13F filer reported it at {day(latest.prev_period)}."
 
+    # A change from last period means there is a last period, and a direction.
     d, n = latest.direction, latest.streak
+    assert prev is not None and d is not None
     if d == 0:
         text = f"The same number of funds held {name} at {day(latest.period)} as at {short_day(prev.period)}: {count(latest.funds)}."
     elif n >= 2:
@@ -88,7 +90,7 @@ def answer(series: list[StockPeriod], name: str) -> str:
             before = "fewer" if d > 0 else "more"
             text += f" It follows {number_word(prev.streak)} periods with {before} funds."
 
-    if latest.shares_change_shown:
+    if latest.shares_change_shown and latest.shares_pct is not None:
         change = latest.shares_pct
         if abs(change) < 0.01:
             verb = "barely moved"
@@ -100,7 +102,7 @@ def answer(series: list[StockPeriod], name: str) -> str:
             f" The shares those funds hold {verb}: {compact(latest.shares)}, "
             f"against {compact(latest.shares_prev)} in {month_name(prev.period)}."
         )
-    elif latest.share_check == "outran":
+    elif latest.share_check == "outran" and latest.shares_vs_value_pts is not None:
         text += (
             f" Their share total for {latest.label} moved {abs(latest.shares_vs_value_pts):,.0f} points "
             "beyond its value, so it is not shown until checked."
@@ -117,10 +119,10 @@ def typical(kind: str) -> str:
 
 def comparison(series: list[StockPeriod], name: str) -> str:
     latest = series[-1]
-    compared = [r for r in series if r.vs_median_pts is not None][-8:]
+    compared = [r.vs_median_pts for r in series if r.vs_median_pts is not None][-8:]
     text = ""
     if len(compared) >= 2:
-        ahead = sum(1 for r in compared if r.vs_median_pts > 0)
+        ahead = sum(1 for gap in compared if gap > 0)
         if ahead == 0:
             how_often = "in none"
         elif ahead == len(compared):
@@ -157,7 +159,7 @@ def over_time(series: list[StockPeriod], name: str) -> str:
             f"{span}: {abs(diff):,} {'more' if diff > 0 else 'fewer'} funds hold {name} "
             f"({pct_fine(latest.funds / first.funds - 1)})"
         )
-    if first.shares_shown and latest.shares_shown and first.shares:
+    if first.shares_shown and latest.shares_shown and first.shares and latest.shares is not None:
         share_diff = latest.shares - first.shares
         join = "and" if (diff >= 0) == (share_diff >= 0) else "but"
         text += (
@@ -402,10 +404,15 @@ def flow_sentence(series: list[StockPeriod], name: str) -> str:
     if not flows:
         return ""
     latest = flows[-1]
-    sign = (latest.net_flow > 0) - (latest.net_flow < 0)
+
+    def sign_of(r: StockPeriod) -> int:
+        net = r.net_flow or 0.0
+        return (net > 0) - (net < 0)
+
+    sign = sign_of(latest)
     run = 0
     for r in reversed(flows):
-        if (r.net_flow > 0) - (r.net_flow < 0) != sign:
+        if sign_of(r) != sign:
             break
         run += 1
     word = (

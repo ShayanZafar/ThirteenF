@@ -195,7 +195,7 @@ class StockPeriod:
 
     @property
     def shares_change(self) -> int | None:
-        if not self.shares_change_shown:
+        if not self.shares_change_shown or self.shares is None or self.shares_prev is None:
             return None
         return self.shares - self.shares_prev
 
@@ -232,6 +232,7 @@ def stock_series(con, cusip: str, all_periods: list[Period]) -> list[StockPeriod
         prev = series[-1] if series else None
         if r is None:
             funds_prev = prev.funds if prev else None
+            typical_pct = p.typical_pct(kind)
             series.append(
                 StockPeriod(
                     period=p.period,
@@ -244,11 +245,9 @@ def stock_series(con, cusip: str, all_periods: list[Period]) -> list[StockPeriod
                     filers=p.filers,
                     filers_pct=p.filers_pct,
                     share_of_filers=0.0,
-                    market_median_pct=p.typical_pct(kind),
+                    market_median_pct=typical_pct,
                     vs_tide_pts=((-1.0 - p.filers_pct) * 100 if funds_prev and p.filers_pct is not None else None),
-                    vs_median_pts=(
-                        (-1.0 - p.typical_pct(kind)) * 100 if funds_prev and p.typical_pct(kind) is not None else None
-                    ),
+                    vs_median_pts=((-1.0 - typical_pct) * 100 if funds_prev and typical_pct is not None else None),
                     shares=None,
                     shares_prev=None,
                     shares_pct=None,

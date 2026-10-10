@@ -16,7 +16,7 @@ from pathlib import Path
 import duckdb
 
 from thirteenf.config import DATA_DIR, RAW_DIR
-from thirteenf.db import connect
+from thirteenf.db import connect, scalar
 
 # SEC file name -> DuckDB table
 RAW_TABLES = {
@@ -79,10 +79,8 @@ def ensure_load_log(con: duckdb.DuckDBPyConnection) -> None:
 
 
 def already_loaded(con: duckdb.DuckDBPyConnection, zip_name: str, sha: str) -> bool:
-    row = con.execute(
-        "SELECT count(*) FROM load_log WHERE source_zip = ? AND zip_sha256 = ?", [zip_name, sha]
-    ).fetchone()
-    return row[0] == len(RAW_TABLES)
+    loaded = scalar(con, "SELECT count(*) FROM load_log WHERE source_zip = ? AND zip_sha256 = ?", [zip_name, sha])
+    return loaded == len(RAW_TABLES)
 
 
 def load_zip(con: duckdb.DuckDBPyConnection, zip_path: Path, log=print, work_root: Path | None = None) -> bool:
@@ -115,7 +113,7 @@ def load_zip(con: duckdb.DuckDBPyConnection, zip_path: Path, log=print, work_roo
                     f"INSERT INTO {table} BY NAME SELECT *, ?::VARCHAR AS source_zip FROM {source}",
                     [zip_name],
                 )
-                rows = con.execute(f"SELECT count(*) FROM {table} WHERE source_zip = ?", [zip_name]).fetchone()[0]
+                rows = scalar(con, f"SELECT count(*) FROM {table} WHERE source_zip = ?", [zip_name])
                 expected = count_data_lines(extracted[sec_name])
                 if rows != expected:
                     raise ValueError(f"{zip_name} {sec_name}: loaded {rows:,} rows but the file has {expected:,}")

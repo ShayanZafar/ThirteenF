@@ -32,3 +32,11 @@ def connect(read_only: bool = False, wait_seconds: float = 60.0) -> duckdb.DuckD
             time.sleep(0.2)
     con.execute("SET enable_progress_bar = false")
     return con
+
+
+def scalar(con: duckdb.DuckDBPyConnection, sql: str, params: list | None = None):
+    """The first column of the first row. Every query passed here returns a row."""
+    row = con.execute(sql, params or []).fetchone()
+    if row is None:
+        raise RuntimeError(f"No row from: {sql.strip()[:80]}")
+    return row[0]

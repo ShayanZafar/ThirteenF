@@ -85,9 +85,7 @@ def already_loaded(con: duckdb.DuckDBPyConnection, zip_name: str, sha: str) -> b
     return row[0] == len(RAW_TABLES)
 
 
-def load_zip(
-    con: duckdb.DuckDBPyConnection, zip_path: Path, log=print, work_root: Path | None = None
-) -> bool:
+def load_zip(con: duckdb.DuckDBPyConnection, zip_path: Path, log=print, work_root: Path | None = None) -> bool:
     """Load one zip. Returns False when the same file was already loaded."""
     zip_name = zip_path.name
     sha = sha256_of(zip_path)
@@ -109,8 +107,7 @@ def load_zip(
             for sec_name, table in RAW_TABLES.items():
                 source = _read_tsv(extracted[sec_name])
                 con.execute(
-                    f"CREATE TABLE IF NOT EXISTS {table} AS "
-                    f"SELECT *, ''::VARCHAR AS source_zip FROM {source} LIMIT 0"
+                    f"CREATE TABLE IF NOT EXISTS {table} AS SELECT *, ''::VARCHAR AS source_zip FROM {source} LIMIT 0"
                 )
                 # Loading the same zip twice replaces its rows rather than adding to them.
                 con.execute(f"DELETE FROM {table} WHERE source_zip = ?", [zip_name])
@@ -118,14 +115,10 @@ def load_zip(
                     f"INSERT INTO {table} BY NAME SELECT *, ?::VARCHAR AS source_zip FROM {source}",
                     [zip_name],
                 )
-                rows = con.execute(
-                    f"SELECT count(*) FROM {table} WHERE source_zip = ?", [zip_name]
-                ).fetchone()[0]
+                rows = con.execute(f"SELECT count(*) FROM {table} WHERE source_zip = ?", [zip_name]).fetchone()[0]
                 expected = count_data_lines(extracted[sec_name])
                 if rows != expected:
-                    raise ValueError(
-                        f"{zip_name} {sec_name}: loaded {rows:,} rows but the file has {expected:,}"
-                    )
+                    raise ValueError(f"{zip_name} {sec_name}: loaded {rows:,} rows but the file has {expected:,}")
                 con.execute(
                     "INSERT INTO load_log VALUES (?, ?, ?, ?, ?, ?)",
                     [zip_name, table, rows, zip_path.stat().st_size, sha, loaded_at],

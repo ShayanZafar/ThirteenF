@@ -20,9 +20,7 @@ Q2_2026 = date(2026, 6, 30)
 
 def _ours(con, cusip):
     return dict(
-        con.execute(
-            "SELECT period, funds_holding FROM holders WHERE cusip = ? ORDER BY period", [cusip]
-        ).fetchall()
+        con.execute("SELECT period, funds_holding FROM holders WHERE cusip = ? ORDER BY period", [cusip]).fetchall()
     )
 
 

@@ -168,16 +168,39 @@ def _row(cusip: str, job: dict, result: dict, fetched_at: datetime) -> tuple | N
     if "data" in result and result["data"]:
         d = choose(result["data"])
         return (
-            cusip, job["idType"], job["idValue"], True,
-            d.get("ticker"), d.get("name"), d.get("exchCode"), d.get("securityType"),
-            d.get("securityType2"), d.get("marketSector"), d.get("figi"), d.get("compositeFIGI"),
-            d.get("shareClassFIGI"), json.dumps(result, separators=(",", ":")), fetched_at,
+            cusip,
+            job["idType"],
+            job["idValue"],
+            True,
+            d.get("ticker"),
+            d.get("name"),
+            d.get("exchCode"),
+            d.get("securityType"),
+            d.get("securityType2"),
+            d.get("marketSector"),
+            d.get("figi"),
+            d.get("compositeFIGI"),
+            d.get("shareClassFIGI"),
+            json.dumps(result, separators=(",", ":")),
+            fetched_at,
         )
     if "warning" in result or "data" in result or result.get("error") == REJECTED:
         return (
-            cusip, job["idType"], job["idValue"], False,
-            None, None, None, None, None, None, None, None, None,
-            json.dumps(result, separators=(",", ":")), fetched_at,
+            cusip,
+            job["idType"],
+            job["idValue"],
+            False,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            json.dumps(result, separators=(",", ":")),
+            fetched_at,
         )
     return None  # an error: not cached
 
@@ -315,8 +338,12 @@ def update(open_db: Callable, client: OpenFigiClient, log=print) -> dict:
                 rows.append((cusip, STAGE_ANY, job["idValue"], False) + (None,) * 9 + (response, fetched_at))
         return rows
 
-    ask_all([(c, cusip_job(c, us_only=False)) for c in unmatched], "unmatched CUSIPs on any exchange",
-            any_exchange, report=False)
+    ask_all(
+        [(c, cusip_job(c, us_only=False)) for c in unmatched],
+        "unmatched CUSIPs on any exchange",
+        any_exchange,
+        report=False,
+    )
     ask_all(share_classes, "their share classes on the US listing", answers)
 
     # Pass 3: the FIGI filers wrote, for what is still unmatched.

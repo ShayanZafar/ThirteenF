@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "ruff==0.17.0", "mypy==2.4.0"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -29,3 +29,31 @@ thirteenf = ["web/templates/*.html", "web/static/*"]
 testpaths = ["tests"]
 markers = ["data: needs the loaded SEC data in data/thirteenf.duckdb"]
 filterwarnings = ["ignore:Using .httpx. with .starlette.testclient. is deprecated"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "UP", "I", "SIM", "RUF", "C90", "TID"]
+ignore = [
+    "E731",    # a named lambda is fine for a one-line helper
+    "SIM108",  # ternaries are not always clearer
+    "RUF001", "RUF002", "RUF003",  # the design system uses the true minus sign (−) on purpose
+]
+
+[tool.ruff.lint.mccabe]
+# Ratchet: lower it as functions are split up, never raise it.
+max-complexity = 25
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"duckdb.connect".msg = "Use thirteenf.db.connect(), which waits for the write lock."
+
+[tool.ruff.lint.per-file-ignores]
+"src/thirteenf/db.py" = ["TID251"]
+"tests/*" = ["TID251"]
+
+[tool.mypy]
+python_version = "3.12"
+files = ["src"]
+ignore_missing_imports = true

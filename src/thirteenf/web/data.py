@@ -235,34 +235,67 @@ def stock_series(con, cusip: str, all_periods: list[Period]) -> list[StockPeriod
             funds_prev = prev.funds if prev else None
             series.append(
                 StockPeriod(
-                    period=p.period, label=p.label, held=False, funds=0, funds_prev=funds_prev,
+                    period=p.period,
+                    label=p.label,
+                    held=False,
+                    funds=0,
+                    funds_prev=funds_prev,
                     funds_change=(-funds_prev if funds_prev else None),
                     funds_pct=(-1.0 if funds_prev else None),
-                    filers=p.filers, filers_pct=p.filers_pct, share_of_filers=0.0,
+                    filers=p.filers,
+                    filers_pct=p.filers_pct,
+                    share_of_filers=0.0,
                     market_median_pct=p.typical_pct(kind),
                     vs_tide_pts=((-1.0 - p.filers_pct) * 100 if funds_prev and p.filers_pct is not None else None),
-                    vs_median_pts=((-1.0 - p.typical_pct(kind)) * 100 if funds_prev and p.typical_pct(kind) is not None else None),
-                    shares=None, shares_prev=None, shares_pct=None, value=None, value_pct=None, price_pct=None,
-                    share_check="none", shares_vs_value_pts=None, flagged_rows=0, thousands_rows=0,
-                    median_price=None, streak=0, direction=(-1 if funds_prev else None),
-                    prev_period=p.prev_period, kind=kind,
+                    vs_median_pts=(
+                        (-1.0 - p.typical_pct(kind)) * 100 if funds_prev and p.typical_pct(kind) is not None else None
+                    ),
+                    shares=None,
+                    shares_prev=None,
+                    shares_pct=None,
+                    value=None,
+                    value_pct=None,
+                    price_pct=None,
+                    share_check="none",
+                    shares_vs_value_pts=None,
+                    flagged_rows=0,
+                    thousands_rows=0,
+                    median_price=None,
+                    streak=0,
+                    direction=(-1 if funds_prev else None),
+                    prev_period=p.prev_period,
+                    kind=kind,
                 )
             )
             continue
         funds_prev = r["funds_prev"] if prev is not None else None
         series.append(
             StockPeriod(
-                period=p.period, label=p.label, held=True, funds=r["funds_holding"], funds_prev=funds_prev,
+                period=p.period,
+                label=p.label,
+                held=True,
+                funds=r["funds_holding"],
+                funds_prev=funds_prev,
                 funds_change=(r["funds_holding"] - funds_prev if funds_prev is not None else None),
-                funds_pct=r["funds_pct"], filers=r["filers"], filers_pct=r["filers_pct"],
+                funds_pct=r["funds_pct"],
+                filers=r["filers"],
+                filers_pct=r["filers_pct"],
                 share_of_filers=r["share_of_filers"],
                 market_median_pct=r["market_median_pct"] if r["market_median_pct"] is not None else p.typical_pct(kind),
-                vs_tide_pts=r["vs_tide_pts"], vs_median_pts=r["vs_median_pts"],
-                shares=r["shares"], shares_prev=r["shares_prev"], shares_pct=r["shares_pct"],
-                value=r["value"], value_pct=r["value_pct"], price_pct=r["price_pct"],
-                share_check=r["share_check"], shares_vs_value_pts=r["shares_vs_value_pts"],
-                flagged_rows=r["flagged_rows"], thousands_rows=r["thousands_rows"],
-                median_price=r["median_price"], streak=r["streak"],
+                vs_tide_pts=r["vs_tide_pts"],
+                vs_median_pts=r["vs_median_pts"],
+                shares=r["shares"],
+                shares_prev=r["shares_prev"],
+                shares_pct=r["shares_pct"],
+                value=r["value"],
+                value_pct=r["value_pct"],
+                price_pct=r["price_pct"],
+                share_check=r["share_check"],
+                shares_vs_value_pts=r["shares_vs_value_pts"],
+                flagged_rows=r["flagged_rows"],
+                thousands_rows=r["thousands_rows"],
+                median_price=r["median_price"],
+                streak=r["streak"],
                 direction=(int(r["direction"]) if r["direction"] is not None else None),
                 prev_period=p.prev_period,
                 kind=kind,
@@ -310,8 +343,26 @@ def left_out_rows(con, stock: str, period: date, limit: int = 10) -> tuple[list[
 CUSIP = re.compile(r"\b([0-9A-Za-z]{8}[0-9])\b")
 TICKER_KEY = "regexp_replace(upper(coalesce(cur.ticker, '')), '[^A-Z0-9]', '', 'g')"
 SUFFIXES = {
-    "INC", "INCORPORATED", "CORP", "CORPORATION", "CO", "COMPANY", "LTD", "LIMITED",
-    "PLC", "LLC", "LP", "SA", "NV", "AG", "SE", "THE", "COM", "CL", "CLASS", "A",
+    "INC",
+    "INCORPORATED",
+    "CORP",
+    "CORPORATION",
+    "CO",
+    "COMPANY",
+    "LTD",
+    "LIMITED",
+    "PLC",
+    "LLC",
+    "LP",
+    "SA",
+    "NV",
+    "AG",
+    "SE",
+    "THE",
+    "COM",
+    "CL",
+    "CLASS",
+    "A",
 }
 
 
@@ -428,9 +479,7 @@ def _kind_rule(kind: str) -> tuple[str, list]:
     return ("AND s.kind = ?", [wanted]) if wanted else ("", [])
 
 
-def ranked_changes(
-    con, period: date, minimum: int, by: str, limit: int, most: str, kind: str = "all"
-) -> list[dict]:
+def ranked_changes(con, period: date, minimum: int, by: str, limit: int, most: str, kind: str = "all") -> list[dict]:
     """Stocks held by at least `minimum` funds in both periods, ranked by their change.
 
     most="added" ranks from the top, most="lost" from the bottom. kind is a tab:
@@ -504,7 +553,6 @@ def kind_counts(con, period: date, minimum: int) -> dict[str, int]:
         ).fetchall()
     )
     return {"all": sum(counts.values()), "stocks": counts.get("stock", 0), "etfs": counts.get("etf", 0)}
-
 
 
 @dataclass
@@ -615,17 +663,23 @@ def who_moved(con, stock: str, period: date, prev_period: date | None, price: fl
             sold += max(-flow, 0)
         moves.append(
             Move(
-                cik=r["cik"], manager=r["manager"] or f"CIK {r['cik']}", action=action,
-                shares_prev=r["shares_prev"], shares_now=r["shares_now"],
-                value_prev=r["value_prev"], value_now=r["value_now"],
+                cik=r["cik"],
+                manager=r["manager"] or f"CIK {r['cik']}",
+                action=action,
+                shares_prev=r["shares_prev"],
+                shares_now=r["shares_now"],
+                value_prev=r["value_prev"],
+                value_now=r["value_now"],
                 weight_prev=(r["value_prev"] / r["book_prev"]) if r["value_prev"] and r["book_prev"] else None,
                 weight_now=(r["value_now"] / r["book_now"]) if r["value_now"] and r["book_now"] else None,
-                filed=r["filed"], flow=flow,
+                filed=r["filed"],
+                flow=flow,
             )
         )
     moves.sort(key=lambda m: (m.flow is None, -abs(m.flow or 0), -(m.value_now or 0)))
-    return Moves(moves=moves, held=held, not_filed=sorted(not_filed), bought=bought, sold=sold,
-                 incomplete=sorted(incomplete))
+    return Moves(
+        moves=moves, held=held, not_filed=sorted(not_filed), bought=bought, sold=sold, incomplete=sorted(incomplete)
+    )
 
 
 @dataclass
@@ -727,7 +781,9 @@ class Position:
 
 
 def manager_periods(con, cik: int) -> list[date]:
-    return [r[0] for r in con.execute("SELECT period FROM manager_totals WHERE cik = ? ORDER BY period", [cik]).fetchall()]
+    return [
+        r[0] for r in con.execute("SELECT period FROM manager_totals WHERE cik = ? ORDER BY period", [cik]).fetchall()
+    ]
 
 
 def manager_book(con, cik: int, period: date) -> tuple[Book, list[Position]] | None:
@@ -787,14 +843,21 @@ def manager_book(con, cik: int, period: date) -> tuple[Book, list[Position]] | N
         price = r["median_price"]
         positions.append(
             Position(
-                cusip=r["cusip"], ticker=ticker_text(r["ticker"]),
+                cusip=r["cusip"],
+                ticker=ticker_text(r["ticker"]),
                 name=display_name(r["name_filed"], r["name_mixed"]) or r["cusip"],
-                title_of_class=r["title_of_class"], kind=r["kind"], action=action,
-                shares_prev=r["shares_prev"], shares_now=r["shares_now"],
-                value_prev=r["value_prev"], value_now=r["value_now"],
+                title_of_class=r["title_of_class"],
+                kind=r["kind"],
+                action=action,
+                shares_prev=r["shares_prev"],
+                shares_now=r["shares_now"],
+                value_prev=r["value_prev"],
+                value_now=r["value_now"],
                 weight_prev=(r["value_prev"] / book.value_prev) if r["value_prev"] and book.value_prev else None,
                 weight_now=(r["value_now"] / book.value) if r["value_now"] and book.value else None,
-                flow=(delta * price) if price and action in ("new", "add", "trim", "exit") else (0.0 if action == "hold" else None),
+                flow=(delta * price)
+                if price and action in ("new", "add", "trim", "exit")
+                else (0.0 if action == "hold" else None),
             )
         )
     # Holdings by value, largest first; exits after them, largest first.

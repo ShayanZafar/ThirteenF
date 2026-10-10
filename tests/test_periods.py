@@ -22,5 +22,8 @@ def test_labels_and_steps():
     assert P.label(date(2026, 6, 30)) == "Q2 2026"
     assert P.previous_quarter_end(date(2025, 3, 31)) == date(2024, 12, 31)
     assert P.periods_between(date(2024, 6, 30), date(2025, 3, 31)) == [
-        date(2024, 6, 30), date(2024, 9, 30), date(2024, 12, 31), date(2025, 3, 31)
+        date(2024, 6, 30),
+        date(2024, 9, 30),
+        date(2024, 12, 31),
+        date(2025, 3, 31),
     ]

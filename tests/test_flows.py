@@ -27,7 +27,9 @@ def _text(html: str) -> str:
 
 
 def _moves(con, cusip, period, prev):
-    price = con.execute("SELECT median_price FROM holders WHERE cusip = ? AND period = ?", [cusip, period]).fetchone()[0]
+    price = con.execute("SELECT median_price FROM holders WHERE cusip = ? AND period = ?", [cusip, period]).fetchone()[
+        0
+    ]
     return data.who_moved(con, cusip, period, prev, price)
 
 
@@ -123,7 +125,11 @@ def test_alphabets_book_matches_13f_info(client, con):
     assert round(book.value / 1000) == 4_015_569
     assert book.positions == 26
     by_ticker = {p.ticker: p for p in positions}
-    assert (by_ticker["CME"].shares_now, round(by_ticker["CME"].value_now / 1000), by_ticker["CME"].action) == (3_484_020, 1_029_005, "new")
+    assert (by_ticker["CME"].shares_now, round(by_ticker["CME"].value_now / 1000), by_ticker["CME"].action) == (
+        3_484_020,
+        1_029_005,
+        "new",
+    )
     assert (by_ticker["PL"].shares_now, by_ticker["PL"].delta, by_ticker["PL"].action) == (35_248_893, 3_306_252, "add")
     assert (by_ticker["RVMD"].delta, by_ticker["RVMD"].action) == (-52_577, "trim")
     assert by_ticker["ASTS"].action == "hold"
@@ -160,4 +166,7 @@ def test_the_managers_list(client, con):
 def test_suggestions_include_managers(client):
     found = client.get("/api/suggest", params={"q": "alphabet"}).json()
     assert any(s["url"] == f"/manager/{ALPHABET_MANAGER}" for s in found)
-    assert all(s["url"].startswith("/stock/") for s in client.get("/api/suggest", params={"q": "alphabet", "scope": "stocks"}).json())
+    assert all(
+        s["url"].startswith("/stock/")
+        for s in client.get("/api/suggest", params={"q": "alphabet", "scope": "stocks"}).json()
+    )

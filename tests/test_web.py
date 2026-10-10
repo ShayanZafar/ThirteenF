@@ -45,7 +45,7 @@ def _check_page(client, con, cusip: str) -> str:
     html = response.text
     text = _text(html)
     junk = JUNK.search(text)
-    assert junk is None, (cusip, junk and text[max(0, junk.start() - 80): junk.end() + 80])
+    assert junk is None, (cusip, junk and text[max(0, junk.start() - 80) : junk.end() + 80])
     # Every period on the page agrees with the model, and the page reaches the latest period.
     expected = {
         _label(period): funds

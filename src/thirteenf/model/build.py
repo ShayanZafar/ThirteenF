@@ -626,8 +626,18 @@ LEFT JOIN classes c USING (cusip)
 # Kinds, from OpenFIGI's security type. Anything else it reports (closed-end and
 # open-end funds, warrants, rights, units, preferreds, notes) is "other".
 STOCK_TYPES = (
-    "Common Stock", "ADR", "REIT", "MLP", "Royalty Trst", "Ltd Part", "NY Reg Shrs", "GDR",
-    "CDI", "Stapled Security", "NVDR", "Foreign Sh.",
+    "Common Stock",
+    "ADR",
+    "REIT",
+    "MLP",
+    "Royalty Trst",
+    "Ltd Part",
+    "NY Reg Shrs",
+    "GDR",
+    "CDI",
+    "Stapled Security",
+    "NVDR",
+    "Foreign Sh.",
 )
 ETF_TYPES = ("ETP",)
 _TYPES = lambda types: ", ".join(f"'{t}'" for t in types)  # noqa: E731

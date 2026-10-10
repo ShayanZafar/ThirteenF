@@ -9,7 +9,7 @@ import argparse
 import sys
 
 from thirteenf.config import ensure_settings_file, openfigi_api_key
-from thirteenf.db import connect
+from thirteenf.db import connect, scalar
 from thirteenf.ingest import openfigi
 
 
@@ -32,11 +32,11 @@ def update_tickers(log=print, retry_missing: bool = False) -> dict:
         counts = openfigi.update(connect, client, log=log)
     finally:
         client.close()
-    from thirteenf.model.build import SQL_STOCKS
+    from thirteenf.model.build import rebuild_after_tickers
 
     with connect() as con:
-        con.execute(SQL_STOCKS)
-        tickers = con.execute("SELECT count(*) FROM stocks WHERE ticker IS NOT NULL").fetchone()[0]
+        rebuild_after_tickers(con)
+        tickers = scalar(con, "SELECT count(*) FROM stocks WHERE ticker IS NOT NULL")
     log(f"  {tickers:,} stocks have a ticker")
     return counts
 

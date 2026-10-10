@@ -118,12 +118,19 @@ class OpenFigiClient:
         self._sent.append(now)
 
     def map(self, jobs: list[dict]) -> list[dict]:
-        """One mapping request. Waits and retries when OpenFIGI says to slow down."""
+        """One mapping request. Waits and retries when OpenFIGI says to slow down,
+        or when the connection fails (a DNS blip, a dropped connection, a timeout)."""
         if len(jobs) > self.limits.jobs_per_request:
             raise ValueError(f"{len(jobs)} jobs; OpenFIGI takes {self.limits.jobs_per_request} per request")
         for attempt in range(1, 7):
             self._wait_turn()
-            response = self._client.post(API, json=jobs)
+            try:
+                response = self._client.post(API, json=jobs)
+            except httpx.TransportError:
+                if attempt == 6:
+                    raise
+                self._sleep(5.0 * attempt)
+                continue
             if response.status_code == 429 or response.status_code >= 500:
                 reset = float(response.headers.get("ratelimit-reset") or self.limits.window_seconds)
                 self._sleep(max(reset, 1.0) * (1 if response.status_code == 429 else attempt))

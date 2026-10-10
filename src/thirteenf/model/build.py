@@ -34,11 +34,12 @@ from __future__ import annotations
 
 import re
 import time
+from collections.abc import Callable
 from datetime import date, datetime
 
 import duckdb
 
-from thirteenf.db import connect
+from thirteenf.db import connect, scalar
 from thirteenf.ingest.openfigi import CACHE_DDL as OPENFIGI_DDL
 from thirteenf.model import periods as P
 
@@ -86,13 +87,14 @@ def build_periods(con: duckdb.DuckDBPyConnection) -> None:
     first_start, last_end = windows[0][0], windows[-1][1]
     first = P.first_full_period(first_start)
     # The latest period anyone has filed holdings for, within the loaded windows.
-    last = con.execute(
+    last = scalar(
+        con,
         """
         SELECT max(period) FROM submissions
         WHERE role = 'original' AND period >= ? AND period <= ?
         """,
         [first, last_end],
-    ).fetchone()[0]
+    )
     rows = []
     for seq, period in enumerate(P.periods_between(first, last), start=1):
         deadline = P.filing_deadline(period)
@@ -684,7 +686,7 @@ JOIN securities s ON s.cusip = b.cusip
 LEFT JOIN listed t ON t.stock = b.stock
 """
 
-STEPS = [
+STEPS: list[tuple[str, str | Callable[[duckdb.DuckDBPyConnection], None]]] = [
     ("submissions", SQL_SUBMISSIONS),
     ("periods", build_periods),
     ("filing_parts", SQL_FILING_PARTS),
@@ -705,6 +707,13 @@ STEPS = [
 ]
 
 
+def rebuild_after_tickers(con: duckdb.DuckDBPyConnection) -> None:
+    """New tickers can change a stock's kind (OpenFIGI's ETP makes an ETF), and
+    stock_periods compares each stock with the median of its kind, so both are rebuilt."""
+    con.execute(SQL_STOCKS)
+    con.execute(SQL_STOCK_PERIODS)
+
+
 def build_all(log=print) -> None:
     with connect() as con:
         log("Building the holdings model")
@@ -714,5 +723,5 @@ def build_all(log=print) -> None:
                 step(con)
             else:
                 con.execute(step)
-            rows = con.execute(f"SELECT count(*) FROM {name}").fetchone()[0]
+            rows = scalar(con, f"SELECT count(*) FROM {name}")
             log(f"  {name}: {rows:,} rows ({time.monotonic() - started:.1f}s)")

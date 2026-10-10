@@ -88,7 +88,7 @@ def example_cusips() -> list[str]:
 
 @app.get("/search")
 def search_redirect(q: str = ""):
-    return RedirectResponse(f"/stock?q={q}" if q else "/stock", status_code=303)
+    return RedirectResponse(f"/stock?q={quote(q)}" if q else "/stock", status_code=303)
 
 
 @app.get("/stock", response_class=HTMLResponse)

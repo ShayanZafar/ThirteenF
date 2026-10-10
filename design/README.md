@@ -6,7 +6,7 @@ Exported Sep 30, 2026 from the ThirteenF design system and the ThirteenF App Pre
 
 1. One question for every stock: are more funds holding it, or fewer? Ask it of the whole market to see where money is moving, or of one stock to see its history. Shopify is only the example used in the designs.
 2. Two numbers per period: how many funds hold it, and how many shares they hold. They can disagree: Shopify, for example, has more funds than two years ago but fewer shares.
-3. Compare with the tide. Most stocks gain holders every Dec 31 as new managers start filing, so compare with all 13F filers or the market median, never with zero. The designs say "watchlist median" because they were drawn from eight stocks; the app uses the market median.
+3. Compare with the tide. Most stocks gain holders every Dec 31 as new managers start filing, so compare with all 13F filers or the market median, never with zero. The designs say "watchlist median" because they were drawn from eight stocks; the app uses the typical change for the stock's kind: a stock against the typical stock, an ETF against the typical ETF (see `../docs/13f-data.md`).
 4. Check before showing. A share total that grows far faster than its value is a filing error until proven otherwise.
 5. Every number has a date and a source.
 
@@ -23,7 +23,7 @@ Exported Sep 30, 2026 from the ThirteenF design system and the ThirteenF App Pre
 | Biggest changes, all stocks | `screens/most-bought-and-sold.html` | Sample: fictional companies | Phase 4: the two ranked tables at the bottom, simplified (see the build plan); the top half holds an older overview layout |
 | Overview (watchlist) | `screens/overview.html` | Real: 8 example stocks, from 13f.info; any stock can be added | Phase 5 |
 | Company | `screens/company.html` | Sample: fictional company | Phase 7: holder table and conviction meters |
-| Manager | `screens/manager.html` | Sample: fictional manager | Later |
+| Manager | `screens/manager.html` | Sample: fictional manager | Built Oct 3, 2026 (see the build plan) |
 
 The real numbers in the designs come from 13f.info. The app computes its own from the SEC's data sets (see `../docs/13f-data.md`), so small differences are expected.
 

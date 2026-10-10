@@ -33,6 +33,17 @@ Every stock held by at least 100 funds in both periods, ranked by its change in 
 - **Rank by**: against the tide (the stock's change minus the change in all 13F filers, in points), or the plain change in the number of funds.
 - **Period**, **minimum funds holding** and **rows** are in the filter bar. Each row links to the stock's page.
 
+## Accumulate
+
+Stocks funds keep moving into whose free cash flow is high for their market value, rebuilt each time you run `update-data`. By default a stock is on the list when more funds held it against the tide for 2 periods running or longer, its net 13F flow was positive, its free cash flow was positive in each of its last two fiscal years, and the lower of those two years is at least 5% of its market value (its FCF yield).
+
+- **Rank by**: FCF yield (the default), or the change against the tide.
+- **Minimum FCF yield**, **periods with more funds** and **minimum funds holding** are in the filter bar, with **period**.
+- **Price, quarter** is the change in the quarter-end price. A stock funds moved into while its price lagged may not have priced the flow in yet.
+- Banks and insurers are left out, and so are companies that report in IFRS or whose share counts fail a check. The method notes under the table list each rule; `docs/13f-data.md` has the definitions.
+
+The list is a starting point for research, not advice: check each company's filings before acting on it.
+
 ## Managers
 
 **Managers** lists the largest 13F filers for the latest quarter, with a search box for any of them. A manager's page shows their reported 13F portfolio, number of positions, the share of the ten largest and their net buying, the biggest moves, and every position with its weight and its change from the quarter before. Pick another quarter in **Period**; **Download CSV** gives the full list, and the link under the title opens the filing on sec.gov.

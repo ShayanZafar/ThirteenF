@@ -12,6 +12,9 @@ data/raw/*.zip                      kept exactly as downloaded
 raw_submission, raw_coverpage,      DuckDB: data/thirteenf.duckdb
 raw_summarypage, raw_infotable,
 load_log
+        |
+        |  ingest/xbrl.py: company cash flow (XBRL frames) and the SEC's tickers
+        |  -> data/raw/xbrl/*.json -> raw_xbrl_frames, raw_sec_tickers
         |  model/build.py: SQL, every table derived from the raw ones
         v
 filings, positions, holders,        the model
@@ -34,11 +37,12 @@ web/app.py (FastAPI)  ->  Jinja2 templates + inline SVG  ->  your browser
 | `db.py` | DuckDB connections that wait briefly for another process's write lock |
 | `ingest/sec.py` | Finds the data set links on the SEC page and downloads new zips |
 | `ingest/load.py` | Loads each zip into the `raw_` tables; reloading a zip replaces its rows |
+| `ingest/xbrl.py` | Downloads the XBRL frames for cash flow and share counts, and the SEC's ticker list, and loads them |
 | `ingest/openfigi.py` | Maps CUSIPs to tickers and security types, in three passes, cached |
 | `model/periods.py` | Quarter ends and their 13F deadlines (45 days, next business day) |
 | `model/build.py` | Builds every model table in SQL, in order (see below) |
 | `tickers.py` | The `python -m thirteenf.tickers` command |
-| `web/app.py` | Routes: overview, stock, changes, managers, search, watchlist, suggestions |
+| `web/app.py` | Routes: overview, stock, changes, accumulate, managers, search, watchlist, suggestions |
 | `web/data.py` | Read-only queries for the pages; one connection per request |
 | `web/story.py` | The sentences and key figures, written from rules |
 | `web/charts.py` | The bar charts, net flow chart and sparklines as SVG |
@@ -70,6 +74,8 @@ Built by `model/build.py` in this order. Definitions are in [13f-data.md](13f-da
 | `manager_totals` | manager and quarter | Reported 13F portfolio value and positions |
 | `changes` | stock and quarter | Managers that opened, added, held, trimmed, sold out or have not filed; shares bought and sold |
 | `stock_periods` | stock and quarter | Every comparison the pages show: against last quarter, the tide and the typical stock or ETF, the share check, the streak, the net 13F flow |
+| `fundamentals` | company (CIK) | Its last two fiscal years of operating cash flow, capital spending and free cash flow, share counts, and whether it is a bank or insurer |
+| `stock_cash_flows` | stock | Its company's `fundamentals`, matched by ticker; rebuilt after a ticker run |
 | `openfigi` | CUSIP | OpenFIGI's answer, as returned |
 
 Nothing in the model is edited by hand: drop it and `python -m thirteenf.model` rebuilds it from the raw tables.

@@ -61,7 +61,8 @@ The first run:
 1. Reads the download links from the SEC's [Form 13F data sets](https://www.sec.gov/data-research/sec-markets-data/form-13f-data-sets) page and downloads every three-month filing window from June 2024 on (about 800 MB).
 2. Loads each zip into DuckDB exactly as filed, checking every table's row count against its file.
 3. Builds the model: one current filing per manager, positions, funds holding, changes, net 13F flow, and the data checks.
-4. Maps CUSIPs to tickers, if you added an OpenFIGI key.
+4. Downloads the companies' cash flow data from the SEC (about 45 small files), for the Accumulate page.
+5. Maps CUSIPs to tickers, if you added an OpenFIGI key. The Accumulate page needs tickers to match companies to their stocks.
 
 Allow about 15 minutes. Later runs skip zips already downloaded and loaded.
 
@@ -75,13 +76,14 @@ The app opens at <http://127.0.0.1:8000>. It only listens on your own computer. 
 
 The SEC publishes the 13F data sets in three-month windows of filing dates: December to February, March to May, June to August, and September to November. Each window holds the filings made in it, so a quarter's holdings (due 45 days after the quarter ends) arrive in the window after the quarter. Positions for Sep 30, for example, are due by mid-November and arrive in the September to November window, published in December.
 
-Run `update-data` after each window is published. It downloads only the new zip, reloads, rebuilds the model and maps any new CUSIPs. Until the data reaches the next period's filing deadline, the latest period is marked "Still arriving", because late filers keep adding to it.
+Run `update-data` after each window is published. It downloads only the new zip, downloads the companies' cash flow data again (new 10-Ks arrive all year), reloads, rebuilds the model and maps any new CUSIPs. Until the data reaches the next period's filing deadline, the latest period is marked "Still arriving", because late filers keep adding to it.
 
 ## Where things live
 
 | Path | What it holds |
 | --- | --- |
 | `data/raw/` | The SEC's zips, never edited |
+| `data/raw/xbrl/` | The SEC's company cash flow data (XBRL frames) and ticker list, as downloaded |
 | `data/thirteenf.duckdb` | The database: the raw tables as loaded, and the model built from them |
 | `data/settings.toml` | Your settings, such as the OpenFIGI key |
 | `data/watchlist.csv` | Your watchlist, started from `config/watchlist.csv` the first time you open the app |

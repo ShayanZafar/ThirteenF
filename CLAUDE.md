@@ -24,7 +24,7 @@ A personal app, run locally, that answers one question for every US-listed stock
 - Nothing is specific to one company. Shopify and the other names in the designs are examples and test fixtures only; every page must work for any CUSIP in the data.
 - Build in the order of `docs/build-plan.md`. Finish a phase's check before starting the next phase.
 - UI comes from the design system: use its CSS variables and `tf-` classes, never hard-coded colors. `flow-in` and `flow-out` mean only more or fewer funds (money in or out). Signed numbers take the color of their sign through the `|signed` template filter: + in `flow-in` green, − in `flow-out` red (the user asked for this). Every number shows its as-of date and source with a freshness stamp.
-- Copy follows `design-system/README.md`: plain, dated, sentence case, no buy or sell language.
+- Copy follows `design-system/README.md`: plain, dated, sentence case, no buy or sell language. One exception, asked for by the user (Oct 10, 2026): the Accumulate page names stocks to accumulate, because recommending them is the app's goal. It still says how each was chosen and that it is not advice.
 - Raw SEC files are never edited. Load them as they are and derive everything from them, so every number can be rebuilt from the raw tables.
 - Never show a share total that fails the implied-price check in `docs/13f-data.md`; show the check instead.
 - SEC access: send the User-Agent from the `SEC_USER_AGENT` environment variable (for example `ThirteenF you@example.com`). If it is not set, stop and ask the user for it. Stay under 10 requests per second.
@@ -38,7 +38,7 @@ A personal app, run locally, that answers one question for every US-listed stock
 
 ## Commands (add them as you build)
 
-- `python -m thirteenf.ingest` downloads the Form 13F data sets, loads them and builds the model. `--no-download` loads only the zips already in `data/raw/`.
+- `python -m thirteenf.ingest` downloads the Form 13F data sets and the companies' cash flow data (XBRL frames), loads them and builds the model. `--no-download` loads only the zips already in `data/raw/`.
 - `python -m thirteenf.model` rebuilds the model tables from the raw tables (about a minute).
 - `python -m thirteenf.tickers` maps new CUSIPs to tickers with OpenFIGI and caches them in DuckDB. It reads a free OpenFIGI key from `openfigi_api_key` in `data/settings.toml` (git-ignored; an `OPENFIGI_API_KEY` environment variable overrides it); without a key the first run takes about 2.5 hours. `python -m thirteenf.ingest` runs it too when a key is set.
 - `python -m thirteenf.web` serves the app at http://127.0.0.1:8000. `--open` also opens it in the browser; `--reload` restarts it when the Python code changes.

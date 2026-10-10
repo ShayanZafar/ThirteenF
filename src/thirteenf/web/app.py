@@ -289,6 +289,45 @@ def changes_page(
     )
 
 
+@app.get("/accumulate", response_class=HTMLResponse)
+def accumulate_page(
+    request: Request,
+    period: str = "",
+    minimum: int = Query(100, alias="min", ge=1),
+    min_yield: float = Query(data.ACCUMULATE_MIN_YIELD * 100, alias="yield", ge=0),
+    streak: int = Query(data.ACCUMULATE_MIN_STREAK, ge=1),
+    by: str = "yield",
+):
+    by = by if by in data.ACCUMULATE_RANKINGS else "yield"
+    with data.connection() as con:
+        periods = data.periods(con)
+        choices = [p for p in periods if p.prev_period is not None]
+        default = data.accumulate_period(periods)
+        selected = next((p for p in choices if p.period.isoformat() == period), default)
+        ready = data.has_cash_flows(con)
+        rows = data.accumulate(con, selected.period, minimum, min_yield / 100, streak, by) if ready else []
+        coverage = data.accumulate_coverage(con, selected.period, minimum) if ready else None
+    widest = max((r["fcf_yield"] for r in rows), default=0) or 1
+    for r in rows:
+        r["bar"] = round(100 * r["fcf_yield"] / widest, 1)
+    return render(
+        request,
+        "accumulate.html",
+        nav="accumulate",
+        selected=selected,
+        choices=choices,
+        minimum=minimum,
+        min_yield=min_yield,
+        streak=streak,
+        by=by,
+        rows=rows,
+        ready=ready,
+        coverage=coverage,
+        summary_text=story.accumulate_summary(rows, selected, min_yield / 100, streak) if ready else "",
+        **freshness(selected),
+    )
+
+
 @dataclass
 class WatchRow:
     cusip: str

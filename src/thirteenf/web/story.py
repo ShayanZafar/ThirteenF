@@ -320,6 +320,21 @@ def change_summary(summary: dict, period, added: list[dict], noun: tuple[str, st
     return text
 
 
+def accumulate_summary(rows: list[dict], period, min_yield: float, min_streak: int) -> str:
+    """One paragraph on what the accumulate list found for a period."""
+    rule = (
+        f"more funds against the tide for {number_word(min_streak)} periods or longer, money flowing in, "
+        f"and free cash flow in each of the last two years of at least {pct(min_yield, signed=False)} of market value"
+    )
+    if not rows:
+        return f"No stock meets the criteria at {day(period.period)}: {rule}."
+    n = len(rows)
+    text = f"{n:,} {'stock meets' if n == 1 else 'stocks meet'} the criteria at {day(period.period)}: {rule}."
+    top = max(rows, key=lambda r: r["fcf_yield"])
+    text += f" {top['name']} has the highest free cash flow yield, {pct(top['fcf_yield'], signed=False)}."
+    return text
+
+
 _ORDINALS = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth"]
 
 

@@ -16,7 +16,6 @@ from thirteenf.web.format import (
     compact,
     count,
     day,
-    flow as flow_of,
     money,
     money_signed,
     month_name,
@@ -27,6 +26,9 @@ from thirteenf.web.format import (
     short_day,
     signed_compact,
     signed_count,
+)
+from thirteenf.web.format import (
+    flow as flow_of,
 )
 
 

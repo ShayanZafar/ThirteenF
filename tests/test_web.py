@@ -1,5 +1,6 @@
 """Phase 3: the "Look up a stock" page, rendered for many kinds of stock."""
 
+import itertools
 import re
 from datetime import date
 from pathlib import Path
@@ -71,7 +72,7 @@ def test_reference_stocks_render_and_track_the_reference(client, con, reference,
     html = _check_page(client, con, rows[0]["cusip"])
     page = _period_rows(html)
     rows.sort(key=lambda r: r["period"])
-    for prev, cur in zip(rows, rows[1:]):
+    for prev, cur in itertools.pairwise(rows):
         ref_pct = cur["filings"] / prev["filings"] - 1
         our_pct = page[_label(cur["period"])] / page[_label(prev["period"])] - 1
         assert abs(our_pct - ref_pct) * 100 <= 2.0, (ticker, cur["period"])

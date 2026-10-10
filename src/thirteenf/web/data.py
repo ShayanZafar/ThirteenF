@@ -7,11 +7,10 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import date
 
-import duckdb
-
 from thirteenf.config import DB_PATH
 from thirteenf.db import Busy, connect  # noqa: F401  (Busy is raised from here)
-from thirteenf.web.format import display_name, ticker as ticker_text
+from thirteenf.web.format import display_name
+from thirteenf.web.format import ticker as ticker_text
 
 
 class NoData(RuntimeError):
@@ -37,7 +36,7 @@ def connection():
 def _rows(con, sql: str, params=None) -> list[dict]:
     cursor = con.execute(sql, params or [])
     names = [d[0] for d in cursor.description]
-    return [dict(zip(names, row)) for row in cursor.fetchall()]
+    return [dict(zip(names, row, strict=True)) for row in cursor.fetchall()]
 
 
 @dataclass
@@ -439,7 +438,7 @@ def search(con, query: str, limit: int = 25) -> list[dict]:
         ORDER BY ticker_match DESC, class_match DESC, funds DESC, cur.name_filed
         LIMIT {int(limit)}
         """,
-        params + [key, key, key, key, share_class, share_class, latest],
+        [*params, key, key, key, key, share_class, share_class, latest],
     )
     for r in rows:
         r["name"] = display_name(r["name_filed"], r["name_mixed"])

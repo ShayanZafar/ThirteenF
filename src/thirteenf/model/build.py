@@ -640,7 +640,7 @@ STOCK_TYPES = (
     "Foreign Sh.",
 )
 ETF_TYPES = ("ETP",)
-_TYPES = lambda types: ", ".join(f"'{t}'" for t in types)  # noqa: E731
+_TYPES = lambda types: ", ".join(f"'{t}'" for t in types)
 # Without a security type (no ticker found, often a company since delisted), the
 # class filers wrote decides: ETF, a note or warrant, or else a stock.
 SQL_KIND = f"""

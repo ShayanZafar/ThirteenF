@@ -6,6 +6,7 @@ the change from one period to the next, which is what every page shows, with
 a looser bound on the level.
 """
 
+import itertools
 from datetime import date
 
 import pytest
@@ -69,7 +70,7 @@ def test_funds_holding_tracks_the_reference(con, reference, ticker):
     rows = _by_ticker(reference)[ticker]
     ours = _ours(con, rows[0]["cusip"])
     report = []
-    for prev, cur in zip(rows, rows[1:]):
+    for prev, cur in itertools.pairwise(rows):
         ref_pct = (cur["filings"] / prev["filings"] - 1) * 100
         our_pct = (ours[cur["period"]] / ours[prev["period"]] - 1) * 100
         report.append((cur["period"], round(ref_pct, 1), round(our_pct, 1)))

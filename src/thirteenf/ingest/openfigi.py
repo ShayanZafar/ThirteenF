@@ -17,9 +17,9 @@ from __future__ import annotations
 import json
 import time
 from collections import deque
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Callable, Iterable
+from datetime import UTC, datetime
 
 import duckdb
 import httpx
@@ -165,7 +165,7 @@ def _store(con: duckdb.DuckDBPyConnection, rows: list[tuple]) -> None:
 
 def _row(cusip: str, job: dict, result: dict, fetched_at: datetime) -> tuple | None:
     """A cache row for one answer, or None for an error (asked again next run)."""
-    if "data" in result and result["data"]:
+    if result.get("data"):
         d = choose(result["data"])
         return (
             cusip,
@@ -208,7 +208,7 @@ def _row(cusip: str, job: dict, result: dict, fetched_at: datetime) -> tuple | N
 def _ask(client: OpenFigiClient, batch: list[tuple[str, dict]]) -> list[tuple[tuple[str, dict], dict]]:
     """Each job with its answer. A batch OpenFIGI answers oddly is asked again in halves."""
     try:
-        return list(zip(batch, client.map([job for _, job in batch])))
+        return list(zip(batch, client.map([job for _, job in batch]), strict=True))
     except BatchError:
         if len(batch) == 1:
             return [(batch[0], {"error": "OpenFIGI could not answer this job"})]
@@ -284,7 +284,7 @@ def update(open_db: Callable, client: OpenFigiClient, log=print) -> dict:
         for n, batch in enumerate(_batches(work, size), start=1):
             answered = _ask(client, batch)
             counts["asked"] += len(batch)
-            rows = handle(answered, datetime.now(timezone.utc).replace(tzinfo=None))
+            rows = handle(answered, datetime.now(UTC).replace(tzinfo=None))
             if rows:
                 with open_db() as con:
                     _store(con, rows)
@@ -309,7 +309,7 @@ def update(open_db: Callable, client: OpenFigiClient, log=print) -> dict:
         cusips = pending_cusips(con)
     invalid = [c for c in cusips if not valid_cusip(c)]
     if invalid:
-        fetched_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        fetched_at = datetime.now(UTC).replace(tzinfo=None)
         note = json.dumps({"error": "Not sent: the CUSIP's check digit is wrong."})
         with open_db() as con:
             for batch in _batches(invalid, 1000):
@@ -365,7 +365,7 @@ def update(open_db: Callable, client: OpenFigiClient, log=print) -> dict:
 
     def last_try(answered: list, fetched_at: datetime) -> list[tuple]:
         rows = answers(answered, fetched_at)
-        return [row if row[3] else (row[0], STAGE_DONE) + row[2:] for row in rows]
+        return [row if row[3] else (row[0], STAGE_DONE, *row[2:]) for row in rows]
 
     ask_all(class_work, "filers' FIGIs as share classes on the US listing", last_try)
     return counts

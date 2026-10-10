@@ -10,7 +10,7 @@ from __future__ import annotations
 import hashlib
 import shutil
 import zipfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import duckdb
@@ -100,7 +100,7 @@ def load_zip(con: duckdb.DuckDBPyConnection, zip_path: Path, log=print, work_roo
         with zipfile.ZipFile(zip_path) as archive:
             extracted = {t: Path(archive.extract(_member(archive, t), work)) for t in RAW_TABLES}
 
-        loaded_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        loaded_at = datetime.now(UTC).replace(tzinfo=None)
         con.execute("BEGIN TRANSACTION")
         try:
             con.execute("DELETE FROM load_log WHERE source_zip = ?", [zip_name])

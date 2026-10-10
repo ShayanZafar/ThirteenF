@@ -38,6 +38,7 @@ target-version = "py312"
 select = ["E", "F", "W", "B", "UP", "I", "SIM", "RUF", "C90", "TID"]
 ignore = [
     "E731",    # a named lambda is fine for a one-line helper
+    "E501",    # the formatter sets line length; long SQL and HTML strings stay whole
     "SIM108",  # ternaries are not always clearer
     "RUF001", "RUF002", "RUF003",  # the design system uses the true minus sign (−) on purpose
 ]

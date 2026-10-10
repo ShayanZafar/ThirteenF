@@ -58,7 +58,7 @@ def test_first_filers_and_incomplete_reports_are_not_flow(con):
 
 def test_net_flow_follows_shares_held_by_the_same_managers(con):
     """Bought minus sold equals the change in shares among managers that filed both periods."""
-    bought, sold, price = con.execute(
+    bought, sold, _price = con.execute(
         "SELECT c.bought_shares, c.sold_shares, sp.median_price FROM stock_periods sp JOIN changes c USING (cusip, period) "
         "WHERE cusip = '037833100' AND period = ?",
         [Q2_2026],

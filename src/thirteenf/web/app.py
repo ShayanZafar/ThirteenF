@@ -15,7 +15,8 @@ from fastapi.templating import Jinja2Templates
 from markupsafe import Markup, escape
 
 from thirteenf.config import DESIGN_SYSTEM_DIR, WATCHLIST_CSV
-from thirteenf.web import charts, data, format as fmt, story, watchlist
+from thirteenf.web import charts, data, story, watchlist
+from thirteenf.web import format as fmt
 
 HERE = Path(__file__).resolve().parent
 

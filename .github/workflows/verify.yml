@@ -45,6 +45,6 @@ jobs:
             echo '## Test coverage'
             echo
             echo '```'
-            sed -n '/^---------- coverage/,$p' coverage.txt | head -n 80
+            sed -n '/ coverage: platform /,$p' coverage.txt | head -n 80
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"

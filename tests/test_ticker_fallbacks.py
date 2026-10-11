@@ -15,11 +15,9 @@ import pytest
 from conftest import QUIET, FakeFtdSec, ftd_zip_bytes, map_mini_tickers, openfigi_down, write_ftd_zip
 from fastapi.testclient import TestClient
 
-import thirteenf.tickers
-from thirteenf import health
+from thirteenf import health, tickers
 from thirteenf.db import connect
 from thirteenf.ingest import ftd, issuer_names, openfigi, xbrl
-from thirteenf.tickers import TickerFallback
 from thirteenf.web.app import app
 
 AAPL, MSFT, NVDA, AMZN, QQQ = "037833100", "594918104", "67066G104", "023135106", minidata.QQQ
@@ -132,8 +130,8 @@ def test_without_the_tables_nothing_matches():
 # --- The chain ---------------------------------------------------------------
 
 
-def _chain(db, fake, log=QUIET) -> TickerFallback:
-    return TickerFallback(lambda: nullcontext(db), log=log, make_client=fake.client)
+def _chain(db, fake, log=QUIET) -> tickers.TickerFallback:
+    return tickers.TickerFallback(lambda: nullcontext(db), log=log, make_client=fake.client)
 
 
 def _fallbacks(db) -> dict:
@@ -183,7 +181,7 @@ def test_without_sec_user_agent_the_files_already_here_still_answer(db, tmp_path
     monkeypatch.delenv("SEC_USER_AGENT")
     write_ftd_zip(tmp_path / "ftd", "cnsfails202608b.zip", [("20260828", AAPL, "AAPL", "10", "APPLE INC", "1")])
     logged: list[str] = []
-    TickerFallback(lambda: nullcontext(db), log=logged.append)([AAPL, NVDA])
+    tickers.TickerFallback(lambda: nullcontext(db), log=logged.append)([AAPL, NVDA])
     assert {c: row[1] for c, row in _fallbacks(db).items()} == {AAPL: "sec-ftd", NVDA: "issuer-name"}
     assert any("SEC_USER_AGENT is not set" in line for line in logged)
 
@@ -216,7 +214,7 @@ def test_when_openfigi_is_down_the_chain_answers_and_the_page_says_where_from(mi
     slept: list[float] = []
     openfigi_down(monkeypatch, slept, refusal)
     fake = _sec_with_ftd()
-    counts = thirteenf.tickers.update_tickers(log=QUIET, fallback=TickerFallback(connect, QUIET, fake.client))
+    counts = tickers.update_tickers(log=QUIET, fallback=tickers.TickerFallback(connect, QUIET, fake.client))
     assert slept == [] and counts["fallback"] == {"asked": 5, "sec-ftd": 2, "issuer-name": 1}
     with connect(read_only=True) as con:
         stocks = {
@@ -259,7 +257,7 @@ def test_tickers_count_as_unreliable_once_openfigi_and_its_fallback_both_are(min
     openfigi_down(monkeypatch, [])
     fake = FakeFtdSec({}, refuse=lambda: httpx.Response(403, text=BLOCK_PAGE))
     for run in range(1, 6):
-        thirteenf.tickers.update_tickers(log=QUIET, fallback=TickerFallback(connect, QUIET, fake.client))
+        tickers.update_tickers(log=QUIET, fallback=tickers.TickerFallback(connect, QUIET, fake.client))
         report = health.load()
         assert report["unreliable"] is (run == 5), run  # the fallback is judged after its fifth attempt
     assert report["summary"] == (
@@ -279,9 +277,9 @@ def test_tickers_count_as_unreliable_once_openfigi_and_its_fallback_both_are(min
     assert report["sources"]["sec-ftd"]["lastError"] == "paused requests (HTTP 403)"
     assert fake.slept == []
 
-    monkeypatch.setattr(thirteenf.tickers, "update_tickers", lambda **_: {})
+    monkeypatch.setattr(tickers, "update_tickers", lambda **_: {})
     monkeypatch.setattr(sys, "argv", ["python -m thirteenf.tickers"])
-    assert thirteenf.tickers.main() == 0
+    assert tickers.main() == 0
     assert capsys.readouterr().out == f"Sources: {report['summary']} Details in {health.HEALTH_PATH}.\n"
 
 

@@ -69,7 +69,7 @@ New 13F data arrives in three-month batches (December to February, March to May,
 - [docs/using-the-app.md](docs/using-the-app.md): each page, and how to read the numbers
 - [docs/13f-data.md](docs/13f-data.md): the SEC data sets, how every number is computed, and the data checks
 - [docs/architecture.md](docs/architecture.md): how the pieces fit together, module by module and table by table
-- [docs/development.md](docs/development.md): tests, conventions, and changing the app
+- [docs/development.md](docs/development.md): tests, conventions, CI, and changing the app
 - [docs/troubleshooting.md](docs/troubleshooting.md): what to do when something goes wrong
 - [docs/build-plan.md](docs/build-plan.md): the phases the app was built in, each with its check
 - [design/README.md](design/README.md) and [design-system/README.md](design-system/README.md): the screens and the design system

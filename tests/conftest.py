@@ -10,12 +10,20 @@ import pytest
 import thirteenf.db
 import thirteenf.tickers
 import thirteenf.web.data
+from thirteenf import health
 from thirteenf.config import DB_PATH, REFERENCE_CSV
 from thirteenf.ingest import load, openfigi
 from thirteenf.model import build
 from thirteenf.model.periods import quarter_end
 
 QUIET = lambda *_: None
+
+
+@pytest.fixture(autouse=True)
+def source_health(tmp_path, monkeypatch):
+    """Every test records how sources answer in a folder of its own, never in data/."""
+    monkeypatch.setattr(health, "HEALTH_PATH", tmp_path / "source-health.json")
+    monkeypatch.setattr(health, "EVENTS_PATH", tmp_path / "source-health-events.json")
 
 
 @pytest.fixture(scope="session")

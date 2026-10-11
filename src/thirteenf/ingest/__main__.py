@@ -7,33 +7,24 @@ import sys
 from thirteenf.config import MissingUserAgent
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(prog="python -m thirteenf.ingest")
-    parser.add_argument("--download-only", action="store_true", help="download zips, do not load")
-    parser.add_argument("--no-download", action="store_true", help="load the zips already in data/raw/")
-    args = parser.parse_args()
-
+def download() -> None:
+    """Every SEC download of a run, through one client: one pacing, one limit on blocks waited out."""
     from thirteenf.ingest import sec, xbrl
 
+    client = sec.SecClient()
     try:
-        if not args.no_download:
-            sec.download_all()
-            xbrl.download_all()
-    except MissingUserAgent as err:
-        print(err, file=sys.stderr)
-        return 2
-    except RuntimeError as err:  # the SEC kept refusing, or no links on its page: the message says what to do
-        print(err, file=sys.stderr)
-        return 1
-    if args.download_only:
-        return 0
+        sec.download_all(client=client)
+        xbrl.download_all(client=client)
+    finally:
+        client.close()
 
-    from thirteenf.ingest import load
+
+def load_and_build() -> None:
+    from thirteenf.db import connect
+    from thirteenf.ingest import load, xbrl
     from thirteenf.model import build
 
     load.load_all()
-    from thirteenf.db import connect
-
     with connect() as con:
         xbrl.load_all(con)
     build.build_all()
@@ -50,7 +41,35 @@ def main() -> int:
             f"Tickers: paste a free OpenFIGI key (openfigi.com) into {ensure_settings_file()}, "
             "then run python -m thirteenf.tickers"
         )
+
+
+def run(args: argparse.Namespace) -> int:
+    try:
+        if not args.no_download:
+            download()
+    except MissingUserAgent as err:
+        print(err, file=sys.stderr)
+        return 2
+    except RuntimeError as err:  # the SEC kept refusing, or no links on its page: the message says what to do
+        print(err, file=sys.stderr)
+        return 1
+    if not args.download_only:
+        load_and_build()
     return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(prog="python -m thirteenf.ingest")
+    parser.add_argument("--download-only", action="store_true", help="download zips, do not load")
+    parser.add_argument("--no-download", action="store_true", help="load the zips already in data/raw/")
+    code = run(parser.parse_args())
+
+    from thirteenf import health
+
+    warning = health.warning()
+    if warning:
+        print(f"Sources: {warning} Details in {health.HEALTH_PATH}.")
+    return code
 
 
 if __name__ == "__main__":

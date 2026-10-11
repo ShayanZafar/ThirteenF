@@ -35,7 +35,8 @@ web/app.py (FastAPI)  ->  Jinja2 templates + inline SVG  ->  your browser
 | --- | --- |
 | `config.py` | Paths, the SEC user agent, the OpenFIGI key from `data/settings.toml` |
 | `db.py` | DuckDB connections that wait briefly for another process's write lock |
-| `ingest/sec.py` | Finds the data set links on the SEC page and downloads new zips |
+| `health.py` | Records how each outside source answers (ok, failed, throttled) in `data/source-health.json`, and says when a data need has no reliable source |
+| `ingest/sec.py` | `SecClient`, which every SEC request goes through (pacing, the waits the SEC is worth, source health); finds the data set links on the SEC page and downloads new zips |
 | `ingest/load.py` | Loads each zip into the `raw_` tables; reloading a zip replaces its rows |
 | `ingest/xbrl.py` | Downloads the XBRL frames for cash flow and share counts, and the SEC's ticker list, and loads them |
 | `ingest/openfigi.py` | Maps CUSIPs to tickers and security types, in three passes, cached |

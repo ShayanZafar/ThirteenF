@@ -88,6 +88,7 @@ Run `update-data` after each window is published. It downloads only the new zip,
 | `data/raw/xbrl/` | The SEC's company cash flow data (XBRL frames) and ticker list, as downloaded |
 | `data/thirteenf.duckdb` | The database: the raw tables as loaded, and the model built from them |
 | `data/settings.toml` | Your settings, such as the OpenFIGI key |
+| `data/source-health.json` | How the SEC and OpenFIGI answered over the last 24 hours, rewritten after every request (the requests themselves are in `data/source-health-events.json`) |
 | `data/watchlist.csv` | Your watchlist, started from `config/watchlist.csv` the first time you open the app |
 | `.venv/` | The Python virtual environment |
 

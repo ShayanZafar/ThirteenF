@@ -15,12 +15,16 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import date
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import duckdb
 import httpx
 
 from thirteenf.config import RAW_DIR
 from thirteenf.db import scalar
+
+if TYPE_CHECKING:
+    from thirteenf.ingest.sec import SecClient
 
 XBRL_DIR = RAW_DIR / "xbrl"
 FRAMES_URL = "https://data.sec.gov/api/xbrl/frames/{taxonomy}/{tag}/{unit}/{period}.json"
@@ -90,29 +94,42 @@ def file_name(taxonomy: str, tag: str, unit: str, period: str) -> str:
     return f"{taxonomy}_{tag}_{unit}_{period}.json"
 
 
-def sec_fetch(log: Callable[[str], None] = print) -> tuple[Callable[[str], str | None], Callable[[], None]]:
-    """A fetch that returns a URL's text, or None when the SEC has no such frame yet."""
+SOURCE = "sec-xbrl"  # in the source health file: the SEC's XBRL frames, for company cash-flow data
+
+
+def sec_fetch(
+    log: Callable[[str], None] = print, client: SecClient | None = None
+) -> tuple[Callable[[str], str | None], Callable[[], None]]:
+    """A fetch that returns a URL's text, or None when the SEC has no such frame yet.
+
+    The close it returns closes the client only when this made it."""
     from thirteenf.ingest.sec import SecClient
 
-    client = SecClient(log=log)
+    own = client is None
+    sec = client or SecClient(log=log)
 
     def fetch(url: str) -> str | None:
         try:
-            return client.get_text(url)
+            return sec.get_text(url, source=SOURCE, missing_ok=True)
         except httpx.HTTPStatusError as err:
             if err.response.status_code == 404:
                 return None
             raise
 
-    return fetch, client.close
+    return fetch, (sec.close if own else lambda: None)
 
 
-def download_all(fetch: Callable[[str], str | None] | None = None, today: date | None = None, log=print) -> int:
+def download_all(
+    fetch: Callable[[str], str | None] | None = None,
+    today: date | None = None,
+    log=print,
+    client: SecClient | None = None,
+) -> int:
     """Download every frame and the ticker list into data/raw/xbrl/. Frames grow as
     companies file, so each run fetches them again. Returns how many files were written."""
     close = None
     if fetch is None:
-        fetch, close = sec_fetch(log)
+        fetch, close = sec_fetch(log, client)
     XBRL_DIR.mkdir(parents=True, exist_ok=True)
     log("Downloading company cash flow data from the SEC (XBRL frames)")
     written = 0

@@ -31,7 +31,8 @@ or `.venv\Scripts\python -m pytest`. About 170 tests, two kinds:
 | `tests/test_signed.py` | Every signed number painted by its sign, on every page |
 | `tests/test_periods.py`, `tests/test_config.py` | Deadlines and settings |
 | `tests/test_seams.py` | Where steps meet: search redirects, build then tickers, OpenFIGI retries |
-| `tests/test_sec_retry.py` | The SEC client against a fake SEC: throttling, outages, dropped downloads, what the command line prints |
+| `tests/test_sec_retry.py` | The SEC client against a fake SEC: quick retries, blocks waited out (at most two a run), a caller with another source moving on at once, dropped downloads, what the command line prints |
+| `tests/test_health.py` | The source health file: its shape, the 24-hour window, when a source and a data need count as unreliable |
 
 Run one file or one test: `scripts\test.cmd tests\test_flows.py -k alphabet`.
 

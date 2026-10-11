@@ -6,11 +6,20 @@ Install it with `winget install Python.Python.3.12` or from [python.org](https:/
 **"SEC_USER_AGENT is not set"** (setup or update-data)
 Run `setx SEC_USER_AGENT "ThirteenF you@example.com"` with your own email, then open a new terminal. On macOS and Linux, export it in your shell profile. The SEC refuses downloads without it.
 
-**Downloads fail with 403 or 429**
-The SEC is refusing the requests: check that `SEC_USER_AGENT` holds a real name and email, wait a few minutes, and run `update-data` again. Finished downloads are kept; a stopped one restarts cleanly.
+**"SEC paused requests from this computer; waiting 10 minutes, then carrying on"** (update-data)
+The SEC blocks a computer for about 10 minutes when it sees too many requests or an undeclared tool (an HTTP 429, or a 403 page saying "Request Rate Threshold" or "Undeclared Automated Tool"). The SEC is the only source of the 13F data, so the update waits it out by itself, as long as the SEC says or else 10 minutes, then carries on. Nothing to do; Ctrl+C stops it, and finished downloads are kept.
 
-**"The SEC refused or failed to answer 5 times"** (update-data)
-The app asked the SEC five times, waiting longer each time (lines starting `SEC:` show each wait), and it still answered with an error, a throttling page or not at all. The SEC blocks a client for about 10 minutes when it sends too many requests. Wait 10 minutes and run `update-data` again; it carries on from the finished downloads. If it keeps happening, check `SEC_USER_AGENT` and your connection.
+**"The SEC paused requests from this computer 3 times in this run"** (update-data)
+The update waits out two blocks per run, then stops. Run `update-data` again later; it carries on from the finished downloads. If it keeps happening, check that `SEC_USER_AGENT` holds a real name and email.
+
+**"The SEC failed to answer 4 times"** (update-data)
+The connection failed or the SEC answered with a server error four times in a row, about 1, 2 and 4 seconds apart (lines starting `SEC:` show each try). Check your connection and run `update-data` again; it carries on from the finished downloads, and a stopped download restarts cleanly.
+
+**Downloads fail with another 403 or a 404**
+The SEC refused that request outright, so it is not tried again. Check `SEC_USER_AGENT`; a 404 means the SEC moved a file, and the app needs a fix.
+
+**"Sources: No reliable source for ..."** (update-data)
+In the last 24 hours, every source for that data answered under half of at least 5 requests. The app keeps working on the data it already has. Check your connection and `SEC_USER_AGENT`, then run the update again later; the line goes away once the sources answer again. `data/source-health.json` has each source's counts and its last error.
 
 **"Running scripts is disabled on this system"**
 That message comes from PowerShell `.ps1` scripts. The Windows scripts here are `.cmd` batch files, which are not affected: run `scripts\start.cmd` from PowerShell or Command Prompt, or double-click it.

@@ -1,7 +1,10 @@
 ---
 name: verify
-description: Run ThirteenF's one check (ruff format, ruff lint, mypy, pytest) and report only failures. Claude runs this before each commit; type /verify to run it yourself.
+disable-model-invocation: true
+description: Run ThirteenF's one check (ruff format, ruff lint, mypy, pytest) and report only failures. A commit hook runs it before each commit; type /verify to run it yourself.
 ---
+
+A commit hook runs this same check before every `git commit` and blocks the commit when it fails, so there is no need to run it before committing; run it directly while working, to check a step.
 
 Run the project's check script from the repo root, showing only the end of the output:
 

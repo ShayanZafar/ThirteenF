@@ -13,53 +13,31 @@ It is a personal app that runs on your computer. It downloads the SEC's Form 13F
 
 Search takes a ticker, a company name, a CUSIP or a manager, and suggests matches as you type.
 
-## Quick start (Windows)
+## Quick start
 
-You need Python 3.12 or newer and about 4 GB of disk. In a terminal in this folder:
+You need Python 3.12 or newer and about 4 GB of disk.
 
-```bat
-scripts\setup.cmd
-```
+1. **Start the app**: double-click `scripts\start.cmd` (Windows) or `scripts/start.command` (macOS); on Linux, run `scripts/start.sh`. The first time, it sets the app up (a minute or two), then opens <http://127.0.0.1:8000>. Until the data is loaded, the pages say so.
+2. **Identify yourself to the SEC**, once. The SEC asks every client for a name and contact email:
+   - Windows: `setx SEC_USER_AGENT "ThirteenF you@example.com"`, then open a new terminal.
+   - macOS and Linux: add `export SEC_USER_AGENT="ThirteenF you@example.com"` to `~/.zshrc` or `~/.bashrc`.
+3. **Load the data** (about 15 minutes the first time): double-click `scripts\update-data.cmd` or `scripts/update-data.command`, or run `scripts/update-data.sh`. Optional, for tickers: get a free key at [openfigi.com](https://www.openfigi.com/user/signup) and paste it into `data/settings.toml` first (setup creates the file); without a key the first ticker run takes about 2.5 hours instead of a few minutes.
 
-The SEC asks every client to identify itself with a name and contact email. Set it once, then open a new terminal:
-
-```bat
-setx SEC_USER_AGENT "ThirteenF you@example.com"
-```
-
-Optional, for tickers: get a free key at [openfigi.com](https://www.openfigi.com/user/signup) and paste it into `data\settings.toml` (setup creates the file). Without a key the first ticker run takes about 2.5 hours instead of a few minutes.
-
-Then load the data (about 15 minutes the first time) and start the app:
-
-```bat
-scripts\update-data.cmd
-scripts\start.cmd
-```
-
-The app opens at <http://127.0.0.1:8000>. Press Ctrl+C in the terminal to stop it.
-
-## Quick start (macOS and Linux)
-
-```sh
-scripts/setup.sh
-export SEC_USER_AGENT="ThirteenF you@example.com"   # add to ~/.zshrc or ~/.bashrc
-scripts/update-data.sh
-scripts/start.sh
-```
+Press Ctrl+C in the app's window to stop it. Every script also runs from a terminal and passes options through: `scripts\start.cmd --port 8001`, `scripts/update-data.sh --no-download`.
 
 ## Scripts and commands
 
 | Script (Windows / macOS, Linux) | Command it runs | What it does |
 | --- | --- | --- |
-| `scripts\setup.cmd` / `scripts/setup.sh` | | Creates `.venv`, installs the app, creates `data/settings.toml` |
-| `scripts\update-data.cmd` / `scripts/update-data.sh` | `python -m thirteenf.ingest` | Downloads new SEC data sets, loads them, rebuilds the model, maps new tickers |
-| `scripts\start.cmd` / `scripts/start.sh` | `python -m thirteenf.web --open` | Serves the app at <http://127.0.0.1:8000> and opens it |
+| `scripts\setup.cmd` / `scripts/setup.sh` (`setup.command` on macOS) | | Creates `.venv`, installs the app, creates `data/settings.toml` |
+| `scripts\update-data.cmd` / `scripts/update-data.sh` (`update-data.command` on macOS) | `python -m thirteenf.ingest` | Downloads new SEC data sets, loads them, rebuilds the model, maps new tickers |
+| `scripts\start.cmd` / `scripts/start.sh` (`start.command` on macOS) | `python -m thirteenf.web --open` | Serves the app at <http://127.0.0.1:8000> and opens it |
 | `scripts\test.cmd` / `scripts/test.sh` | `python -m pytest` | Runs the tests |
 | `scripts\verify.cmd` / `scripts/verify.sh` | | Checks formatting, lint and types, then runs the tests; CI runs the same |
 | | `python -m thirteenf.model` | Rebuilds the model tables from the loaded data (a few minutes) |
 | | `python -m thirteenf.tickers` | Maps new CUSIPs to tickers with OpenFIGI |
 
-Scripts pass options through: `scripts\start.cmd --port 8001`, `scripts\update-data.cmd --no-download`, `scripts\test.cmd -k tickers`.
+`start` and `update-data` run `setup` for you when `.venv` is missing. The `.command` files run the matching `.sh` from Finder on macOS, and `scripts\keep-window.cmd` keeps a double-clicked window open to read the result. Scripts pass options through: `scripts\start.cmd --port 8001`, `scripts\update-data.cmd --no-download`, `scripts\test.cmd -k tickers`.
 
 New 13F data arrives in three-month batches (December to February, March to May, June to August, September to November). Run `update-data` after each to pick up the new quarter.
 

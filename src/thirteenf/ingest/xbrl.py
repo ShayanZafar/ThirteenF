@@ -2,7 +2,7 @@
 
 Each frame is one financial-statement line for every company in one calendar
 period, as reported in 10-K and 10-Q filings: https://www.sec.gov/search-filings/edgar-application-programming-interfaces.
-A few frames cover every company, so a full refresh is about 45 requests.
+A few frames cover every company, so a full refresh is about 60 requests.
 The files are kept in data/raw/xbrl/ as downloaded and loaded as they are;
 the model (thirteenf.model.build) derives free cash flow from them.
 
@@ -45,6 +45,14 @@ ANNUAL_CONCEPTS = [
     # premiums, so free cash flow does not measure what it measures elsewhere.
     ("financial", "us-gaap", "InterestAndDividendIncomeOperating", "USD"),
     ("financial", "us-gaap", "PremiumsEarnedNet", "USD"),
+    # Lenders such as consumer finance companies report none of those lines, yet
+    # their operating cash flow collects loan interest while the loans they make
+    # sit in investing. A company whose loan interest and fees are a large part of
+    # its revenue is treated the same way (thirteenf.model.build.LENDER_SHARE).
+    ("loan_income", "us-gaap", "InterestAndFeeIncomeLoansAndLeases", "USD"),
+    ("loan_income", "us-gaap", "InterestAndFeeIncomeLoansConsumer", "USD"),
+    ("revenue", "us-gaap", "Revenues", "USD"),
+    ("revenue", "us-gaap", "RevenueFromContractWithCustomerExcludingAssessedTax", "USD"),
 ]
 # Point-in-time lines, read for recent quarter ends. Shares outstanding from each
 # filing's cover page check the diluted share count: a split since the fiscal

@@ -63,7 +63,7 @@ The first run:
 1. Reads the download links from the SEC's [Form 13F data sets](https://www.sec.gov/data-research/sec-markets-data/form-13f-data-sets) page and downloads every three-month filing window from June 2024 on (about 800 MB).
 2. Loads each zip into DuckDB exactly as filed, checking every table's row count against its file.
 3. Builds the model: one current filing per manager, positions, funds holding, changes, net 13F flow, and the data checks.
-4. Downloads the companies' cash flow data from the SEC (about 45 small files), for the Accumulate page.
+4. Downloads the companies' cash flow data from the SEC (about 60 files), for the Accumulate page.
 5. Maps CUSIPs to tickers, if you added an OpenFIGI key. The Accumulate page needs tickers to match companies to their stocks.
 
 Allow about 15 minutes. Later runs skip zips already downloaded and loaded.

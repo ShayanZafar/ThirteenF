@@ -52,9 +52,15 @@ def _url(tag, unit, period, taxonomy="us-gaap"):
     return xbrl.FRAMES_URL.format(taxonomy=taxonomy, tag=tag, unit=unit, period=period)
 
 
-def _sec(cover_shares: dict[int, float], diluted: dict[int, float], financial: list[int]) -> dict[str, str]:
+def _sec(
+    cover_shares: dict[int, float],
+    diluted: dict[int, float],
+    financial: list[int],
+    loans: dict[int, tuple[float, float | None]],
+) -> dict[str, str]:
     """URL -> body for every file the SEC has; anything else is a 404. Each company
-    reports the same two fiscal years, to September 2023 and September 2024."""
+    reports the same two fiscal years, to September 2023 and September 2024.
+    `loans` is CIK -> (loan interest and fees, revenue or None) for each year."""
     pages = {
         xbrl.TICKERS_URL: json.dumps(
             {str(n): {"cik_str": cik, "ticker": c[0], "title": f"Company {cik}"} for n, (cik, c) in enumerate(COMPANIES.items())}
@@ -83,6 +89,13 @@ def _sec(cover_shares: dict[int, float], diluted: dict[int, float], financial: l
             pages[_url("PremiumsEarnedNet", "USD", period)] = _frame(
                 "us-gaap", "PremiumsEarnedNet", "USD", period, [(k, end, 1e9) for k in financial]
             )
+        if loans:
+            tag = "InterestAndFeeIncomeLoansConsumer"
+            pages[_url(tag, "USD", period)] = _frame(
+                "us-gaap", tag, "USD", period, [(k, end, v[0]) for k, v in loans.items()]
+            )
+            revenue = [(k, end, v[1]) for k, v in loans.items() if v[1] is not None]
+            pages[_url("Revenues", "USD", period)] = _frame("us-gaap", "Revenues", "USD", period, revenue)
     return pages
 
 
@@ -92,9 +105,14 @@ def accumulate_db(mini_db, tmp_path, monkeypatch):
     a function that loads the SEC files with the given cover-page share counts."""
 
     def setup(
-        cover_shares: dict[int, float] | None = None, diluted: dict[int, float] | None = None, financial=()
+        cover_shares: dict[int, float] | None = None,
+        diluted: dict[int, float] | None = None,
+        financial=(),
+        loans: dict[int, tuple[float, float | None]] | None = None,
     ) -> list[str]:
-        pages = _sec({789019: 1e9} if cover_shares is None else cover_shares, diluted or {}, list(financial))
+        pages = _sec(
+            {789019: 1e9} if cover_shares is None else cover_shares, diluted or {}, list(financial), loans or {}
+        )
         asked: list[str] = []
 
         def fetch(url: str) -> str | None:
@@ -162,7 +180,22 @@ def test_banks_and_insurers_are_left_out(accumulate_db):
     accumulate_db(financial=[789019])
     html = TestClient(app).get("/accumulate").text
     assert _listed(html) == []
-    assert "Leaves out 1 bank or insurer" in html
+    assert "Leaves out 1 bank, insurer or lender" in html
+
+
+@pytest.mark.parametrize(
+    ("loan_income", "revenue", "listed"),
+    [
+        (20e9, 60e9, False),  # a third of revenue: a lender, like Enova or World Acceptance
+        (5e9, 60e9, True),  # a small lending arm, like a carmaker's
+        (5e9, None, False),  # loan interest and no revenue line: a lender
+    ],
+)
+def test_lenders_are_left_out(accumulate_db, loan_income, revenue, listed):
+    accumulate_db(loans={789019: (loan_income, revenue)})
+    html = TestClient(app).get("/accumulate").text
+    assert _listed(html) == ([MSFT] if listed else [])
+    assert f"Leaves out {0 if listed else 1} " in html
 
 
 def test_the_page_asks_for_update_data_before_cash_flow_exists(mini_db):

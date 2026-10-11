@@ -9,6 +9,9 @@ Run `setx SEC_USER_AGENT "ThirteenF you@example.com"` with your own email, then 
 **Downloads fail with 403 or 429**
 The SEC is refusing the requests: check that `SEC_USER_AGENT` holds a real name and email, wait a few minutes, and run `update-data` again. Finished downloads are kept; a stopped one restarts cleanly.
 
+**"The SEC refused or failed to answer 5 times"** (update-data)
+The app asked the SEC five times, waiting longer each time (lines starting `SEC:` show each wait), and it still answered with an error, a throttling page or not at all. The SEC blocks a client for about 10 minutes when it sends too many requests. Wait 10 minutes and run `update-data` again; it carries on from the finished downloads. If it keeps happening, check `SEC_USER_AGENT` and your connection.
+
 **"Running scripts is disabled on this system"**
 That message comes from PowerShell `.ps1` scripts. The Windows scripts here are `.cmd` batch files, which are not affected: run `scripts\start.cmd` from PowerShell or Command Prompt, or double-click it.
 

@@ -28,7 +28,7 @@ A personal app, run locally, that answers one question for every US-listed stock
 - Copy follows `design-system/README.md`: plain, dated, sentence case, no buy or sell language. One exception, asked for by the user (Oct 10, 2026): the Accumulate page names stocks to accumulate, because recommending them is the app's goal. It still says how each was chosen and that it is not advice.
 - Raw SEC files are never edited. Load them as they are and derive everything from them, so every number can be rebuilt from the raw tables.
 - Never show a share total that fails the implied-price check in `docs/13f-data.md`; show the check instead.
-- SEC access: send the User-Agent from the `SEC_USER_AGENT` environment variable (for example `ThirteenF you@example.com`). If it is not set, stop and ask the user for it. Stay under 10 requests per second.
+- SEC access: send the User-Agent from the `SEC_USER_AGENT` environment variable (for example `ThirteenF you@example.com`). If it is not set, stop and ask the user for it. Stay under 10 requests per second. `SecClient` already retries throttled and failed requests with backoff (five attempts, then a `RuntimeError` that says what to do), so callers do not add their own.
 - Keep `data/` and `.venv/` out of git.
 
 ## Definition of done

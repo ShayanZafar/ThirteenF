@@ -15,6 +15,7 @@ from fastapi.templating import Jinja2Templates
 from markupsafe import Markup, escape
 
 from thirteenf.config import DESIGN_SYSTEM_DIR, WATCHLIST_CSV
+from thirteenf.db import Busy
 from thirteenf.web import charts, data, story, watchlist
 from thirteenf.web import format as fmt
 
@@ -70,8 +71,8 @@ def no_data(request: Request, exc: data.NoData):
     return render(request, "nodata.html", status_code=503)
 
 
-@app.exception_handler(data.Busy)
-def busy(request: Request, exc: data.Busy):
+@app.exception_handler(Busy)
+def busy(request: Request, exc: Busy):
     response = render(request, "busy.html", status_code=503)
     response.headers["Retry-After"] = "30"
     return response

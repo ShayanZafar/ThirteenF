@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from datetime import date
 
 from thirteenf.config import DB_PATH
-from thirteenf.db import Busy, connect, scalar  # noqa: F401  (Busy is raised from here)
+from thirteenf.db import connect, scalar
 from thirteenf.web.format import display_name
 from thirteenf.web.format import ticker as ticker_text
 

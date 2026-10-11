@@ -11,7 +11,6 @@ import thirteenf.db
 import thirteenf.tickers
 import thirteenf.web.data
 from thirteenf.config import DB_PATH, REFERENCE_CSV
-from thirteenf.db import connect
 from thirteenf.ingest import load, openfigi
 from thirteenf.model import build
 from thirteenf.model.periods import quarter_end
@@ -56,7 +55,7 @@ def mini_db(tmp_path, monkeypatch):
     """The made-up data set (tests/minidata.py), loaded and built, in a database of its own."""
     monkeypatch.setattr(thirteenf.db, "DB_PATH", tmp_path / "mini.duckdb")
     monkeypatch.setattr(thirteenf.web.data, "DB_PATH", tmp_path / "mini.duckdb")  # what the pages read
-    with connect() as con:
+    with thirteenf.db.connect() as con:
         load.ensure_load_log(con)
         for path in minidata.write_zips(tmp_path / "raw"):
             load.load_zip(con, path, log=QUIET, work_root=tmp_path / "work")

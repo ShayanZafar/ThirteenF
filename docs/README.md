@@ -5,6 +5,7 @@
 | [getting-started.md](getting-started.md) | Install the app, load the SEC data for the first time, and keep it current |
 | [using-the-app.md](using-the-app.md) | Find your way around the pages and read the numbers |
 | [13f-data.md](13f-data.md) | Know exactly how every number is computed, and the checks applied to the data |
+| [sources.md](sources.md) | See every outside source, what stands in when one refuses or fails, and how their health is recorded |
 | [architecture.md](architecture.md) | See how the download, the database and the web pages fit together |
 | [development.md](development.md) | Run the tests, follow the conventions, see what CI checks, and change the app |
 | [troubleshooting.md](troubleshooting.md) | Fix a problem with setup, data or the app |

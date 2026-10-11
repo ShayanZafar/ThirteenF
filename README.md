@@ -36,7 +36,7 @@ Press Ctrl+C in the app's window to stop it. Every script also runs from a termi
 | `scripts\test.cmd` / `scripts/test.sh` | `python -m pytest` | Runs the tests |
 | `scripts\verify.cmd` / `scripts/verify.sh` | | Checks formatting, lint and types, then runs the tests; CI runs the same |
 | | `python -m thirteenf.model` | Rebuilds the model tables from the loaded data (a few minutes) |
-| | `python -m thirteenf.tickers` | Maps new CUSIPs to tickers with OpenFIGI |
+| | `python -m thirteenf.tickers` | Maps new CUSIPs to tickers with OpenFIGI, or, where it cannot answer, the SEC's fails-to-deliver data and the issuer's name until the next run |
 
 `start` and `update-data` run `setup` for you when `.venv` is missing. The `.command` files run the matching `.sh` from Finder on macOS, and `scripts\keep-window.cmd` keeps a double-clicked window open to read the result. Scripts pass options through: `scripts\start.cmd --port 8001`, `scripts\update-data.cmd --no-download`, `scripts\test.cmd -k tickers`.
 
@@ -47,6 +47,7 @@ New 13F data arrives in three-month batches (December to February, March to May,
 - [docs/getting-started.md](docs/getting-started.md): setup, the first data load, keeping the data current
 - [docs/using-the-app.md](docs/using-the-app.md): each page, and how to read the numbers
 - [docs/13f-data.md](docs/13f-data.md): the SEC data sets, how every number is computed, and the data checks
+- [docs/sources.md](docs/sources.md): every outside source, the fallbacks when one refuses or fails, and how their health is recorded
 - [docs/architecture.md](docs/architecture.md): how the pieces fit together, module by module and table by table
 - [docs/development.md](docs/development.md): tests, conventions, CI, and changing the app
 - [docs/troubleshooting.md](docs/troubleshooting.md): what to do when something goes wrong

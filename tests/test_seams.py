@@ -7,9 +7,10 @@ so they never skip.
 import httpx
 import minidata
 import pytest
-from conftest import map_mini_tickers
+from conftest import QUIET, map_mini_tickers, openfigi_down
 from fastapi.testclient import TestClient
 
+import thirteenf.tickers
 from thirteenf.db import connect
 from thirteenf.ingest import openfigi
 from thirteenf.web.app import app
@@ -54,25 +55,35 @@ def test_new_tickers_reach_the_kind_medians(mini_db, monkeypatch):
     assert etf_median == pytest.approx(qqq_pct)  # the only ETF is its own median
 
 
-def test_a_dropped_connection_is_retried():
+def test_a_dropped_connection_moves_on_at_once_and_the_next_request_asks_again():
     calls = {"n": 0}
 
     def flaky(request: httpx.Request) -> httpx.Response:
         calls["n"] += 1
-        if calls["n"] <= 2:
+        if calls["n"] == 1:
             raise httpx.ConnectError("[Errno -3] Temporary failure in name resolution", request=request)
         return httpx.Response(200, json=[{"warning": "No identifier found."}])
 
     slept = []
     client = openfigi.OpenFigiClient("key", transport=httpx.MockTransport(flaky), sleep=slept.append)
-    assert client.map([{"idType": "ID_CUSIP", "idValue": "037833100"}]) == [{"warning": "No identifier found."}]
-    assert calls["n"] == 3 and len(slept) == 2
-
-
-def test_a_connection_that_stays_down_still_fails():
-    def down(request: httpx.Request) -> httpx.Response:
-        raise httpx.ConnectError("down", request=request)
-
-    client = openfigi.OpenFigiClient("key", transport=httpx.MockTransport(down), sleep=lambda _: None)
-    with pytest.raises(httpx.ConnectError):
+    with pytest.raises(openfigi.OpenFigiUnavailable, match="connection failed"):
         client.map([{"idType": "ID_CUSIP", "idValue": "037833100"}])
+    assert client.map([{"idType": "ID_CUSIP", "idValue": "037833100"}]) == [{"warning": "No identifier found."}]
+    assert calls["n"] == 2 and slept == []
+
+
+def test_a_connection_that_stays_down_never_stops_the_run(mini_db, monkeypatch):
+    """Every batch goes down the chain; the run finishes, and every CUSIP is asked again next time."""
+    slept: list[float] = []
+    handed: list[str] = []
+    openfigi_down(monkeypatch, slept)
+
+    class Recorder(thirteenf.tickers.TickerFallback):
+        def __call__(self, cusips: list[str]) -> None:
+            handed.extend(cusips)
+
+    counts = thirteenf.tickers.update_tickers(log=QUIET, fallback=Recorder(connect, QUIET))
+    assert sorted(handed) == sorted(minidata.SECURITIES) and slept == []
+    assert counts["errors"] == len(minidata.SECURITIES) and counts["refused_batches"] == 1
+    with connect() as con:
+        assert sorted(openfigi.pending_cusips(con)) == sorted(minidata.SECURITIES)

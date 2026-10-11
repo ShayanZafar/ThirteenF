@@ -1,6 +1,9 @@
 import csv
+import io
 import json
+import zipfile
 from datetime import date
+from pathlib import Path
 
 import duckdb
 import httpx
@@ -12,11 +15,72 @@ import thirteenf.tickers
 import thirteenf.web.data
 from thirteenf import health
 from thirteenf.config import DB_PATH, REFERENCE_CSV
-from thirteenf.ingest import load, openfigi
+from thirteenf.ingest import ftd, load, openfigi
+from thirteenf.ingest.sec import SecClient
 from thirteenf.model import build
 from thirteenf.model.periods import quarter_end
 
 QUIET = lambda *_: None
+
+
+def ftd_zip_bytes(name: str, rows: list[tuple], header: str = ftd.HEADER, count: int | None = None) -> bytes:
+    """A fails-to-deliver zip as the SEC writes it: one latin-1, pipe-delimited .txt with
+    CRLF line ends and two trailer lines (`count` overrides the record count it gives)."""
+    lines = [header, *("|".join(row) for row in rows)]
+    lines += [
+        f"Trailer record count {len(rows) if count is None else count}",
+        f"Trailer total quantity of shares {sum(int(row[3]) for row in rows)}",
+    ]
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w") as archive:
+        archive.writestr(name.replace(".zip", ".txt"), ("\r\n".join(lines) + "\r\n").encode("latin-1"))
+    return out.getvalue()
+
+
+def write_ftd_zip(folder: Path, name: str, rows: list[tuple], **kwargs) -> Path:
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / name
+    path.write_bytes(ftd_zip_bytes(name, rows, **kwargs))
+    return path
+
+
+def ftd_page(*names: str) -> str:
+    """The fails-to-deliver page linking `names`, the 2020 ones in the older folder, as on sec.gov."""
+    folders = {True: "/files/node/add/data_distribution/", False: "/files/data/fails-deliver-data/"}
+    return "".join(f'<li><a href="{folders[n.startswith("cnsfails2020")]}{n}">{n}</a></li>' for n in names)
+
+
+class FakeFtdSec:
+    """The SEC's fails-to-deliver page and zips (name -> bytes) behind SecClient, on a fake
+    transport and a fake clock. `refuse`, when given, answers every request instead: a
+    function that makes a response, or an exception to raise."""
+
+    def __init__(self, files: dict[str, bytes], page: str | None = None, refuse=None):
+        self.files, self.refuse = files, refuse
+        self.page = ftd_page(*files) if page is None else page
+        self.seen: list[str] = []
+        self.slept: list[float] = []
+        self.now = 1000.0
+
+    def _handle(self, request: httpx.Request) -> httpx.Response:
+        self.seen.append(request.url.path.rsplit("/", 1)[-1])
+        if isinstance(self.refuse, Exception):
+            raise self.refuse
+        if self.refuse:
+            return self.refuse()
+        if request.url.path.endswith(".zip"):
+            name = request.url.path.rsplit("/", 1)[-1]
+            return httpx.Response(200, content=self.files[name]) if name in self.files else httpx.Response(404)
+        return httpx.Response(200, text=self.page)
+
+    def _sleep(self, seconds: float) -> None:
+        self.slept.append(seconds)
+        self.now += seconds
+
+    def client(self) -> SecClient:
+        return SecClient(
+            transport=httpx.MockTransport(self._handle), sleep=self._sleep, clock=lambda: self.now, log=QUIET
+        )
 
 
 @pytest.fixture(autouse=True)
@@ -84,13 +148,32 @@ def fake_openfigi(request: httpx.Request) -> httpx.Response:
     return httpx.Response(200, json=out)
 
 
+REAL_OPENFIGI_CLIENT = openfigi.OpenFigiClient  # the helpers below replace it with fakes
+
+
 def map_mini_tickers(monkeypatch) -> None:
     """Run the ticker step against fake_openfigi, as python -m thirteenf.tickers would."""
-    real_client = openfigi.OpenFigiClient
     monkeypatch.setattr(thirteenf.tickers, "openfigi_api_key", lambda: "test-key")
     monkeypatch.setattr(
         openfigi,
         "OpenFigiClient",
-        lambda key: real_client(key, transport=httpx.MockTransport(fake_openfigi), sleep=lambda _: None),
+        lambda key: REAL_OPENFIGI_CLIENT(key, transport=httpx.MockTransport(fake_openfigi), sleep=lambda _: None),
     )
     thirteenf.tickers.update_tickers(log=QUIET)
+
+
+def openfigi_down(monkeypatch, slept: list[float], refusal: str = "dropped") -> None:
+    """Every OpenFIGI request is refused or fails: "429", "503", or "dropped" (the connection
+    drops). Any sleep the client asks for goes to `slept`."""
+
+    def down(request: httpx.Request) -> httpx.Response:
+        if refusal == "dropped":
+            raise httpx.ConnectError("Connection reset by peer", request=request)
+        return httpx.Response(int(refusal), headers={"ratelimit-reset": "60"})
+
+    monkeypatch.setattr(thirteenf.tickers, "openfigi_api_key", lambda: "test-key")
+    monkeypatch.setattr(
+        openfigi,
+        "OpenFigiClient",
+        lambda key: REAL_OPENFIGI_CLIENT(key, transport=httpx.MockTransport(down), sleep=slept.append),
+    )

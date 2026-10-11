@@ -9,6 +9,7 @@ A personal app, run locally, that answers one question for every US-listed stock
 - `design/screens/*.html`: each screen as a static page, linked to `design-system/`. Open in a browser; add `#dark` to the URL for the dark theme. `design/screens/png/` has screenshots of both themes.
 - `docs/build-plan.md`: the phases, in order, each with a check that proves it works.
 - `docs/13f-data.md`: the SEC data sets, how every number is computed, and the data checks.
+- `docs/sources.md`: the register of outside sources: for each data need the primary, the fallbacks in order, what "unreliable" means, where source health is recorded, and the candidates turned down. Update it when a source or fallback changes.
 - `docs/reference/13finfo-holdings.csv`: published numbers for 8 stocks, used as test fixtures.
 - `config/watchlist.csv`: an example starting watchlist (ticker, CUSIP, name); the user can change it in the app.
 - `.github/workflows/`: CI (verify, CodeQL, Claude Code Review, the monthly Claude Refactor and mutation testing); `docs/development.md` has the list. `.claude/skills/`: the `/verify` and `/refactor` skills.
@@ -41,7 +42,7 @@ A personal app, run locally, that answers one question for every US-listed stock
 
 - `python -m thirteenf.ingest` downloads the Form 13F data sets and the companies' cash flow data (XBRL frames), loads them and builds the model. `--no-download` loads only the zips already in `data/raw/`; `--download-only` downloads without loading.
 - `python -m thirteenf.model` rebuilds the model tables from the raw tables (about a minute).
-- `python -m thirteenf.tickers` maps new CUSIPs to tickers with OpenFIGI and caches them in DuckDB; `--retry-missing` asks again about the ones OpenFIGI did not know. It reads a free OpenFIGI key from `openfigi_api_key` in `data/settings.toml` (git-ignored; an `OPENFIGI_API_KEY` environment variable overrides it); without a key the first run takes about 2.5 hours. `python -m thirteenf.ingest` runs it too when a key is set.
+- `python -m thirteenf.tickers` maps new CUSIPs to tickers with OpenFIGI and caches them in DuckDB; `--retry-missing` asks again about the ones OpenFIGI did not know. A batch OpenFIGI refuses or fails goes at once to the SEC's fails-to-deliver data (zips kept in `data/raw/ftd/`), then to an exact issuer-name match (unverified); those tickers are provisional, and the next run asks OpenFIGI again (`docs/sources.md`). It reads a free OpenFIGI key from `openfigi_api_key` in `data/settings.toml` (git-ignored; an `OPENFIGI_API_KEY` environment variable overrides it); without a key the first run takes about 2.5 hours. `python -m thirteenf.ingest` runs it too when a key is set.
 - `python -m thirteenf.web` serves the app at http://127.0.0.1:8000. `--open` also opens it in the browser; `--reload` restarts it when the Python code changes.
 - `pytest` runs the tests, including the reference-number checks.
 - `scripts/verify.sh` (or `scripts\verify.cmd`) is the one check: ruff format, ruff lint, mypy, the dependency licence check (pip-licenses: free, open-source licences only), then the tests. CI runs the same script on every push to `main` and every pull request.

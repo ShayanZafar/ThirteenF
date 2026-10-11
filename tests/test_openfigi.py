@@ -1,4 +1,4 @@
-"""The OpenFIGI client and cache, against a fake OpenFIGI (no network)."""
+"""The OpenFIGI client and cache, against a fake OpenFIGI (no network, no real waiting)."""
 
 import json
 from contextlib import nullcontext
@@ -7,6 +7,7 @@ import duckdb
 import httpx
 import pytest
 
+from thirteenf import health
 from thirteenf.ingest import openfigi
 
 
@@ -50,7 +51,19 @@ KNOWN = {
 }
 
 
-def fake_openfigi(requests_seen, fail_first=0, error_for=(), rejected=(), lopsided_with=()):
+def _dropped(request: httpx.Request) -> httpx.Response:
+    raise httpx.ConnectError("Connection reset by peer", request=request)
+
+
+REFUSALS = {
+    "429": lambda request: httpx.Response(429, headers={"ratelimit-reset": "3"}),
+    "503": lambda request: httpx.Response(503, text="Service Unavailable"),
+    "dropped": _dropped,
+}
+
+
+def fake_openfigi(requests_seen, fail_first=0, error_for=(), rejected=(), lopsided_with=(), refusal="429"):
+    """A fake OpenFIGI; its first `fail_first` requests get `refusal` (one of REFUSALS)."""
     state = {"failures": fail_first}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -58,7 +71,7 @@ def fake_openfigi(requests_seen, fail_first=0, error_for=(), rejected=(), lopsid
         requests_seen.append((request.headers.get("X-OPENFIGI-APIKEY"), jobs))
         if state["failures"]:
             state["failures"] -= 1
-            return httpx.Response(429, headers={"ratelimit-reset": "3"})
+            return REFUSALS[refusal](request)
         if len(jobs) > 1 and any(job["idValue"] in lopsided_with for job in jobs):
             return httpx.Response(200, json=[{"error": "Something went wrong"}])
         out = []
@@ -159,14 +172,69 @@ def test_batches_and_paces_requests_to_the_limits():
     assert seen[0][0] is None  # no key header without a key
 
 
-def test_waits_and_retries_when_told_to_slow_down():
+@pytest.mark.parametrize(
+    "refusal, outcome, what",
+    [("429", "throttled", "HTTP 429"), ("503", "failed", "HTTP 503"), ("dropped", "failed", "connection failed")],
+)
+def test_a_refusal_or_failure_is_not_waited_out(refusal, outcome, what):
+    """The owner's rules (Oct 11, 2026): no sleeping on a 429, a 5xx or a dropped
+    connection; the caller turns to the next source and asks OpenFIGI again next time."""
     seen, clock = [], FakeClock()
     client = openfigi.OpenFigiClient(
-        "key", transport=fake_openfigi(seen, fail_first=2), sleep=clock.sleep, clock=clock.clock
+        "key", transport=fake_openfigi(seen, fail_first=1, refusal=refusal), sleep=clock.sleep, clock=clock.clock
     )
-    result = client.map([{"idType": "ID_CUSIP", "idValue": "037833100", "exchCode": "US"}])
-    assert result[0]["data"][0]["ticker"] == "AAPL"
-    assert len(seen) == 3 and clock.slept[:2] == [3.0, 3.0]
+    job = {"idType": "ID_CUSIP", "idValue": "037833100", "exchCode": "US"}
+    with pytest.raises(openfigi.OpenFigiUnavailable, match=what):
+        client.map([job])
+    assert len(seen) == 1 and clock.slept == []
+    assert client.map([job])[0]["data"][0]["ticker"] == "AAPL"  # the next request asks again, at once
+    assert len(seen) == 2 and clock.slept == []
+    entry = health.load()["sources"]["openfigi"]
+    assert (entry["ok"], entry[outcome]) == (1, 1) and entry["lastError"].startswith(what)
+
+
+@pytest.mark.parametrize("refusal", list(REFUSALS))
+def test_a_batch_openfigi_does_not_answer_goes_down_the_chain_at_once(con, refusal):
+    """Its CUSIPs go to the fallback, nothing is cached for them, and the next batch asks OpenFIGI again."""
+    seen, clock, handed = [], FakeClock(), []
+    client = openfigi.OpenFigiClient(
+        "key", transport=fake_openfigi(seen, fail_first=1, refusal=refusal), sleep=clock.sleep, clock=clock.clock
+    )
+    client.limits = openfigi.Limits(jobs_per_request=2, requests_per_window=25, window_seconds=6.0)
+    counts = openfigi.update(lambda: nullcontext(con), client, log=lambda *_: None, fallback=handed.append)
+    first = [job["idValue"] for job in seen[0][1]]
+    assert handed[0] == sorted(first) and clock.slept == []
+    assert len(seen) > 2 and all(len(jobs) <= 2 for _, jobs in seen)  # every later batch was asked
+    cached = {r[0] for r in con.execute("SELECT cusip FROM openfigi").fetchall()}
+    assert not cached & set(first)  # not an answer: asked again next run
+    assert {"037833100", "464287200"} - set(first) <= cached
+    assert counts["refused_batches"] == 1
+    # The next run asks OpenFIGI about them again.
+    seen.clear()
+    openfigi.update(lambda: nullcontext(con), client, log=lambda *_: None, fallback=handed.append)
+    assert set(first) <= {job["idValue"] for _, jobs in seen for job in jobs}
+
+
+def test_openfigis_answer_replaces_a_provisional_ticker(con):
+    con.execute(openfigi.CACHE_DDL)
+    con.execute(
+        """
+        INSERT INTO ticker_fallbacks VALUES
+            ('037833100', 'AAPL', 'sec-ftd', DATE '2026-09-15', NULL, TIMESTAMP '2026-10-01 00:00:00'),
+            ('88579Y101', 'MMM', 'issuer-name', NULL, '3M CO', TIMESTAMP '2026-10-01 00:00:00'),
+            ('17275R102', 'CSCO', 'sec-ftd', DATE '2026-09-15', NULL, TIMESTAMP '2026-10-01 00:00:00')
+        """
+    )
+    seen, clock = [], FakeClock()
+    transport = fake_openfigi(seen, error_for={"17275R102"})
+    client = openfigi.OpenFigiClient("key", transport=transport, sleep=clock.sleep, clock=clock.clock)
+    handed = []
+    openfigi.update(lambda: nullcontext(con), client, log=lambda *_: None, fallback=handed.extend)
+    left = dict(con.execute("SELECT cusip, ticker FROM ticker_fallbacks").fetchall())
+    # Found by OpenFIGI, or known not to be there: OpenFIGI's answer stands. An error is
+    # no answer, so that CUSIP keeps its provisional ticker and goes down the chain again.
+    assert left == {"17275R102": "CSCO"}
+    assert "17275R102" in handed and "037833100" not in handed
 
 
 def test_text_with_quotes_is_stored_safely():

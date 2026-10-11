@@ -6,11 +6,12 @@ import re
 from datetime import date
 
 import pytest
-from conftest import QUIET, map_mini_tickers
+from conftest import QUIET, FakeFtdSec, ftd_zip_bytes, map_mini_tickers, openfigi_down
 from fastapi.testclient import TestClient
 
 from thirteenf.db import connect
-from thirteenf.ingest import xbrl
+from thirteenf.ingest import ftd, xbrl
+from thirteenf.tickers import TickerFallback, update_tickers
 from thirteenf.web.app import app
 
 AAPL, MSFT, NVDA, AMZN = "037833100", "594918104", "67066G104", "023135106"
@@ -196,6 +197,26 @@ def test_lenders_are_left_out(accumulate_db, loan_income, revenue, listed):
     html = TestClient(app).get("/accumulate").text
     assert _listed(html) == ([MSFT] if listed else [])
     assert f"Leaves out {0 if listed else 1} " in html
+
+
+def test_an_unverified_ticker_brings_no_company_figures(accumulate_db, monkeypatch, tmp_path):
+    """With OpenFIGI down, Microsoft's ticker comes from the SEC's fails-to-deliver data
+    and Amazon's from its issuer name. Only the first reaches the company's cash flow."""
+    accumulate_db()
+    with connect() as con:
+        con.execute("DELETE FROM openfigi")  # as if OpenFIGI had never answered
+        con.execute("UPDATE raw_sec_tickers SET title = 'AMAZON COM INC' WHERE ticker = 'T023'")
+    monkeypatch.setenv("SEC_USER_AGENT", "ThirteenF tests@example.com")
+    monkeypatch.setattr(ftd, "FTD_DIR", tmp_path / "ftd")
+    name = "cnsfails202501a.zip"
+    sec = FakeFtdSec({name: ftd_zip_bytes(name, [("20250110", MSFT, "T594", "10", "MICROSOFT CORP", "400.00")])})
+    openfigi_down(monkeypatch, [])
+    update_tickers(log=QUIET, fallback=TickerFallback(connect, QUIET, sec.client))
+    with connect(read_only=True) as con:
+        sources = dict(con.execute("SELECT cusip, ticker_source FROM stocks WHERE ticker IS NOT NULL").fetchall())
+        matched = {r[0] for r in con.execute("SELECT cusip FROM stock_cash_flows").fetchall()}
+    assert sources == {MSFT: "sec-ftd", AMZN: "issuer-name"}
+    assert matched == {MSFT}
 
 
 def test_the_page_asks_for_update_data_before_cash_flow_exists(mini_db):

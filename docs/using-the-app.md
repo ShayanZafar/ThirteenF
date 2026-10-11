@@ -1,6 +1,6 @@
 # Using the app
 
-Every page answers one question first, then shows the evidence. Every number carries its date: the stamps under each title give the quarter end the positions describe, how many days ago that was, and the source.
+Every page answers one question first, then shows the evidence. Every number carries its date: the stamps under each title give the quarter end the positions describe, how many days ago that was, and the source. On a stock's page, a ticker that did not come from OpenFIGI has a stamp of its own: "From the SEC's fails-to-deliver data", with the date the symbol was reported, or "Matched by issuer name, unverified" ([sources.md](sources.md)).
 
 ## Search
 

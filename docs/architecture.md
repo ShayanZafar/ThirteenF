@@ -19,9 +19,11 @@ load_log
         v
 filings, positions, holders,        the model
 changes, stock_periods, ...
-        |  ingest/openfigi.py: CUSIP -> ticker, cached
+        |  tickers.py: CUSIP -> ticker, cached; ingest/openfigi.py first, and for what
+        |  OpenFIGI does not answer, ingest/ftd.py (the SEC's fails-to-deliver data,
+        |  data/raw/ftd/*.zip -> raw_ftd), then ingest/issuer_names.py
         v
-openfigi, stocks
+openfigi, ticker_fallbacks, stocks
         |
         v
 web/app.py (FastAPI)  ->  Jinja2 templates + inline SVG  ->  your browser
@@ -35,13 +37,16 @@ web/app.py (FastAPI)  ->  Jinja2 templates + inline SVG  ->  your browser
 | --- | --- |
 | `config.py` | Paths, the SEC user agent, the OpenFIGI key from `data/settings.toml` |
 | `db.py` | DuckDB connections that wait briefly for another process's write lock |
-| `ingest/sec.py` | Finds the data set links on the SEC page and downloads new zips |
+| `health.py` | Records how each outside source answers (ok, failed, throttled) in `data/source-health.json`, and says when a data need has no reliable source |
+| `ingest/sec.py` | `SecClient`, which every SEC request goes through (pacing, the waits the SEC is worth, source health); finds the data set links on the SEC page and downloads new zips |
 | `ingest/load.py` | Loads each zip into the `raw_` tables; reloading a zip replaces its rows |
 | `ingest/xbrl.py` | Downloads the XBRL frames for cash flow and share counts, and the SEC's ticker list, and loads them |
-| `ingest/openfigi.py` | Maps CUSIPs to tickers and security types, in three passes, cached |
+| `ingest/openfigi.py` | Maps CUSIPs to tickers and security types, in three passes, cached; hands what OpenFIGI does not answer to the fallbacks at once |
+| `ingest/ftd.py` | The SEC's fails-to-deliver data, the first fallback for tickers: reads the file links, downloads the newest 13 months not here yet, loads them into `raw_ftd` |
+| `ingest/issuer_names.py` | The last fallback for tickers: an exact match of normalised issuer names against the SEC's ticker list |
 | `model/periods.py` | Quarter ends and their 13F deadlines (45 days, next business day) |
 | `model/build.py` | Builds every model table in SQL, in order (see below) |
-| `tickers.py` | The `python -m thirteenf.tickers` command |
+| `tickers.py` | The `python -m thirteenf.tickers` command, and the chain after OpenFIGI (`TickerFallback`); [sources.md](sources.md) |
 | `web/app.py` | Routes: overview, stock, changes, accumulate, managers, search, watchlist, suggestions |
 | `web/data.py` | Read-only queries for the pages; one connection per request |
 | `web/story.py` | The sentences and key figures, written from rules |
@@ -68,7 +73,7 @@ Built by `model/build.py` in this order. Definitions are in [13f-data.md](13f-da
 | `cusip_changes` | change of CUSIP | Old and new CUSIP, exchange ratio, how many funds moved |
 | `stock_keys` | CUSIP | The stock it belongs to (its current CUSIP) and the share ratio |
 | `securities` | CUSIP | Names and class as filed |
-| `stocks` | stock | Display name, ticker, security type, kind (stock, ETF, other) |
+| `stocks` | stock | Display name, ticker and where it came from, security type, kind (stock, ETF, other) |
 | `holders` | stock and quarter | Funds holding, shares and value after the checks |
 | `filers_total` | quarter | Managers that filed holdings: the tide |
 | `manager_totals` | manager and quarter | Reported 13F portfolio value and positions |
@@ -77,8 +82,10 @@ Built by `model/build.py` in this order. Definitions are in [13f-data.md](13f-da
 | `fundamentals` | company (CIK) | Its last two fiscal years of operating cash flow, capital spending and free cash flow, share counts, and whether it is a bank, insurer or lender |
 | `stock_cash_flows` | stock | Its company's `fundamentals`, matched by ticker; rebuilt after a ticker run |
 | `openfigi` | CUSIP | OpenFIGI's answer, as returned |
+| `ticker_fallbacks` | CUSIP | A provisional ticker for a CUSIP OpenFIGI did not answer: its source (`sec-ftd` or `issuer-name`), date and details. OpenFIGI's later answer replaces it |
+| `raw_ftd` | line of a fails-to-deliver file | The SEC's fails-to-deliver files as text, tagged with their zip |
 
-Nothing in the model is edited by hand: drop it and `python -m thirteenf.model` rebuilds it from the raw tables.
+Nothing in the model is edited by hand: drop it and `python -m thirteenf.model` rebuilds it from the raw tables. `openfigi` and `ticker_fallbacks` are caches of answers from outside, not model tables; `python -m thirteenf.tickers` fills them.
 
 ## The web app
 

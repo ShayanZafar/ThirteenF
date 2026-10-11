@@ -14,9 +14,9 @@ scripts\start.cmd --reload
 scripts\test.cmd
 ```
 
-or `.venv\Scripts\python -m pytest`. About 140 tests, two kinds:
+or `.venv\Scripts\python -m pytest`. About 230 tests, two kinds:
 
-- **Unit tests** need nothing loaded: period deadlines, the zip loader on a tiny fake zip, the OpenFIGI client against a fake OpenFIGI, settings, and the seam tests, which load and build a small made-up data set (`tests/minidata.py`) end to end.
+- **Unit tests** need nothing loaded: period deadlines, the zip loader on a tiny fake zip, the OpenFIGI client against a fake OpenFIGI, the SEC client and the ticker fallbacks against a fake SEC (no test touches a live service or really waits), settings, and the seam tests, which load and build a small made-up data set (`tests/minidata.py`) end to end.
 - **Data tests** (marked `data`) use the loaded database and skip until it exists. They check the model against 13f.info's published figures in `docs/reference/13finfo-holdings.csv`, render every page, and test the rankings against plain SQL.
 
 | File | Covers |
@@ -26,11 +26,15 @@ or `.venv\Scripts\python -m pytest`. About 140 tests, two kinds:
 | `tests/test_web.py` | The stock page for many kinds of stock, both themes, no hard-coded colors |
 | `tests/test_changes.py` | Biggest changes: rankings, the minimum, tabs |
 | `tests/test_overview.py` | The overview and the watchlist (on a temporary watchlist file) |
-| `tests/test_openfigi.py`, `tests/test_tickers.py` | Ticker mapping and search |
+| `tests/test_openfigi.py`, `tests/test_tickers.py` | Ticker mapping and search; a batch OpenFIGI refuses or fails going down the chain with no waiting, and OpenFIGI's later answer replacing a provisional ticker |
+| `tests/test_ftd.py` | The SEC's fails-to-deliver files: links ordered by the date in their names, the newest 13 months, only missing files downloaded, loading as text with the header and trailer checks, the newest symbol winning, a refusing SEC left at once |
+| `tests/test_ticker_fallbacks.py` | The issuer-name match, the chain after OpenFIGI, the stock page saying where a fallback's ticker came from, and when tickers count as unreliable |
 | `tests/test_flows.py` | Net 13F flow, who moved, the typical stock, manager pages |
 | `tests/test_signed.py` | Every signed number painted by its sign, on every page |
 | `tests/test_periods.py`, `tests/test_config.py` | Deadlines and settings |
-| `tests/test_seams.py` | Where steps meet: search redirects, build then tickers, OpenFIGI retries |
+| `tests/test_seams.py` | Where steps meet: search redirects, build then tickers, an OpenFIGI that stays down never stopping the run |
+| `tests/test_sec_retry.py` | The SEC client against a fake SEC: quick retries, blocks waited out (at most two a run), a caller with another source moving on at once, dropped downloads, what the command line prints |
+| `tests/test_health.py` | The source health file: its shape, the 24-hour window, when a source and a data need count as unreliable |
 
 Run one file or one test: `scripts\test.cmd tests\test_flows.py -k alphabet`.
 

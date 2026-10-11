@@ -23,6 +23,7 @@ rebuilds them from raw_* exactly.
   securities     per CUSIP: the name and class filers use, and its stock
   stocks         per stock: the name of whichever of its CUSIPs most funds report,
                  its ticker and security type from OpenFIGI (see thirteenf.tickers),
+                 else a fallback's provisional ticker and where it came from,
                  and its kind: stock, etf or other
   fundamentals   per company (CIK): its latest fiscal year's operating cash flow,
                  capital spending, free cash flow and share counts, from the XBRL frames
@@ -663,7 +664,10 @@ SQL_KIND = f"""
 # A stock's name comes from the CUSIP most funds reported in its latest period:
 # while a change of CUSIP is under way, that is often still the old one. Its
 # ticker and kind (OpenFIGI's security type) come from its current CUSIP, or
-# else from the most recent of its earlier CUSIPs that OpenFIGI knows.
+# else from the most recent of its earlier CUSIPs that OpenFIGI knows. Only a
+# stock OpenFIGI gives no ticker for takes a fallback's provisional one (the
+# SEC's fails-to-deliver data, or an issuer-name match), in the same order of
+# CUSIPs; ticker_source says which, and ticker_as_of the fails-to-deliver date.
 SQL_STOCKS = f"""
 {OPENFIGI_DDL};
 CREATE OR REPLACE TABLE stocks AS
@@ -682,12 +686,23 @@ listed AS (
     JOIN openfigi o ON o.cusip = k.cusip AND o.found AND o.ticker IS NOT NULL
     LEFT JOIN latest l ON l.cusip = k.cusip
     ORDER BY k.stock, (k.cusip = k.stock) DESC, l.period DESC NULLS LAST, k.cusip
+),
+provisional AS (
+    SELECT DISTINCT ON (k.stock) k.stock, f.ticker, f.source, f.as_of
+    FROM stock_keys k
+    JOIN ticker_fallbacks f ON f.cusip = k.cusip
+    LEFT JOIN latest l ON l.cusip = k.cusip
+    ORDER BY k.stock, (k.cusip = k.stock) DESC, l.period DESC NULLS LAST, k.cusip
 )
 SELECT b.stock AS cusip, s.name_filed, s.name_mixed, s.title_of_class, s.figi, b.cusip AS named_from,
-       t.ticker, t.security_type, t.figi_name, {SQL_KIND} AS kind
+       coalesce(t.ticker, p.ticker) AS ticker,
+       CASE WHEN t.ticker IS NOT NULL THEN 'openfigi' ELSE p.source END AS ticker_source,
+       CASE WHEN t.ticker IS NULL THEN p.as_of END AS ticker_as_of,
+       t.security_type, t.figi_name, {SQL_KIND} AS kind
 FROM best b
 JOIN securities s ON s.cusip = b.cusip
 LEFT JOIN listed t ON t.stock = b.stock
+LEFT JOIN provisional p ON p.stock = b.stock
 """
 
 # Free cash flow, from each company's last two fiscal years in the XBRL frames:
@@ -760,7 +775,9 @@ WHERE l.n = 1
 """
 
 # A stock meets its company's financials through its ticker: OpenFIGI's (BRK/B)
-# and the SEC's (BRK-B) compared on letters and digits only.
+# and the SEC's (BRK-B) compared on letters and digits only. A ticker matched by
+# issuer name is unverified, so it never brings a company's figures to the
+# accumulate list; one from the SEC's fails-to-deliver data does.
 SQL_STOCK_CASH_FLOWS = """
 CREATE OR REPLACE TABLE stock_cash_flows AS
 WITH tickers AS (
@@ -769,7 +786,7 @@ WITH tickers AS (
 ),
 listed AS (
     SELECT cusip, regexp_replace(upper(ticker), '[^A-Z0-9]', '', 'g') AS key
-    FROM stocks WHERE kind = 'stock' AND ticker IS NOT NULL
+    FROM stocks WHERE kind = 'stock' AND ticker IS NOT NULL AND ticker_source <> 'issuer-name'
 )
 SELECT l.cusip, f.*
 FROM listed l

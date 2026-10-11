@@ -91,22 +91,33 @@ class Security:
     title_of_class: str | None
     figi: str | None
     latest_period: date
-    ticker: str = ""  # from OpenFIGI, as people write it (BRK.B)
+    ticker: str = ""  # as people write it (BRK.B)
     security_type: str | None = None  # OpenFIGI's: Common Stock, ETP, ADR, ...
     kind: str = "stock"  # stock, etf or other
+    ticker_source: str | None = None  # openfigi, or a fallback's: sec-ftd, issuer-name
+    ticker_as_of: date | None = None  # sec-ftd: the settlement date the symbol was reported on
+
+
+def _ticker_source_columns(con) -> str:
+    """The stock's ticker source and date, or NULLs in a database built before tickers had fallbacks."""
+    present = scalar(
+        con,
+        "SELECT count(*) FROM information_schema.columns WHERE table_name = 'stocks' AND column_name = 'ticker_source'",
+    )
+    return "st.ticker_source, st.ticker_as_of" if present else "NULL AS ticker_source, NULL AS ticker_as_of"
 
 
 def security(con, cusip: str) -> Security | None:
     """A CUSIP, named the way its stock is named."""
     rows = _rows(
         con,
-        """
+        f"""
         SELECT s.cusip, s.stock, s.latest_period,
                coalesce(st.name_filed, s.name_filed) AS name_filed,
                coalesce(st.name_mixed, s.name_mixed) AS name_mixed,
                coalesce(st.title_of_class, s.title_of_class) AS title_of_class,
                coalesce(st.figi, s.figi) AS figi,
-               st.ticker, st.security_type, st.kind
+               st.ticker, st.security_type, st.kind, {_ticker_source_columns(con)}
         FROM securities s
         LEFT JOIN stocks st ON st.cusip = s.stock
         WHERE s.cusip = ?
@@ -127,6 +138,8 @@ def security(con, cusip: str) -> Security | None:
         ticker=ticker_text(r["ticker"]),
         security_type=r["security_type"],
         kind=r["kind"] or "stock",
+        ticker_source=r["ticker_source"],
+        ticker_as_of=r["ticker_as_of"],
     )
 
 

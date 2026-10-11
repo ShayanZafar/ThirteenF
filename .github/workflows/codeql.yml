@@ -11,6 +11,7 @@ on:
     branches: [main]
   schedule:
     - cron: "41 7 * * 2" # Tuesdays, 07:41 UTC
+  workflow_dispatch:
 
 permissions:
   contents: read

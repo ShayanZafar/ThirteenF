@@ -4,7 +4,8 @@ Twice a month the SEC publishes every security with fails to deliver outstanding
 each settlement day, with its CUSIP and trading symbol:
 https://www.sec.gov/data-research/sec-markets-data/fails-deliver-data. Each
 cnsfailsYYYYMM[ab].zip ("a" the first half of the month, "b" the second) holds one
-cnsfailsYYYYMM[ab].txt: latin-1, pipe-delimited, the header
+file named like the zip, cnsfailsYYYYMM[ab].txt in recent files and with no extension
+in older ones (all of 2025 and early 2026, seen on Oct 11, 2026): latin-1, pipe-delimited, the header
 SETTLEMENT DATE|CUSIP|SYMBOL|QUANTITY (FAILS)|DESCRIPTION|PRICE, about 58,000 rows,
 and two trailer lines, "Trailer record count N" and "Trailer total quantity of shares N".
 
@@ -138,18 +139,24 @@ def _read_text(path: Path) -> tuple[str, int, int | None]:
     return header, lines, counted
 
 
+def _is_data_file(member: str, zip_path: Path) -> bool:
+    """Whether a zip member is the data file: named like the zip, with .txt or no extension."""
+    name = member.rsplit("/", 1)[-1].lower()
+    return name in (zip_path.stem.lower(), zip_path.stem.lower() + ".txt")
+
+
 def load_file(con: duckdb.DuckDBPyConnection, path: Path) -> int:
     """Load one zip into raw_ftd, replacing any rows it had. Returns the data rows.
 
     Raises ValueError, and loads nothing, when the file does not read as the module
-    docstring says: one .txt inside, the documented header, every line read, and as
+    docstring says: one file named like the zip inside, the documented header, every line read, and as
     many data rows as its trailer counts."""
     con.execute(RAW_DDL)
     with tempfile.TemporaryDirectory(prefix="thirteenf-ftd-", ignore_cleanup_errors=True) as work:
         with zipfile.ZipFile(path) as archive:
-            members = [n for n in archive.namelist() if n.lower().endswith(".txt")]
+            members = [n for n in archive.namelist() if _is_data_file(n, path)]
             if len(members) != 1:
-                raise ValueError(f"expected one .txt file inside, found {len(members)}")
+                raise ValueError(f"expected one {path.stem} or {path.stem}.txt inside, found {len(members)}")
             text_path = Path(archive.extract(members[0], work))
         header, lines, counted = _read_text(text_path)
         if header != HEADER:

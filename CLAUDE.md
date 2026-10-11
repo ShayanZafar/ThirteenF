@@ -11,13 +11,14 @@ A personal app, run locally, that answers one question for every US-listed stock
 - `docs/13f-data.md`: the SEC data sets, how every number is computed, and the data checks.
 - `docs/reference/13finfo-holdings.csv`: published numbers for 8 stocks, used as test fixtures.
 - `config/watchlist.csv`: an example starting watchlist (ticker, CUSIP, name); the user can change it in the app.
+- `.github/workflows/`: CI (verify, CodeQL, Claude Code Review, the monthly Claude Refactor and mutation testing); `docs/development.md` has the list. `.claude/skills/`: the `/verify` and `/refactor` skills.
 
 ## Stack
 
 - Python 3.12 in a virtual environment at `.venv`.
 - DuckDB for storage and queries, one file at `data/thirteenf.duckdb`.
 - FastAPI with Jinja2 templates: server-rendered HTML that reuses the markup and `tf-` classes from `design/screens`. Charts are inline SVG generated on the server, as in the designs. No front-end framework.
-- httpx for downloads, pytest for tests.
+- httpx for downloads, pytest for tests, ruff for formatting and lint, mypy for types.
 
 ## Rules
 
@@ -38,10 +39,10 @@ A personal app, run locally, that answers one question for every US-listed stock
 
 ## Commands (add them as you build)
 
-- `python -m thirteenf.ingest` downloads the Form 13F data sets, loads them and builds the model. `--no-download` loads only the zips already in `data/raw/`.
+- `python -m thirteenf.ingest` downloads the Form 13F data sets, loads them and builds the model. `--no-download` loads only the zips already in `data/raw/`; `--download-only` downloads without loading.
 - `python -m thirteenf.model` rebuilds the model tables from the raw tables (about a minute).
-- `python -m thirteenf.tickers` maps new CUSIPs to tickers with OpenFIGI and caches them in DuckDB. It reads a free OpenFIGI key from `openfigi_api_key` in `data/settings.toml` (git-ignored; an `OPENFIGI_API_KEY` environment variable overrides it); without a key the first run takes about 2.5 hours. `python -m thirteenf.ingest` runs it too when a key is set.
+- `python -m thirteenf.tickers` maps new CUSIPs to tickers with OpenFIGI and caches them in DuckDB; `--retry-missing` asks again about the ones OpenFIGI did not know. It reads a free OpenFIGI key from `openfigi_api_key` in `data/settings.toml` (git-ignored; an `OPENFIGI_API_KEY` environment variable overrides it); without a key the first run takes about 2.5 hours. `python -m thirteenf.ingest` runs it too when a key is set.
 - `python -m thirteenf.web` serves the app at http://127.0.0.1:8000. `--open` also opens it in the browser; `--reload` restarts it when the Python code changes.
 - `pytest` runs the tests, including the reference-number checks.
-- `scripts/verify.sh` (or `scripts\verify.cmd`) is the one check: ruff format, ruff lint, mypy, then the tests. CI runs the same script on every pull request.
+- `scripts/verify.sh` (or `scripts\verify.cmd`) is the one check: ruff format, ruff lint, mypy, then the tests. CI runs the same script on every push to `main` and every pull request.
 - `scripts/` wraps these for people running the app: `setup`, `update-data`, `start` and `test`, as `.cmd` for Windows and `.sh` for macOS and Linux. `README.md` has the table; `docs/` has the user and developer documentation.

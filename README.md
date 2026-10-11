@@ -9,6 +9,7 @@ It is a personal app that runs on your computer. It downloads the SEC's Form 13F
 - **Overview**: your watchlist, each stock's funds holding against last quarter and against the typical stock, a two-year sparkline, and a live data check.
 - **Look up a stock**: one answer first, then key figures, funds holding and net 13F flow by quarter, who added and who left (with each position's weight in the manager's book), where the stock sits in each book, and every filing period.
 - **Biggest changes**: every stock held by 100 or more funds, ranked by its change in funds holding against the tide, with tabs for all, stocks and ETFs.
+- **Accumulate**: stocks funds keep moving into, against the tide, whose free cash flow is high for their market value, from the companies' 10-K filings. Rebuilt every time you update the data.
 - **Managers**: any 13F filer's holdings for a quarter, with the change from the quarter before and a CSV download.
 
 Search takes a ticker, a company name, a CUSIP or a manager, and suggests matches as you type.
@@ -30,7 +31,7 @@ Press Ctrl+C in the app's window to stop it. Every script also runs from a termi
 | Script (Windows / macOS, Linux) | Command it runs | What it does |
 | --- | --- | --- |
 | `scripts\setup.cmd` / `scripts/setup.sh` (`setup.command` on macOS) | | Creates `.venv`, installs the app, creates `data/settings.toml` |
-| `scripts\update-data.cmd` / `scripts/update-data.sh` (`update-data.command` on macOS) | `python -m thirteenf.ingest` | Downloads new SEC data sets, loads them, rebuilds the model, maps new tickers |
+| `scripts\update-data.cmd` / `scripts/update-data.sh` (`update-data.command` on macOS) | `python -m thirteenf.ingest` | Downloads new SEC data sets and company cash flow data, loads them, rebuilds the model, maps new tickers |
 | `scripts\start.cmd` / `scripts/start.sh` (`start.command` on macOS) | `python -m thirteenf.web --open` | Serves the app at <http://127.0.0.1:8000> and opens it |
 | `scripts\test.cmd` / `scripts/test.sh` | `python -m pytest` | Runs the tests |
 | `scripts\verify.cmd` / `scripts/verify.sh` | | Checks formatting, lint and types, then runs the tests; CI runs the same |

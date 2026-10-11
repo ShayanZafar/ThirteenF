@@ -76,6 +76,33 @@ CUSIPs whose check digit is wrong (about 5,900: filers' typos and placeholders s
 
 The key, free from openfigi.com, goes in `data/settings.toml` (`openfigi_api_key`); an `OPENFIGI_API_KEY` environment variable overrides it.
 
+## Cash flow and the accumulate list
+
+Added Oct 10, 2026. 13F says where funds' money moved; it says nothing about what a company earns. The accumulate list meets the two, using only SEC data.
+
+**Source.** The SEC's XBRL frames API (`data.sec.gov/api/xbrl/frames/...`): one financial-statement line for every company in one calendar period, from 10-K and 10-Q filings. `python -m thirteenf.ingest` downloads about 45 frames into `data/raw/xbrl/`, as returned, and loads them into `raw_xbrl_frames`; `company_tickers.json` (the SEC's CIK-to-ticker list) goes into `raw_sec_tickers`. Frames grow as companies file, so each run downloads them again. Annual frames start at CY2023; a frame names a fiscal year by the calendar year it mostly falls in (CY2025 holds Apple's year to September 2025).
+
+**Free cash flow.** For each company and fiscal year: operating cash flow (`NetCashProvidedByUsedInOperatingActivities`, else its continuing-operations version) minus capital spending (`PaymentsToAcquirePropertyPlantAndEquipment`, else `PaymentsToAcquireProductiveAssets`, which Amazon and Nvidia use). A year counts only when it also has a diluted share count (`WeightedAverageNumberOfDilutedSharesOutstanding`, else the basic count). `fundamentals` keeps each company's latest such year and the one before it, when the two follow each other.
+
+**Market value and FCF yield.** Market value is the period-end price (the median value per share across all funds holding the stock, as for the net 13F flow) times the diluted share count. FCF yield is the lower of the last two years' free cash flow divided by market value. A stock meets its company through its ticker, OpenFIGI's and the SEC's compared on letters and digits only (`BRK/B` and `BRK-B`), in `stock_cash_flows`.
+
+**The list.** For a period (by default the latest whose on-time filings are all in), a stock held by 100 or more funds at both dates is on the list when:
+
+- more funds held it against the tide (its change in funds holding beat the change in all 13F filers) for 2 periods running or longer,
+- its net 13F flow was positive,
+- its free cash flow was positive in both years, and
+- its FCF yield is 5% or more.
+
+The streak, the yield and the minimum funds are settings on the page. It ranks by FCF yield, or by the change against the tide.
+
+**Left out.**
+
+- Banks and insurers: companies that report `InterestAndDividendIncomeOperating`, `PremiumsEarnedNet` or `Deposits`. Their operating cash flow carries deposits, loans and premiums. Consumer lenders that report none of these still appear.
+- Companies that report in IFRS (most foreign issuers and ADRs), report no capital spending, or whose latest fiscal year ended more than 18 months before the period.
+- Share-count checks, each within 1.5 times: the diluted count must agree with the latest cover-page count (`dei:EntityCommonStockSharesOutstanding`), which a split since the fiscal year end breaks; and funds' 13F holdings must not be worth more than the market value. Multi-class companies often have no cover-page count in the frames; they pass on the second check alone.
+
+As of Oct 2026, for Q2 2026: 3,143 stocks compared, about 2,000 with two comparable years of cash flow, 279 banks and insurers left out, about 100 left out by the share checks.
+
 ## Checks
 
 **Implied price.** For each manager, CUSIP and period, implied price = value ÷ shares. Compare it with the median implied price across all managers holding that CUSIP in that period. Flag rows more than 3 times higher or lower than the median, leave them out of share totals, and list them on the data-check table with the manager's name.

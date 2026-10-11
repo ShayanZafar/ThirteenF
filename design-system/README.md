@@ -13,7 +13,7 @@ Write like a careful analyst's note: plain, precise, unhurried. Sentence case ev
 
 - Name the period in any title or label that carries a number: "Net 13F flow, Q2 2026".
 - Describe what filers did; don't recommend. "31 of 42 tracked managers added shares", not "smart money is piling in".
-- A highlighted name is "Worth a look". The app never says buy, sell, or undervalued.
+- A highlighted name is "Worth a look". The app never says buy, sell, or undervalued. The Accumulate page is the one exception (Oct 10, 2026): it names stocks to accumulate, with the rules that chose them.
 
 | Say | Don't say |
 | --- | --- |

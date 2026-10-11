@@ -24,6 +24,9 @@ rebuilds them from raw_* exactly.
   stocks         per stock: the name of whichever of its CUSIPs most funds report,
                  its ticker and security type from OpenFIGI (see thirteenf.tickers),
                  and its kind: stock, etf or other
+  fundamentals   per company (CIK): its latest fiscal year's operating cash flow,
+                 capital spending, free cash flow and share counts, from the XBRL frames
+  stock_cash_flows per stock: its company's fundamentals, matched by ticker
 
 A stock is identified by its current CUSIP. When a company changes its CUSIP
 (a reverse split, a new holding company, a move abroad), the old CUSIP's
@@ -40,6 +43,7 @@ from datetime import date, datetime
 import duckdb
 
 from thirteenf.db import connect, scalar
+from thirteenf.ingest import xbrl
 from thirteenf.ingest.openfigi import CACHE_DDL as OPENFIGI_DDL
 from thirteenf.model import periods as P
 
@@ -686,6 +690,80 @@ JOIN securities s ON s.cusip = b.cusip
 LEFT JOIN listed t ON t.stock = b.stock
 """
 
+# Free cash flow, from each company's last two fiscal years in the XBRL frames:
+# operating cash flow minus capital spending. A year counts only when it has all
+# three of operating cash flow, capital spending and a diluted share count, and
+# the two years must follow each other. Within a measure the first tag in
+# xbrl.ANNUAL_CONCEPTS a company reported for that year wins. Shares outstanding
+# from the latest cover page are kept to check the diluted count, and a company
+# that reports bank or insurance lines is marked financial.
+_CONCEPT_ROWS = ", ".join(
+    f"('{measure}', '{taxonomy}', '{tag}', '{unit}', {rank})"
+    for rank, (measure, taxonomy, tag, unit) in enumerate([*xbrl.ANNUAL_CONCEPTS, *xbrl.INSTANT_CONCEPTS])
+)
+SQL_FUNDAMENTALS = f"""
+{xbrl.RAW_DDL};
+CREATE OR REPLACE TABLE fundamentals AS
+WITH concepts(measure, taxonomy, tag, unit, rank) AS (VALUES {_CONCEPT_ROWS}),
+facts AS (
+    SELECT f.cik, f.period_end, f.period_start, f.entity_name, f.accn, f.val, c.measure, c.rank
+    FROM raw_xbrl_frames f JOIN concepts c USING (taxonomy, tag, unit)
+),
+annual AS (
+    SELECT DISTINCT ON (cik, period_end, measure) *
+    FROM facts WHERE measure IN ('operating_cash_flow', 'capex', 'diluted_shares')
+    ORDER BY cik, period_end, measure, rank
+),
+years AS (
+    SELECT cik, period_end AS fiscal_end, any_value(entity_name) AS entity_name,
+           any_value(accn) FILTER (WHERE measure = 'operating_cash_flow') AS accn,
+           any_value(val) FILTER (WHERE measure = 'operating_cash_flow') AS operating_cash_flow,
+           any_value(val) FILTER (WHERE measure = 'capex') AS capex,
+           any_value(val) FILTER (WHERE measure = 'diluted_shares') AS diluted_shares
+    FROM annual GROUP BY cik, period_end
+),
+ranked AS (
+    SELECT *, operating_cash_flow - capex AS free_cash_flow,
+           row_number() OVER (PARTITION BY cik ORDER BY fiscal_end DESC) AS n
+    FROM years
+    WHERE operating_cash_flow IS NOT NULL AND capex IS NOT NULL AND diluted_shares > 0
+),
+cover AS (
+    SELECT DISTINCT ON (cik) cik, val AS shares_outstanding, period_end AS shares_as_of
+    FROM facts WHERE measure = 'shares_outstanding' AND val > 0
+    ORDER BY cik, period_end DESC
+),
+financial AS (SELECT DISTINCT cik FROM facts WHERE measure = 'financial' AND val > 0)
+SELECT l.cik, l.entity_name, l.accn, l.fiscal_end, l.operating_cash_flow, l.capex, l.free_cash_flow,
+       l.diluted_shares, p.fiscal_end AS prior_fiscal_end, p.free_cash_flow AS prior_free_cash_flow,
+       least(l.free_cash_flow, p.free_cash_flow) AS lower_free_cash_flow,
+       c.shares_outstanding, c.shares_as_of, fi.cik IS NOT NULL AS financial
+FROM ranked l
+LEFT JOIN ranked p ON p.cik = l.cik AND p.n = 2
+     AND p.fiscal_end BETWEEN l.fiscal_end - INTERVAL 380 DAY AND l.fiscal_end - INTERVAL 350 DAY
+LEFT JOIN cover c ON c.cik = l.cik
+LEFT JOIN financial fi ON fi.cik = l.cik
+WHERE l.n = 1
+"""
+
+# A stock meets its company's financials through its ticker: OpenFIGI's (BRK/B)
+# and the SEC's (BRK-B) compared on letters and digits only.
+SQL_STOCK_CASH_FLOWS = """
+CREATE OR REPLACE TABLE stock_cash_flows AS
+WITH tickers AS (
+    SELECT DISTINCT ON (key) regexp_replace(upper(ticker), '[^A-Z0-9]', '', 'g') AS key, cik
+    FROM raw_sec_tickers ORDER BY key, cik
+),
+listed AS (
+    SELECT cusip, regexp_replace(upper(ticker), '[^A-Z0-9]', '', 'g') AS key
+    FROM stocks WHERE kind = 'stock' AND ticker IS NOT NULL
+)
+SELECT l.cusip, f.*
+FROM listed l
+JOIN tickers t USING (key)
+JOIN fundamentals f USING (cik)
+"""
+
 STEPS: list[tuple[str, str | Callable[[duckdb.DuckDBPyConnection], None]]] = [
     ("submissions", SQL_SUBMISSIONS),
     ("periods", build_periods),
@@ -704,14 +782,19 @@ STEPS: list[tuple[str, str | Callable[[duckdb.DuckDBPyConnection], None]]] = [
     ("manager_totals", SQL_MANAGER_TOTALS),
     ("changes", SQL_CHANGES),
     ("stock_periods", SQL_STOCK_PERIODS),
+    ("fundamentals", SQL_FUNDAMENTALS),
+    ("stock_cash_flows", SQL_STOCK_CASH_FLOWS),
 ]
 
 
 def rebuild_after_tickers(con: duckdb.DuckDBPyConnection) -> None:
     """New tickers can change a stock's kind (OpenFIGI's ETP makes an ETF), and
-    stock_periods compares each stock with the median of its kind, so both are rebuilt."""
+    stock_periods compares each stock with the median of its kind, so both are rebuilt.
+    A stock's financials are matched by ticker, so they follow too."""
     con.execute(SQL_STOCKS)
     con.execute(SQL_STOCK_PERIODS)
+    con.execute(SQL_FUNDAMENTALS)
+    con.execute(SQL_STOCK_CASH_FLOWS)
 
 
 def build_all(log=print) -> None:

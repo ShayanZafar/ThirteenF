@@ -4,33 +4,15 @@ These run on a small made-up data set (tests/minidata.py) or on no data at all,
 so they never skip.
 """
 
-import json
-
 import httpx
 import minidata
 import pytest
+from conftest import map_mini_tickers
 from fastapi.testclient import TestClient
 
-import thirteenf.db
-import thirteenf.tickers
 from thirteenf.db import connect
-from thirteenf.ingest import load, openfigi
-from thirteenf.model import build
+from thirteenf.ingest import openfigi
 from thirteenf.web.app import app
-
-QUIET = lambda *_: None
-
-
-@pytest.fixture
-def mini_db(tmp_path, monkeypatch):
-    """The made-up data set, loaded and built, in a database of its own."""
-    monkeypatch.setattr(thirteenf.db, "DB_PATH", tmp_path / "mini.duckdb")
-    with connect() as con:
-        load.ensure_load_log(con)
-        for path in minidata.write_zips(tmp_path / "raw"):
-            load.load_zip(con, path, log=QUIET, work_root=tmp_path / "work")
-    build.build_all(log=QUIET)
-    return tmp_path / "mini.duckdb"
 
 
 def _kinds(cusip):
@@ -56,31 +38,12 @@ def test_the_made_up_data_builds_every_period(mini_db):
     assert [f[0] for f in funds] == list(minidata.SECURITIES[minidata.QQQ][3])
 
 
-def _fake_openfigi(request: httpx.Request) -> httpx.Response:
-    out = []
-    for job in json.loads(request.content):
-        if job["idType"] != "ID_CUSIP" or job["idValue"] not in minidata.SECURITIES:
-            out.append({"warning": "No identifier found."})
-            continue
-        etf = job["idValue"] == minidata.QQQ
-        ticker = "QQQ" if etf else f"T{job['idValue'][:3]}"
-        out.append({"data": [{"ticker": ticker, "exchCode": "US", "securityType": "ETP" if etf else "Common Stock"}]})
-    return httpx.Response(200, json=out)
-
-
 def test_new_tickers_reach_the_kind_medians(mini_db, monkeypatch):
     """A ticker run can turn an 'other' into an ETF. stock_periods compares each
     stock with the median of its kind, so it has to follow."""
     assert _kinds(minidata.QQQ) == ("other", {"other"})
 
-    real_client = openfigi.OpenFigiClient
-    monkeypatch.setattr(thirteenf.tickers, "openfigi_api_key", lambda: "test-key")
-    monkeypatch.setattr(
-        openfigi,
-        "OpenFigiClient",
-        lambda key: real_client(key, transport=httpx.MockTransport(_fake_openfigi), sleep=lambda _: None),
-    )
-    thirteenf.tickers.update_tickers(log=QUIET)
+    map_mini_tickers(monkeypatch)
 
     assert _kinds(minidata.QQQ) == ("etf", {"etf"})
     with connect(read_only=True) as con:

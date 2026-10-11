@@ -1,4 +1,5 @@
-"""python -m thirteenf.ingest downloads the Form 13F data sets and loads them."""
+"""python -m thirteenf.ingest downloads the Form 13F data sets and the companies'
+cash flow data from the SEC, and loads them."""
 
 import argparse
 import sys
@@ -12,11 +13,12 @@ def main() -> int:
     parser.add_argument("--no-download", action="store_true", help="load the zips already in data/raw/")
     args = parser.parse_args()
 
-    from thirteenf.ingest import sec
+    from thirteenf.ingest import sec, xbrl
 
     try:
         if not args.no_download:
             sec.download_all()
+            xbrl.download_all()
     except MissingUserAgent as err:
         print(err, file=sys.stderr)
         return 2
@@ -27,6 +29,10 @@ def main() -> int:
     from thirteenf.model import build
 
     load.load_all()
+    from thirteenf.db import connect
+
+    with connect() as con:
+        xbrl.load_all(con)
     build.build_all()
 
     from thirteenf.config import openfigi_api_key

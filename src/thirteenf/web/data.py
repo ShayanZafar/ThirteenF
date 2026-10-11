@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from datetime import date
 
 from thirteenf.config import DB_PATH
-from thirteenf.db import Busy, connect  # noqa: F401  (Busy is raised from here)
+from thirteenf.db import connect, scalar
 from thirteenf.web.format import display_name
 from thirteenf.web.format import ticker as ticker_text
 
@@ -881,3 +881,107 @@ def managers_list(con, period: date, query: str = "", limit: int = 100) -> list[
         """,
         [period, *[f"%{w}%" for w in words]],
     )
+
+
+# The accumulate list: stocks funds keep moving into, whose free cash flow is
+# high for their market value. See docs/13f-data.md, "Accumulate list".
+ACCUMULATE_RANKINGS = {"yield": "fcf_yield", "tide": "vs_tide_pts"}
+ACCUMULATE_MIN_YIELD = 0.05  # free cash flow at least 5% of market value
+ACCUMULATE_MIN_STREAK = 2  # more funds two periods running, or longer
+# Market value is the 13F price times the diluted share count, so two checks
+# guard the share count, each within this factor: it must agree with the latest
+# cover-page count (a split since the fiscal year end moves one and not the
+# other), and funds' 13F holdings must not be worth more than the whole company.
+SHARES_AGREE = 1.5
+# Financials older than this, counted from the period, are too stale to compare.
+FISCAL_MAX_AGE_MONTHS = 18
+
+
+def accumulate_period(all_periods: list[Period]) -> Period:
+    """The latest period whose on-time filings are all in, else the latest one."""
+    choices = [p for p in all_periods if p.prev_period is not None]
+    on_time = [p for p in choices if p.deadline <= p.data_through]
+    return (on_time or choices)[-1]
+
+
+_ACCUMULATE_FROM = f"""
+    FROM stock_periods sp
+    JOIN stocks s ON s.cusip = sp.cusip
+    JOIN stock_cash_flows cf ON cf.cusip = sp.cusip
+    WHERE sp.period = ? AND sp.funds_holding >= ? AND sp.funds_prev >= ?
+      AND cf.fiscal_end > sp.period - INTERVAL {FISCAL_MAX_AGE_MONTHS} MONTH
+"""
+_COMPARABLE = "cf.prior_free_cash_flow IS NOT NULL AND NOT cf.financial AND sp.median_price > 0"
+_SHARES_AGREE = (
+    f"(cf.shares_outstanding IS NULL OR cf.shares_outstanding / cf.diluted_shares BETWEEN {1 / SHARES_AGREE} AND {SHARES_AGREE})"
+    f" AND sp.value <= {SHARES_AGREE} * sp.median_price * cf.diluted_shares"
+)
+
+
+def accumulate(
+    con, period: date, minimum: int, min_yield: float, min_streak: int, by: str = "yield", limit: int = 50
+) -> list[dict]:
+    """Stocks with more funds against the tide for `min_streak` periods running, a
+    positive net 13F flow, positive free cash flow in each of their last two fiscal
+    years, and the lower of the two at least `min_yield` of market value."""
+    column = ACCUMULATE_RANKINGS[by]
+    rows = _rows(
+        con,
+        f"""
+        SELECT * FROM (
+            SELECT sp.cusip, s.name_filed, s.name_mixed, s.title_of_class, s.ticker,
+                   sp.funds_holding AS funds, sp.funds_prev, sp.funds_pct, sp.filers_pct, sp.vs_tide_pts,
+                   sp.streak, sp.direction, sp.net_flow, sp.price_pct, sp.median_price,
+                   cf.free_cash_flow, cf.prior_free_cash_flow, cf.lower_free_cash_flow,
+                   cf.fiscal_end, cf.prior_fiscal_end, cf.entity_name,
+                   sp.median_price * cf.diluted_shares AS market_value,
+                   cf.lower_free_cash_flow / (sp.median_price * cf.diluted_shares) AS fcf_yield
+            {_ACCUMULATE_FROM}
+              AND {_COMPARABLE} AND {_SHARES_AGREE}
+              AND sp.vs_tide_pts > 0 AND sp.direction > 0 AND sp.streak >= ? AND sp.net_flow > 0
+              AND cf.free_cash_flow > 0 AND cf.prior_free_cash_flow > 0
+        )
+        WHERE fcf_yield >= ?
+        ORDER BY {column} DESC, cusip
+        LIMIT ?
+        """,
+        [period, minimum, minimum, min_streak, min_yield, limit],
+    )
+    for r in rows:
+        r["name"] = display_name(r["name_filed"], r["name_mixed"])
+        r["ticker"] = ticker_text(r["ticker"])
+    return rows
+
+
+def accumulate_coverage(con, period: date, minimum: int) -> dict:
+    """How many stocks were compared, how many have two comparable years of cash
+    flow, how many are banks or insurers, and how many failed the share checks."""
+    compared = scalar(
+        con,
+        """
+        SELECT count(*) FROM stock_periods sp JOIN stocks s ON s.cusip = sp.cusip
+        WHERE sp.period = ? AND sp.funds_holding >= ? AND sp.funds_prev >= ? AND s.kind = 'stock'
+        """,
+        [period, minimum, minimum],
+    )
+    with_cash_flow, financial, shares_differ = con.execute(
+        f"""
+        SELECT count(*) FILTER (WHERE {_COMPARABLE}),
+               count(*) FILTER (WHERE cf.financial),
+               count(*) FILTER (WHERE {_COMPARABLE} AND NOT ({_SHARES_AGREE}))
+        {_ACCUMULATE_FROM}
+        """,
+        [period, minimum, minimum],
+    ).fetchone() or (0, 0, 0)
+    return {
+        "compared": compared,
+        "with_cash_flow": with_cash_flow,
+        "financial": financial,
+        "shares_differ": shares_differ,
+    }
+
+
+def has_cash_flows(con) -> bool:
+    """Whether the model has the companies' financials: a database built before
+    they were added has no stock_cash_flows table until update-data runs."""
+    return bool(scalar(con, "SELECT count(*) FROM information_schema.tables WHERE table_name = 'stock_cash_flows'"))

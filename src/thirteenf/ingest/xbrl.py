@@ -90,11 +90,11 @@ def file_name(taxonomy: str, tag: str, unit: str, period: str) -> str:
     return f"{taxonomy}_{tag}_{unit}_{period}.json"
 
 
-def sec_fetch() -> tuple[Callable[[str], str | None], Callable[[], None]]:
+def sec_fetch(log: Callable[[str], None] = print) -> tuple[Callable[[str], str | None], Callable[[], None]]:
     """A fetch that returns a URL's text, or None when the SEC has no such frame yet."""
     from thirteenf.ingest.sec import SecClient
 
-    client = SecClient()
+    client = SecClient(log=log)
 
     def fetch(url: str) -> str | None:
         try:
@@ -112,7 +112,7 @@ def download_all(fetch: Callable[[str], str | None] | None = None, today: date |
     companies file, so each run fetches them again. Returns how many files were written."""
     close = None
     if fetch is None:
-        fetch, close = sec_fetch()
+        fetch, close = sec_fetch(log)
     XBRL_DIR.mkdir(parents=True, exist_ok=True)
     log("Downloading company cash flow data from the SEC (XBRL frames)")
     written = 0

@@ -22,6 +22,9 @@ def main() -> int:
     except MissingUserAgent as err:
         print(err, file=sys.stderr)
         return 2
+    except RuntimeError as err:  # the SEC kept refusing, or no links on its page: the message says what to do
+        print(err, file=sys.stderr)
+        return 1
     if args.download_only:
         return 0
 

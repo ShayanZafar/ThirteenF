@@ -1,6 +1,7 @@
 @echo off
 rem Sets up ThirteenF: a Python 3.12 virtual environment in .venv, the app and its
-rem dependencies, and data\settings.toml. Safe to run again.
+rem dependencies, and data\settings.toml. Safe to run again. scripts\start.cmd and
+rem scripts\update-data.cmd run it for you the first time.
 setlocal
 cd /d "%~dp0.."
 
@@ -11,20 +12,20 @@ call :find_python
 if not defined PYEXE (
   echo Python 3.12 or newer was not found.
   echo Install it from https://www.python.org/downloads/ or run:  winget install Python.Python.3.12
-  exit /b 1
+  goto :failed
 )
 echo Python: %PYEXE% %PYARGS%
 
 if not exist ".venv\Scripts\python.exe" (
   echo Creating the virtual environment in .venv ...
   "%PYEXE%" %PYARGS% -m venv .venv
-  if errorlevel 1 exit /b 1
+  if errorlevel 1 goto :failed
 )
 echo Installing ThirteenF and its dependencies ...
 ".venv\Scripts\python.exe" -m pip install --quiet --upgrade pip
-if errorlevel 1 exit /b 1
+if errorlevel 1 goto :failed
 ".venv\Scripts\python.exe" -m pip install --quiet -e ".[dev]"
-if errorlevel 1 exit /b 1
+if errorlevel 1 goto :failed
 
 ".venv\Scripts\python.exe" -c "from thirteenf.config import ensure_settings_file; print('Settings file:', ensure_settings_file())"
 
@@ -39,7 +40,14 @@ echo.
 echo Setup done. Next:
 echo   scripts\update-data.cmd   download and load the SEC's 13F data (about 15 minutes the first time)
 echo   scripts\start.cmd         open the app at http://127.0.0.1:8000
+call "%~dp0keep-window.cmd"
 exit /b 0
+
+:failed
+echo.
+echo Setup didn't finish ^(see above^).
+call "%~dp0keep-window.cmd"
+exit /b 1
 
 :find_python
 set "PYEXE="

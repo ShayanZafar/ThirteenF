@@ -62,8 +62,15 @@ def answer(series: list[StockPeriod], name: str) -> str:
         return text + f" No 13F filer reported it at {day(latest.prev_period)}."
 
     # A change from last period means there is a last period, and a direction.
+    assert prev is not None
+    return _funds_sentence(series, name, prev) + _shares_sentence(latest, prev)
+
+
+def _funds_sentence(series: list[StockPeriod], name: str, prev: StockPeriod) -> str:
+    """How the fund count moved into the latest period, and over its streak."""
+    latest = series[-1]
     d, n = latest.direction, latest.streak
-    assert prev is not None and d is not None
+    assert d is not None and latest.funds_change is not None
     if d == 0:
         text = f"The same number of funds held {name} at {day(latest.period)} as at {short_day(prev.period)}: {count(latest.funds)}."
     elif n >= 2:
@@ -89,7 +96,11 @@ def answer(series: list[StockPeriod], name: str) -> str:
         if prev.direction == -d and prev.streak >= 2:
             before = "fewer" if d > 0 else "more"
             text += f" It follows {number_word(prev.streak)} periods with {before} funds."
+    return text
 
+
+def _shares_sentence(latest: StockPeriod, prev: StockPeriod) -> str:
+    """How the shares those funds hold moved, or why the share total is not shown."""
     if latest.shares_change_shown and latest.shares_pct is not None:
         change = latest.shares_pct
         if abs(change) < 0.01:
@@ -98,16 +109,16 @@ def answer(series: list[StockPeriod], name: str) -> str:
             verb = f"rose {pct(change, 0, signed=False)}"
         else:
             verb = f"fell {pct(change, 0, signed=False)}"
-        text += (
+        return (
             f" The shares those funds hold {verb}: {compact(latest.shares)}, "
             f"against {compact(latest.shares_prev)} in {month_name(prev.period)}."
         )
-    elif latest.share_check == "outran" and latest.shares_vs_value_pts is not None:
-        text += (
+    if latest.share_check == "outran" and latest.shares_vs_value_pts is not None:
+        return (
             f" Their share total for {latest.label} moved {abs(latest.shares_vs_value_pts):,.0f} points "
             "beyond its value, so it is not shown until checked."
         )
-    return text
+    return ""
 
 
 def typical(kind: str) -> str:

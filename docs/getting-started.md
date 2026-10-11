@@ -8,13 +8,15 @@
 
 ## 1. Set up
 
+The quick way: double-click `scripts\start.cmd` (Windows) or `scripts/start.command` (macOS), or run `scripts/start.sh` (Linux). When `.venv` is missing, they run setup first, then start the app. To run setup on its own:
+
 Windows:
 
 ```bat
 scripts\setup.cmd
 ```
 
-macOS and Linux:
+macOS (double-click `scripts/setup.command`, or) and Linux:
 
 ```sh
 scripts/setup.sh

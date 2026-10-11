@@ -271,6 +271,58 @@ def _not_found(con: duckdb.DuckDBPyConnection, stages: tuple[str, ...], with_fil
     ).fetchall()
 
 
+class _Run:
+    """Asks OpenFIGI batch by batch and stores each batch's rows, counting as it goes."""
+
+    def __init__(self, open_db: Callable, client: OpenFigiClient, log: Callable) -> None:
+        self.open_db, self.client, self.log = open_db, client, log
+        self.counts = {"asked": 0, "found": 0, "errors": 0}
+
+    def ask_all(self, work: list[tuple[str, dict]], label: str, handle: Callable, report: bool = True) -> None:
+        if not work:
+            return
+        limits = self.client.limits
+        size = limits.jobs_per_request
+        requests = -(-len(work) // size)
+        minutes = requests / limits.requests_per_window * limits.window_seconds / 60
+        self.log(f"  {label}: {len(work):,} to ask in {requests:,} requests (about {max(minutes, 0.1):.0f} min)")
+        before = self.counts["found"]
+        for n, batch in enumerate(_batches(work, size), start=1):
+            answered = _ask(self.client, batch)
+            self.counts["asked"] += len(batch)
+            rows = handle(answered, datetime.now(UTC).replace(tzinfo=None))
+            if rows:
+                with self.open_db() as con:
+                    _store(con, rows)
+                self.counts["found"] += sum(1 for row in rows if row[3])
+            if n % 50 == 0 and n < requests:
+                self.log(f"    {n:,} of {requests:,} requests, {self.counts['found'] - before:,} found so far")
+        if report:
+            self.log(f"    {self.counts['found'] - before:,} found")
+
+    def answers(self, answered: list, fetched_at: datetime) -> list[tuple]:
+        rows = []
+        for (cusip, job), result in answered:
+            row = _row(cusip, job, result, fetched_at)
+            if row is None:
+                self.counts["errors"] += 1  # a passing error: asked again next run
+            else:
+                rows.append(row)
+        return rows
+
+
+def _store_invalid(open_db: Callable, cusips: list[str], log: Callable) -> None:
+    """Cache CUSIPs with a wrong check digit as not found, without sending them."""
+    if not cusips:
+        return
+    fetched_at = datetime.now(UTC).replace(tzinfo=None)
+    note = json.dumps({"error": "Not sent: the CUSIP's check digit is wrong."})
+    with open_db() as con:
+        for batch in _batches(cusips, 1000):
+            _store(con, [(c, STAGE_INVALID, c, False) + (None,) * 9 + (note, fetched_at) for c in batch])
+    log(f"  {len(cusips):,} CUSIPs have a wrong check digit (filers' typos and placeholders); not sent")
+
+
 def update(open_db: Callable, client: OpenFigiClient, log=print) -> dict:
     """Look up every CUSIP not cached yet; see the module docstring for the passes.
 
@@ -278,50 +330,13 @@ def update(open_db: Callable, client: OpenFigiClient, log=print) -> dict:
     only to read the work and to store each batch, never while waiting on
     OpenFIGI, so the app keeps working during a long run. Answers are stored batch
     by batch, so a run that stops picks up where it left off."""
-    counts = {"asked": 0, "found": 0, "errors": 0}
-    size = client.limits.jobs_per_request
-
-    def ask_all(work: list[tuple[str, dict]], label: str, handle: Callable, report: bool = True) -> None:
-        if not work:
-            return
-        requests = -(-len(work) // size)
-        minutes = requests / client.limits.requests_per_window * client.limits.window_seconds / 60
-        log(f"  {label}: {len(work):,} to ask in {requests:,} requests (about {max(minutes, 0.1):.0f} min)")
-        before = counts["found"]
-        for n, batch in enumerate(_batches(work, size), start=1):
-            answered = _ask(client, batch)
-            counts["asked"] += len(batch)
-            rows = handle(answered, datetime.now(UTC).replace(tzinfo=None))
-            if rows:
-                with open_db() as con:
-                    _store(con, rows)
-                counts["found"] += sum(1 for row in rows if row[3])
-            if n % 50 == 0 and n < requests:
-                log(f"    {n:,} of {requests:,} requests, {counts['found'] - before:,} found so far")
-        if report:
-            log(f"    {counts['found'] - before:,} found")
-
-    def answers(answered: list, fetched_at: datetime) -> list[tuple]:
-        rows = []
-        for (cusip, job), result in answered:
-            row = _row(cusip, job, result, fetched_at)
-            if row is None:
-                counts["errors"] += 1  # a passing error: asked again next run
-            else:
-                rows.append(row)
-        return rows
+    run = _Run(open_db, client, log)
+    counts, ask_all, answers = run.counts, run.ask_all, run.answers
 
     # Pass 1: CUSIPs never asked about, on the US composite listing.
     with open_db() as con:
         cusips = pending_cusips(con)
-    invalid = [c for c in cusips if not valid_cusip(c)]
-    if invalid:
-        fetched_at = datetime.now(UTC).replace(tzinfo=None)
-        note = json.dumps({"error": "Not sent: the CUSIP's check digit is wrong."})
-        with open_db() as con:
-            for batch in _batches(invalid, 1000):
-                _store(con, [(c, STAGE_INVALID, c, False) + (None,) * 9 + (note, fetched_at) for c in batch])
-        log(f"  {len(invalid):,} CUSIPs have a wrong check digit (filers' typos and placeholders); not sent")
+    _store_invalid(open_db, [c for c in cusips if not valid_cusip(c)], log)
     ask_all([(c, cusip_job(c)) for c in cusips if valid_cusip(c)], "CUSIPs on the US listing", answers)
 
     # Pass 2: the same CUSIPs on any exchange, then their share class on the US listing.

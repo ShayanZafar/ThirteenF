@@ -40,7 +40,7 @@ Run one file or one test: `scripts\test.cmd tests\test_flows.py -k alphabet`.
 scripts\verify.cmd
 ```
 
-or `scripts/verify.sh`. It runs `ruff format --check`, `ruff check`, `mypy` and the tests, in that order, and stops at the first failure. GitHub Actions runs the same script on every pull request, so a change that passes here passes there. `ruff format src tests` fixes formatting; the lint rules and the complexity ceiling (25, to be lowered as functions are split) are in `pyproject.toml`.
+or `scripts/verify.sh`. It runs `ruff format --check`, `ruff check`, `mypy` and the tests, in that order, and stops at the first failure. GitHub Actions runs the same script on every push to `main` and every pull request, so a change that passes here passes there. `ruff format src tests` fixes formatting; the lint rules and the complexity ceiling (25, to be lowered as functions are split) are in `pyproject.toml`.
 
 ## Conventions
 
@@ -58,6 +58,25 @@ The rules in [../CLAUDE.md](../CLAUDE.md) apply to every change. In short:
 - **Change a page**: the route is in `src/thirteenf/web/app.py`, its queries in `web/data.py`, its sentences in `web/story.py`, its markup in `web/templates/`. Shared pieces (change tags, meters, flow bars) are macros in `templates/_macros.html`.
 - **Add a dependency**: add it to `pyproject.toml`, then run `scripts\setup.cmd` again.
 
+## Continuous integration
+
+The workflows are in `.github/workflows/`. The two that use Claude run on the `CLAUDE_CODE_OAUTH_TOKEN` repository secret (created with `claude setup-token`); without it they log a warning and finish green.
+
+| Workflow | Runs | What it does |
+| --- | --- | --- |
+| `verify.yml` | Every push to `main` and every pull request | `scripts/verify.sh` on Ubuntu with Python 3.12, then a second test run that puts test coverage in the job summary (it never fails the build) |
+| `codeql.yml` | Pushes and pull requests to `main`, and weekly | CodeQL's Python security and quality queries; findings appear under Security > Code scanning |
+| `claude-code-review.yml` | A pull request opened, reopened or marked ready | Claude reviews it once and posts inline comments. Drafts, forks and Dependabot's pull requests are skipped |
+| `claude-refactor.yml` | The 1st of each month, or from the Actions tab | Claude runs the `/refactor` skill and opens a pull request with at most three behavior-preserving cleanups |
+| `mutation.yml` | The 1st of each month, or from the Actions tab | Mutation testing with mutmut (Linux only): lists the mutants no test noticed, in the job summary and the `mutmut-results` artifact. It never fails the build |
+
+Dependabot (`.github/dependabot.yml`) opens monthly pull requests for the Python dependencies and the GitHub Actions versions.
+
+## Claude Code skills
+
+- `/verify` (`.claude/skills/verify/`) runs `scripts/verify.sh` (or `scripts\verify.cmd`) and reports only the failures. Claude runs it before each commit.
+- `/refactor` (`.claude/skills/refactor/`) measures churn, complexity, duplication and dead code, then applies the few cleanups with the best payoff, each with the verify script passing. Type it to run it; the monthly workflow runs it in CI.
+
 ## Git
 
-`data/` and `.venv/` are ignored. Each finished phase or feature is one commit on `main`.
+`data/`, `.venv/` and `mutants/` (mutmut's results) are ignored. Each finished phase or feature is one commit. A pull request fills in `.github/pull_request_template.md`: what changed and why, and how it was checked.

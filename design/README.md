@@ -22,7 +22,7 @@ Exported Sep 30, 2026 from the ThirteenF design system and the ThirteenF App Pre
 | Look up a stock | `screens/lookup.html` | Real, with Shopify as the example; the page works for any stock | Phase 3 |
 | Biggest changes, all stocks | `screens/most-bought-and-sold.html` | Sample: fictional companies | Phase 4: the two ranked tables at the bottom, simplified (see the build plan); the top half holds an older overview layout |
 | Overview (watchlist) | `screens/overview.html` | Real: 8 example stocks, from 13f.info; any stock can be added | Phase 5 |
-| Company | `screens/company.html` | Sample: fictional company | Phase 7: holder table and conviction meters |
+| Company | `screens/company.html` | Sample: fictional company | Built Oct 3, 2026 on the stock page: holder table and conviction meters (see the build plan) |
 | Manager | `screens/manager.html` | Sample: fictional manager | Built Oct 3, 2026 (see the build plan) |
 
 The real numbers in the designs come from 13f.info. The app computes its own from the SEC's data sets (see `../docs/13f-data.md`), so small differences are expected.

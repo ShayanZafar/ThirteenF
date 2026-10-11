@@ -1,0 +1,48 @@
+# Mutation testing with mutmut (the test-gaps skill): mutates src/thirteenf,
+# runs the tests, and lists the mutants no test noticed. mutmut runs on Linux
+# only, so this is the place to run it from Windows: start it from the Actions
+# tab (or wait for the monthly run), then read the summary, or download the
+# "mutmut-results" artifact. It never fails the build.
+name: Mutation testing
+
+on:
+  schedule:
+    - cron: "23 14 1 * *" # the 1st of the month, 14:23 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mutmut:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: scripts/setup.sh
+
+      - name: Run mutmut
+        run: .venv/bin/mutmut run || true
+
+      - name: Results
+        run: |
+          .venv/bin/mutmut results | tee mutmut-results.txt
+          {
+            echo '## mutmut results'
+            echo
+            echo '```'
+            tail -n 80 mutmut-results.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: mutmut-results
+          path: mutmut-results.txt
+          retention-days: 90

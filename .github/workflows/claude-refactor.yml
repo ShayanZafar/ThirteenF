@@ -1,0 +1,59 @@
+# Once a month, Claude runs the repo's /refactor skill (.claude/skills/refactor):
+# it measures complexity, duplication, dead code and churn, applies at most three
+# behavior-preserving cleanups with scripts/verify.sh passing, and opens a pull
+# request. The Claude Code Review workflow then reviews that PR like any other,
+# and nothing merges without you. Runs on the Claude subscription through the
+# CLAUDE_CODE_OAUTH_TOKEN secret; if the secret is missing or empty, the job
+# logs a warning and finishes green. Run it any time from the Actions tab.
+name: Claude Refactor
+
+on:
+  schedule:
+    - cron: "17 13 1 * *" # the 1st of the month, 13:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: read
+  id-token: write
+
+concurrency:
+  group: claude-refactor
+  cancel-in-progress: false
+
+jobs:
+  refactor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      # `secrets` can't be read in a job-level `if`, so the steps check this copy.
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+    steps:
+      - name: Skip without a token
+        if: env.CLAUDE_CODE_OAUTH_TOKEN == ''
+        run: |
+          echo "::warning::The CLAUDE_CODE_OAUTH_TOKEN secret is not set, so the refactor was skipped. Run 'claude setup-token' and 'gh secret set CLAUDE_CODE_OAUTH_TOKEN -R ${{ github.repository }}'."
+
+      - uses: actions/checkout@v7
+        if: env.CLAUDE_CODE_OAUTH_TOKEN != ''
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        if: env.CLAUDE_CODE_OAUTH_TOKEN != ''
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        if: env.CLAUDE_CODE_OAUTH_TOKEN != ''
+        run: scripts/setup.sh
+
+      - uses: anthropics/claude-code-action@v1
+        if: env.CLAUDE_CODE_OAUTH_TOKEN != ''
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: "/refactor"
+          claude_args: >-
+            --max-turns 120
+            --allowedTools "Read,Glob,Grep,Edit,MultiEdit,Write,Bash(scripts/verify.sh *),Bash(.venv/bin/* *),Bash(pipx run *),Bash(npx *),Bash(git *),Bash(gh pr *),Bash(wc *),Bash(sort *),Bash(uniq *),Bash(head *),Bash(tail *),Bash(xargs *)"

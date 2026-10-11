@@ -1,15 +1,50 @@
+# The same check as scripts/verify.sh on your computer (formatting, lint,
+# types, then the tests), run on every push to main and every pull request.
+# Tests that need the SEC data skip here; the rest run on the small made-up
+# data set. A second pytest run then reports test coverage in the job summary
+# (Actions tab, open the run): it never fails the build, it shows where the
+# test-gaps skill should look next.
 name: verify
+
 on:
   pull_request:
   push:
     branches: [main]
+
+permissions:
+  contents: read
+
+# A newer push replaces a run that's still going.
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v5
+
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - run: scripts/setup.sh
-      - run: scripts/verify.sh
+
+      - name: Install
+        run: scripts/setup.sh
+
+      - name: Verify
+        run: scripts/verify.sh
+
+      - name: Coverage
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        run: |
+          .venv/bin/python -m pytest -q -p no:cacheprovider --cov=thirteenf --cov-report=term-missing:skip-covered | tee coverage.txt
+          {
+            echo '## Test coverage'
+            echo
+            echo '```'
+            sed -n '/ coverage: platform /,$p' coverage.txt | head -n 80
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

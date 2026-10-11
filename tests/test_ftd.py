@@ -71,6 +71,19 @@ def test_a_file_loads_as_it_is(tmp_path):
     assert con.execute("SELECT count(*) FROM raw_ftd").fetchone()[0] == 5
 
 
+@pytest.mark.parametrize("member", ["cnsfails202509a", "CNSFAILS202509A.TXT"])
+def test_a_file_whose_data_file_has_no_extension_loads_too(tmp_path, member):
+    # All of the SEC's 2025 and early-2026 zips hold "cnsfails202509a" with no .txt (seen Oct 11, 2026).
+    path = write_ftd_zip(tmp_path, "cnsfails202509a.zip", ROWS, member=member)
+    assert ftd.load_file(duckdb.connect(), path) == 3
+
+
+def test_a_zip_holding_some_other_file_is_left_out(tmp_path):
+    path = write_ftd_zip(tmp_path, "cnsfails202509a.zip", ROWS, member="readme.txt")
+    with pytest.raises(ValueError, match=r"expected one cnsfails202509a or cnsfails202509a\.txt inside, found 0"):
+        ftd.load_file(duckdb.connect(), path)
+
+
 def test_the_symbol_on_the_most_recent_settlement_date_wins(tmp_path):
     folder = tmp_path / "ftd"
     write_ftd_zip(

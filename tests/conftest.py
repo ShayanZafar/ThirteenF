@@ -23,9 +23,12 @@ from thirteenf.model.periods import quarter_end
 QUIET = lambda *_: None
 
 
-def ftd_zip_bytes(name: str, rows: list[tuple], header: str = ftd.HEADER, count: int | None = None) -> bytes:
+def ftd_zip_bytes(
+    name: str, rows: list[tuple], header: str = ftd.HEADER, count: int | None = None, member: str | None = None
+) -> bytes:
     """A fails-to-deliver zip as the SEC writes it: one latin-1, pipe-delimited .txt with
-    CRLF line ends and two trailer lines (`count` overrides the record count it gives)."""
+    CRLF line ends and two trailer lines (`count` overrides the record count it gives, `member`
+    the name of the file inside, which is the zip's name with .txt unless given)."""
     lines = [header, *("|".join(row) for row in rows)]
     lines += [
         f"Trailer record count {len(rows) if count is None else count}",
@@ -33,7 +36,7 @@ def ftd_zip_bytes(name: str, rows: list[tuple], header: str = ftd.HEADER, count:
     ]
     out = io.BytesIO()
     with zipfile.ZipFile(out, "w") as archive:
-        archive.writestr(name.replace(".zip", ".txt"), ("\r\n".join(lines) + "\r\n").encode("latin-1"))
+        archive.writestr(member or name.replace(".zip", ".txt"), ("\r\n".join(lines) + "\r\n").encode("latin-1"))
     return out.getvalue()
 
 

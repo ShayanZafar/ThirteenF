@@ -40,7 +40,7 @@ Stocks funds keep moving into whose free cash flow is high for their market valu
 - **Rank by**: FCF yield (the default), or the change against the tide.
 - **Minimum FCF yield**, **periods with more funds** and **minimum funds holding** are in the filter bar, with **period**.
 - **Price, quarter** is the change in the quarter-end price. A stock funds moved into while its price lagged may not have priced the flow in yet.
-- Banks and insurers are left out, and so are companies that report in IFRS or whose share counts fail a check. The method notes under the table list each rule; `docs/13f-data.md` has the definitions.
+- Banks, insurers and lenders are left out, and so are companies that report in IFRS or whose share counts fail a check. The method notes under the table list each rule; `docs/13f-data.md` has the definitions.
 
 The list is a starting point for research, not advice: check each company's filings before acting on it.
 

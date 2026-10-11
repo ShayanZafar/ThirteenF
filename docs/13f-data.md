@@ -80,7 +80,7 @@ The key, free from openfigi.com, goes in `data/settings.toml` (`openfigi_api_key
 
 Added Oct 10, 2026. 13F says where funds' money moved; it says nothing about what a company earns. The accumulate list meets the two, using only SEC data.
 
-**Source.** The SEC's XBRL frames API (`data.sec.gov/api/xbrl/frames/...`): one financial-statement line for every company in one calendar period, from 10-K and 10-Q filings. `python -m thirteenf.ingest` downloads about 45 frames into `data/raw/xbrl/`, as returned, and loads them into `raw_xbrl_frames`; `company_tickers.json` (the SEC's CIK-to-ticker list) goes into `raw_sec_tickers`. Frames grow as companies file, so each run downloads them again. Annual frames start at CY2023; a frame names a fiscal year by the calendar year it mostly falls in (CY2025 holds Apple's year to September 2025).
+**Source.** The SEC's XBRL frames API (`data.sec.gov/api/xbrl/frames/...`): one financial-statement line for every company in one calendar period, from 10-K and 10-Q filings. `python -m thirteenf.ingest` downloads about 60 frames into `data/raw/xbrl/`, as returned, and loads them into `raw_xbrl_frames`; `company_tickers.json` (the SEC's CIK-to-ticker list) goes into `raw_sec_tickers`. Frames grow as companies file, so each run downloads them again. Annual frames start at CY2023; a frame names a fiscal year by the calendar year it mostly falls in (CY2025 holds Apple's year to September 2025).
 
 **Free cash flow.** For each company and fiscal year: operating cash flow (`NetCashProvidedByUsedInOperatingActivities`, else its continuing-operations version) minus capital spending (`PaymentsToAcquirePropertyPlantAndEquipment`, else `PaymentsToAcquireProductiveAssets`, which Amazon and Nvidia use). A year counts only when it also has a diluted share count (`WeightedAverageNumberOfDilutedSharesOutstanding`, else the basic count). `fundamentals` keeps each company's latest such year and the one before it, when the two follow each other.
 
@@ -97,7 +97,8 @@ The streak, the yield and the minimum funds are settings on the page. It ranks b
 
 **Left out.**
 
-- Banks and insurers: companies that report `InterestAndDividendIncomeOperating`, `PremiumsEarnedNet` or `Deposits`. Their operating cash flow carries deposits, loans and premiums. Consumer lenders that report none of these still appear.
+- Banks and insurers: companies that report `InterestAndDividendIncomeOperating`, `PremiumsEarnedNet` or `Deposits`. Their operating cash flow carries deposits, loans and premiums.
+- Lenders: companies whose loan interest and fees (`InterestAndFeeIncomeLoansAndLeases` or `InterestAndFeeIncomeLoansConsumer`) were 25% or more of revenue (`Revenues` or `RevenueFromContractWithCustomerExcludingAssessedTax`, the larger) in a fiscal year, or that reported loan interest and no revenue. Consumer lenders such as Enova and World Acceptance report none of the bank lines above, yet their operating cash flow collects loan interest while the loans they make count as investing, so free cash flow overstates what they earn. Added Oct 11, 2026. Companies with a small lending arm (GM, CarMax, REITs with a few loans) stay in.
 - Companies that report in IFRS (most foreign issuers and ADRs), report no capital spending, or whose latest fiscal year ended more than 18 months before the period.
 - Share-count checks, each within 1.5 times: the diluted count must agree with the latest cover-page count (`dei:EntityCommonStockSharesOutstanding`), which a split since the fiscal year end breaks; and funds' 13F holdings must not be worth more than the market value. Multi-class companies often have no cover-page count in the frames; they pass on the second check alone.
 

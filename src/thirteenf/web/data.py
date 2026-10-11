@@ -955,7 +955,7 @@ def accumulate(
 
 def accumulate_coverage(con, period: date, minimum: int) -> dict:
     """How many stocks were compared, how many have two comparable years of cash
-    flow, how many are banks or insurers, and how many failed the share checks."""
+    flow, how many are banks, insurers or lenders, and how many failed the share checks."""
     compared = scalar(
         con,
         """

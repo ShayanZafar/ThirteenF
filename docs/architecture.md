@@ -74,7 +74,7 @@ Built by `model/build.py` in this order. Definitions are in [13f-data.md](13f-da
 | `manager_totals` | manager and quarter | Reported 13F portfolio value and positions |
 | `changes` | stock and quarter | Managers that opened, added, held, trimmed, sold out or have not filed; shares bought and sold |
 | `stock_periods` | stock and quarter | Every comparison the pages show: against last quarter, the tide and the typical stock or ETF, the share check, the streak, the net 13F flow |
-| `fundamentals` | company (CIK) | Its last two fiscal years of operating cash flow, capital spending and free cash flow, share counts, and whether it is a bank or insurer |
+| `fundamentals` | company (CIK) | Its last two fiscal years of operating cash flow, capital spending and free cash flow, share counts, and whether it is a bank, insurer or lender |
 | `stock_cash_flows` | stock | Its company's `fundamentals`, matched by ticker; rebuilt after a ticker run |
 | `openfigi` | CUSIP | OpenFIGI's answer, as returned |
 

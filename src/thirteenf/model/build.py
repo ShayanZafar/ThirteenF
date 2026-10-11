@@ -696,7 +696,10 @@ LEFT JOIN listed t ON t.stock = b.stock
 # the two years must follow each other. Within a measure the first tag in
 # xbrl.ANNUAL_CONCEPTS a company reported for that year wins. Shares outstanding
 # from the latest cover page are kept to check the diluted count, and a company
-# that reports bank or insurance lines is marked financial.
+# that reports bank or insurance lines is marked financial. So is a lender: a
+# company whose loan interest and fees were LENDER_SHARE or more of its revenue
+# in a fiscal year, or that reported loan interest and no revenue line at all.
+LENDER_SHARE = 0.25
 _CONCEPT_ROWS = ", ".join(
     f"('{measure}', '{taxonomy}', '{tag}', '{unit}', {rank})"
     for rank, (measure, taxonomy, tag, unit) in enumerate([*xbrl.ANNUAL_CONCEPTS, *xbrl.INSTANT_CONCEPTS])
@@ -733,7 +736,17 @@ cover AS (
     FROM facts WHERE measure = 'shares_outstanding' AND val > 0
     ORDER BY cik, period_end DESC
 ),
-financial AS (SELECT DISTINCT cik FROM facts WHERE measure = 'financial' AND val > 0)
+loans AS (
+    SELECT cik, period_end,
+           max(val) FILTER (WHERE measure = 'loan_income') AS loan_income,
+           max(val) FILTER (WHERE measure = 'revenue') AS revenue
+    FROM facts WHERE measure IN ('loan_income', 'revenue') GROUP BY cik, period_end
+),
+financial AS (
+    SELECT cik FROM facts WHERE measure = 'financial' AND val > 0
+    UNION
+    SELECT cik FROM loans WHERE loan_income > 0 AND loan_income >= {LENDER_SHARE} * coalesce(revenue, 0)
+)
 SELECT l.cik, l.entity_name, l.accn, l.fiscal_end, l.operating_cash_flow, l.capex, l.free_cash_flow,
        l.diluted_shares, p.fiscal_end AS prior_fiscal_end, p.free_cash_flow AS prior_free_cash_flow,
        least(l.free_cash_flow, p.free_cash_flow) AS lower_free_cash_flow,

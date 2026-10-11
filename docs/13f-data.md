@@ -102,7 +102,7 @@ The streak, the yield and the minimum funds are settings on the page. It ranks b
 - Companies that report in IFRS (most foreign issuers and ADRs), report no capital spending, or whose latest fiscal year ended more than 18 months before the period.
 - Share-count checks, each within 1.5 times: the diluted count must agree with the latest cover-page count (`dei:EntityCommonStockSharesOutstanding`), which a split since the fiscal year end breaks; and funds' 13F holdings must not be worth more than the market value. Multi-class companies often have no cover-page count in the frames; they pass on the second check alone.
 
-As of Oct 2026, for Q2 2026: 3,143 stocks compared, about 2,000 with two comparable years of cash flow, 279 banks and insurers left out, about 100 left out by the share checks.
+As of Oct 2026, for Q2 2026: 3,143 stocks compared, about 2,000 with two comparable years of cash flow, 283 banks, insurers and lenders left out (Enova, World Acceptance, Rocket and loanDepot among the lenders), about 100 left out by the share checks.
 
 ## Checks
 

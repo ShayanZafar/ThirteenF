@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_macros.html" as m %}
 {% block title %}Your watchlist, {{ latest_period.label }} · ThirteenF{% endblock %}
 {% block main %}
 <section class="app-section app-section--tight">
@@ -25,7 +26,7 @@
 {% for r in rows %}
 {% set l = r.latest %}
 <tr>
-<td class="app-td-wrap">{% if r.ticker %}<span class="tf-ticker">{{ r.ticker }}</span> {% endif %}<a href="/stock/{{ r.cusip }}">{{ r.name }}</a></td>
+<td class="app-td-wrap">{% if r.ticker %}{{ m.ticker(r.ticker, r.ticker_source, r.ticker_as_of) }} {% endif %}<a href="/stock/{{ r.cusip }}">{{ r.name }}</a></td>
 <td class="tf-r">{{ fmt.count(l.funds) }}</td>
 <td class="tf-r">{% if l.funds_change is none %}<span class="tf-muted">—</span>{% else %}{% if l.funds_change > 0 %}<span class="tf-dir tf-dir--in"></span>{% elif l.funds_change < 0 %}<span class="tf-dir tf-dir--out"></span>{% endif %}{{ fmt.signed_count(l.funds_change)|signed }}{% if l.funds_pct is not none %} <span class="tf-muted">({{ fmt.pct(l.funds_pct)|signed }})</span>{% endif %}{% endif %}</td>
 <td class="tf-r">{% if l.vs_median_pts is none %}<span class="tf-muted">—</span>{% else %}{% set t = fmt.pts(l.vs_median_pts) %}{% if fmt.flow(t) %}<span class="tf-dir tf-dir--{{ fmt.flow(t) }}"></span>{% endif %}{{ t|signed }}{% endif %}</td>
@@ -59,7 +60,7 @@
 {% for r in rows %}
 {% set l = r.latest %}
 <tr>
-<td>{% if r.ticker %}<span class="tf-ticker">{{ r.ticker }}</span>{% else %}{{ r.name }}{% endif %}</td>
+<td>{% if r.ticker %}{{ m.ticker(r.ticker, r.ticker_source, r.ticker_as_of) }}{% else %}{{ r.name }}{% endif %}</td>
 {% if l.held and l.share_check == "outran" %}
 <td class="tf-r"><span class="tf-muted">—</span></td><td class="tf-r"><span class="tf-muted">—</span></td>
 <td class="tf-r">{{ fmt.pct(l.value_pct, 0)|signed }}</td>

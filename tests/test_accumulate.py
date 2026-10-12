@@ -155,6 +155,8 @@ def test_the_list_holds_stocks_funds_keep_moving_into(accumulate_db):
     assert "Accumulate list, Q4 2024" in html
     assert _listed(html) == [MSFT]  # AAPL's funds are flat, AMZN is up one period only
     assert "6.0%" in html
+    assert '<span class="tf-ticker">T594</span> <a href=' in html  # OpenFIGI's ticker: no mark
+    assert 'title="Ticker ' not in html
 
 
 def test_a_shorter_streak_lets_amazon_in_ranked_by_yield(accumulate_db):
@@ -217,6 +219,13 @@ def test_an_unverified_ticker_brings_no_company_figures(accumulate_db, monkeypat
         matched = {r[0] for r in con.execute("SELECT cusip FROM stock_cash_flows").fetchall()}
     assert sources == {MSFT: "sec-ftd", AMZN: "issuer-name"}
     assert matched == {MSFT}
+    html = TestClient(app).get("/accumulate").text
+    note = "Ticker from the SEC’s fails-to-deliver data, as of Jan 10, 2025"
+    assert _listed(html) == [MSFT]
+    assert (
+        f'<span class="tf-ticker">T594</span> <span class="tf-tag tf-tag--hold" title="{note}">'
+        f'<span aria-hidden="true">FTD</span><span class="sr-only">{note}</span></span> <a href="/stock/{MSFT}">'
+    ) in html
 
 
 def test_the_page_asks_for_update_data_before_cash_flow_exists(mini_db):

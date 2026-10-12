@@ -9,6 +9,7 @@ from __future__ import annotations
 import math
 import re
 from datetime import date
+from typing import NamedTuple
 
 MINUS = "−"
 DASH = "—"
@@ -41,6 +42,28 @@ def pct_fine(x: float | None) -> str:
 def ticker(text: str | None) -> str:
     """OpenFIGI writes share classes with a slash (BRK/B); people write BRK.B."""
     return (text or "").replace("/", ".")
+
+
+class TickerFallback(NamedTuple):
+    mark: str  # the short mark beside the ticker in a list
+    source: str  # where the ticker came from, as the stock page's stamp says it
+    note: str  # the mark's tooltip and accessible text
+
+
+# Tickers that came from a fallback rather than OpenFIGI (docs/sources.md), by ticker_source.
+_TICKER_FALLBACKS = {
+    "sec-ftd": ("FTD", "From the SEC’s fails-to-deliver data"),
+    "issuer-name": ("Unverified", "Matched by issuer name, unverified"),
+}
+
+
+def ticker_fallback(source: str | None, as_of: date | None = None) -> TickerFallback | None:
+    """How a ticker from a fallback is marked, or None for OpenFIGI's (verified) or no source."""
+    if source not in _TICKER_FALLBACKS:
+        return None
+    mark, where = _TICKER_FALLBACKS[source]
+    note = f"Ticker {where[0].lower()}{where[1:]}" + (f", as of {day(as_of)}" if as_of else "")
+    return TickerFallback(mark, where, note)
 
 
 def number_word(n: int) -> str:

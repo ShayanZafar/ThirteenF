@@ -8,6 +8,7 @@
 | [sources.md](sources.md) | See every outside source, what stands in when one refuses or fails, and how their health is recorded |
 | [architecture.md](architecture.md) | See how the download, the database and the web pages fit together |
 | [development.md](development.md) | Run the tests, follow the conventions, see what CI checks, and change the app |
+| [core-flows.md](core-flows.md) | See what a person relies on the app for and the unit, integration and UI tests that prove each flow |
 | [troubleshooting.md](troubleshooting.md) | Fix a problem with setup, data or the app |
 | [build-plan.md](build-plan.md) | Follow the phases the app was built in, each with the check that proved it |
 | [reference/13finfo-holdings.csv](reference/13finfo-holdings.csv) | See the published figures the tests compare against |

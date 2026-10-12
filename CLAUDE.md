@@ -10,6 +10,7 @@ A personal app, run locally, that answers one question for every US-listed stock
 - `docs/build-plan.md`: the phases, in order, each with a check that proves it works.
 - `docs/13f-data.md`: the SEC data sets, how every number is computed, and the data checks.
 - `docs/sources.md`: the register of outside sources: for each data need the primary, the fallbacks in order, what "unreliable" means, where source health is recorded, and the candidates turned down. Update it when a source or fallback changes.
+- `docs/decisions.md`: decisions made, one line each (date, decision, why, issue). Pending decisions and debt are GitHub issues labelled `decision` and `debt`; the `backlog` skill files and closes them, and the monthly refactor takes `debt` issues first.
 - `docs/core-flows.md`: the core flows (what a person relies on the app for), each with the unit, integration and UI tests that prove it, and the count of gaps still open. `scripts/check_core_flows.py` checks it in `scripts/verify.sh`.
 - `docs/reference/13finfo-holdings.csv`: published numbers for 8 stocks, used as test fixtures.
 - `config/watchlist.csv`: an example starting watchlist (ticker, CUSIP, name); the user can change it in the app.

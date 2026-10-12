@@ -7,10 +7,10 @@ Install it with `winget install Python.Python.3.12` or from [python.org](https:/
 Run `setx SEC_USER_AGENT "ThirteenF you@example.com"` with your own email, then open a new terminal. On macOS and Linux, export it in your shell profile. The SEC refuses downloads without it.
 
 **"SEC paused requests from this computer; waiting 10 minutes, then carrying on"** (update-data)
-The SEC blocks a computer for about 10 minutes when it sees too many requests or an undeclared tool (an HTTP 429, or a 403 page saying "Request Rate Threshold" or "Undeclared Automated Tool"). The SEC is the only source of the 13F data, so the update waits it out by itself, as long as the SEC says or else 10 minutes, then carries on. Nothing to do; Ctrl+C stops it, and finished downloads are kept.
+The SEC blocks a computer for about 10 minutes when it sees too many requests (an HTTP 429, or a 403 page saying "Request Rate Threshold"). The SEC is the only source of the 13F data, so the update waits it out by itself, as long as the SEC says or else 10 minutes, then carries on, however many times it happens. Nothing to do; Ctrl+C stops it, and finished downloads are kept.
 
-**"The SEC paused requests from this computer 3 times in this run"** (update-data)
-The update waits out two blocks per run, then stops. Run `update-data` again later; it carries on from the finished downloads. If it keeps happening, check that `SEC_USER_AGENT` holds a real name and email.
+**"The SEC refused this computer as an 'Undeclared Automated Tool'"** (update-data)
+The SEC does not accept the `SEC_USER_AGENT` the update sends, so waiting won't help and the update stops at once. Set `SEC_USER_AGENT` to your name or app and a real email (for example `ThirteenF you@example.com`) and run `update-data` again; it carries on from the finished downloads.
 
 **"The SEC failed to answer 4 times"** (update-data)
 The connection failed or the SEC answered with a server error four times in a row, about 1, 2 and 4 seconds apart (lines starting `SEC:` show each try). Check your connection and run `update-data` again; it carries on from the finished downloads, and a stopped download restarts cleanly.

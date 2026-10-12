@@ -10,13 +10,15 @@ SecClient waits only where nothing else can answer (the owner's rules, Oct 11, 2
 - For a caller with no other source (the 13F data sets, the XBRL frames), a failed
   connection (a DNS blip, a dropped connection, a timeout) or a 5xx is asked again
   after about 1, 2 and 4 seconds, MAX_ATTEMPTS tries in all, then a RuntimeError
-  says what to do. A block, a 429 or the 403 page the SEC serves when it pauses a
-  client ("Request Rate Threshold", "Undeclared Automated Tool"), is waited out:
-  as long as Retry-After says, else BLOCK_SECONDS, the 10 minutes the SEC
-  documents, at most MAX_BLOCK_WAITS times per client, which is per run, then the
-  RuntimeError.
+  says what to do. A block, a 429 or the 403 "Request Rate Threshold" page the
+  SEC serves when it pauses a client, is waited out: as long as Retry-After says,
+  else BLOCK_SECONDS, the 10 minutes the SEC documents, as many times as it comes
+  (decision #13, Oct 12, 2026), so nobody has to restart the update. The 403
+  "Undeclared Automated Tool" page is the exception: it means the SEC does not
+  accept SEC_USER_AGENT, so waiting won't help, and a RuntimeError says at once to
+  set it correctly.
 - A caller with another source for the same data (the fails-to-deliver files, a
-  ticker fallback) passes has_fallback=True: a block raises SecBlocked and a
+  ticker fallback) passes has_fallback=True: a block (either page) raises SecBlocked and a
   failure SecUnavailable at once, nothing is retried or waited out, and the
   caller turns to its next source.
 - A 404 or any other 4xx is not retried: it raises httpx.HTTPStatusError, which
@@ -54,13 +56,14 @@ MIN_SECONDS_BETWEEN_REQUESTS = 0.11
 MAX_ATTEMPTS = 4
 RETRY_BASE = 1.0
 RETRY_JITTER = 0.5
-# A block: how long the SEC documents it lasts, how many to wait out in one run, and
-# the most a Retry-After header is trusted for.
+# A block: how long the SEC documents it lasts, and the most a Retry-After header is trusted for.
 BLOCK_SECONDS = 600.0
-MAX_BLOCK_WAITS = 2
 MAX_RETRY_AFTER = 3600.0
-# What the SEC's block page says (an HTTP 403; any other 403 is final).
-THROTTLE_PHRASES = ("Request Rate Threshold", "Undeclared Automated Tool")
+# What the SEC's block pages say (an HTTP 403; any other 403 is final). The rate page is
+# waited out; the undeclared-tool page means SEC_USER_AGENT is wrong, so it stops at once.
+RATE_PHRASE = "Request Rate Threshold"
+UNDECLARED_PHRASE = "Undeclared Automated Tool"
+THROTTLE_PHRASES = (RATE_PHRASE, UNDECLARED_PHRASE)
 SOURCE = "sec"  # in the source health file: the SEC's 13F data sets
 
 WINDOW_NAME = re.compile(r"(\d{2}[a-z]{3}\d{4})-(\d{2}[a-z]{3}\d{4})_form13f\.zip$", re.I)
@@ -109,6 +112,16 @@ def _refused(response: httpx.Response) -> bool:
     return any(phrase.casefold() in body for phrase in THROTTLE_PHRASES)
 
 
+def _undeclared(response: httpx.Response) -> bool:
+    """Whether this is the SEC's "Undeclared Automated Tool" page (a 403 whose body _refused has read).
+
+    A page that also names the rate threshold counts as the rate page: that one is waited out."""
+    if response.status_code != 403:
+        return False
+    body = response.text.casefold()
+    return UNDECLARED_PHRASE.casefold() in body and RATE_PHRASE.casefold() not in body
+
+
 def _retry_after_seconds(response: httpx.Response) -> float | None:
     """The Retry-After header as seconds from now, clamped to 0..MAX_RETRY_AFTER; None when absent or unreadable."""
     value = response.headers.get("Retry-After")
@@ -144,11 +157,17 @@ class _Blocked(_Retry):
     """A 429 or the SEC's block page: it has paused requests from this computer."""
 
 
+class _Undeclared(_Blocked):
+    """The SEC's "Undeclared Automated Tool" page: it does not accept SEC_USER_AGENT."""
+
+
 def _failure(outcome: httpx.Response | httpx.TransportError) -> _Retry:
     if isinstance(outcome, httpx.TransportError):
         return _Failed(f"connection failed ({type(outcome).__name__})")
     if outcome.status_code >= 500:
         return _Failed(f"HTTP {outcome.status_code}")
+    if _undeclared(outcome):
+        return _Undeclared(f"HTTP {outcome.status_code}")
     return _Blocked(f"HTTP {outcome.status_code}", _retry_after_seconds(outcome))
 
 
@@ -167,11 +186,11 @@ def _failed_message(attempts: int, failure: _Retry) -> str:
     )
 
 
-def _blocked_message(blocks: int, block: _Retry) -> str:
+def _undeclared_message(block: _Retry) -> str:
     return (
-        f"The SEC paused requests from this computer {blocks} times in this run (last: {block.what}). "
-        "Run the update again later; it carries on from the finished downloads. "
-        "If this keeps happening, check SEC_USER_AGENT."
+        f'The SEC refused this computer as an "{UNDECLARED_PHRASE}" ({block.what}): it does not accept '
+        "SEC_USER_AGENT, so waiting won't help. Set SEC_USER_AGENT to your name or app and a real email "
+        "(for example ThirteenF you@example.com) and run the update again; it carries on from the finished downloads."
     )
 
 
@@ -223,9 +242,13 @@ class SecClient:
             try:
                 result = attempt_once()
             except _Blocked as block:
-                health.record(source, "throttled", f"paused requests ({block.what})")
+                undeclared = isinstance(block, _Undeclared)
+                note = "undeclared automated tool" if undeclared else "paused requests"
+                health.record(source, "throttled", f"{note} ({block.what})")
                 if has_fallback:
                     raise SecBlocked(f"The SEC paused requests from this computer ({block.what})") from None
+                if undeclared:
+                    raise RuntimeError(_undeclared_message(block)) from None
                 self._wait_out(block)
                 continue
             except _Failed as failure:
@@ -246,9 +269,7 @@ class SecClient:
             return result
 
     def _wait_out(self, block: _Retry) -> None:
-        """Wait as long as the SEC said (else BLOCK_SECONDS), at most MAX_BLOCK_WAITS times per client."""
-        if self.blocks_waited == MAX_BLOCK_WAITS:
-            raise RuntimeError(_blocked_message(self.blocks_waited + 1, block))
+        """Wait as long as the SEC said (else BLOCK_SECONDS), however many blocks come (decision #13)."""
         self.blocks_waited += 1
         seconds = BLOCK_SECONDS if block.retry_after is None else block.retry_after
         self._log(
@@ -326,7 +347,7 @@ def wanted(data_sets: list[DataSet]) -> list[DataSet]:
 def download_all(log=print, client: SecClient | None = None) -> list[Path]:
     """Download every wanted zip not already in data/raw/. Existing zips are never touched.
 
-    A run passes its one client to every SEC download, so pacing and the block limit cover them all."""
+    A run passes its one client to every SEC download, so one pacing covers them all."""
     RAW_DIR.mkdir(parents=True, exist_ok=True)
     own = client is None
     sec = client or SecClient(log=log)

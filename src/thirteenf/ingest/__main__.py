@@ -8,7 +8,7 @@ from thirteenf.config import MissingUserAgent
 
 
 def download() -> None:
-    """Every SEC download of a run, through one client: one pacing, one limit on blocks waited out."""
+    """Every SEC download of a run, through one client: one pacing for them all."""
     from thirteenf.ingest import sec, xbrl
 
     client = sec.SecClient()

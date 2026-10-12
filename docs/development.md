@@ -35,8 +35,13 @@ or `.venv\Scripts\python -m pytest`. About 230 tests, two kinds:
 | `tests/test_seams.py` | Where steps meet: search redirects, build then tickers, an OpenFIGI that stays down never stopping the run |
 | `tests/test_sec_retry.py` | The SEC client against a fake SEC: quick retries, blocks waited out (at most two a run), a caller with another source moving on at once, dropped downloads, what the command line prints |
 | `tests/test_health.py` | The source health file: its shape, the 24-hour window, when a source and a data need count as unreliable |
+| `tests/test_core_flows_check.py` | The core flows check on made-up files: a good map, each failure, the gap count both ways |
 
 Run one file or one test: `scripts\test.cmd tests\test_flows.py -k alphabet`.
+
+### Core flows
+
+[core-flows.md](core-flows.md) lists what a person relies on the app for, and for each flow the tests at three levels: unit (one module, no network), integration (real routes, DuckDB on `tests/minidata.py` or the ingest pipeline together, outside services played by stand-ins) and UI (a real browser driving the running app; none yet). The `data` tests skip on pull requests, so they are not named there. `scripts/check_core_flows.py`, the last step of the verify check, fails when a flow lacks a level without counting it as a gap (`—`), when a named test no longer exists, or when the gaps differ from `Gaps allowed`: close a gap and lower the count in the same change; it never goes up.
 
 ## Before a change is done
 
@@ -44,7 +49,7 @@ Run one file or one test: `scripts\test.cmd tests\test_flows.py -k alphabet`.
 scripts\verify.cmd
 ```
 
-or `scripts/verify.sh`. It runs `ruff format --check`, `ruff check`, `mypy` and the tests, in that order, and stops at the first failure. GitHub Actions runs the same script on every push to `main` and every pull request, so a change that passes here passes there. `ruff format src tests` fixes formatting; the lint rules and the complexity ceiling (25, to be lowered as functions are split) are in `pyproject.toml`.
+or `scripts/verify.sh`. It runs `ruff format --check`, `ruff check`, `mypy`, the licence check, the tests and the core flows check, in that order, and stops at the first failure. GitHub Actions runs the same script on every push to `main` and every pull request, so a change that passes here passes there. `ruff format src tests scripts` fixes formatting; the lint rules and the complexity ceiling (25, to be lowered as functions are split) are in `pyproject.toml`.
 
 ## Conventions
 

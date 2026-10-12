@@ -35,6 +35,7 @@ filterwarnings = ["ignore:Using .httpx. with .starlette.testclient. is deprecate
 # reports mutants no test noticed. Results go to mutants/, which is git-ignored.
 paths_to_mutate = ["src/thirteenf/"]
 tests_dir = ["tests/"]
+also_copy = ["scripts/"]  # tests/test_core_flows_check.py loads scripts/check_core_flows.py
 
 [tool.ruff]
 line-length = 120

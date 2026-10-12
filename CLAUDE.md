@@ -10,6 +10,7 @@ A personal app, run locally, that answers one question for every US-listed stock
 - `docs/build-plan.md`: the phases, in order, each with a check that proves it works.
 - `docs/13f-data.md`: the SEC data sets, how every number is computed, and the data checks.
 - `docs/sources.md`: the register of outside sources: for each data need the primary, the fallbacks in order, what "unreliable" means, where source health is recorded, and the candidates turned down. Update it when a source or fallback changes.
+- `docs/core-flows.md`: the core flows (what a person relies on the app for), each with the unit, integration and UI tests that prove it, and the count of gaps still open. `scripts/check_core_flows.py` checks it in `scripts/verify.sh`.
 - `docs/reference/13finfo-holdings.csv`: published numbers for 8 stocks, used as test fixtures.
 - `config/watchlist.csv`: an example starting watchlist (ticker, CUSIP, name); the user can change it in the app.
 - `.github/workflows/`: CI (verify, CodeQL, Claude Code Review, the monthly Claude Refactor and mutation testing); `docs/development.md` has the list. `.claude/skills/`: the `/verify` and `/refactor` skills.
@@ -35,6 +36,7 @@ A personal app, run locally, that answers one question for every US-listed stock
 ## Definition of done
 
 - `scripts/verify.sh` passes. Show its last lines in your summary.
+- Every core flow in `docs/core-flows.md` names at least one test at each level: unit (one module, no network), integration (several parts together through real routes, the database or the ingest pipeline, outside services played by stand-ins) and UI (a real browser driving the running app). A change to a core flow updates its tests at all three levels in the same change; a new feature adds its flow and all three tests before it's done. The verify check fails when a flow lacks a level, a named test no longer exists, or the gaps differ from `Gaps allowed`, which only ever goes down. All three levels run on every pull request; tests that need the real SEC download or another live service (the `data` tests) are kept separate and are not named there.
 - A change at a seam (a route, the build, tickers, a network call) comes with a test that runs without the SEC download; `tests/minidata.py` builds a small made-up data set for that.
 - Never loosen a test tolerance, a threshold in `docs/13f-data.md`, the complexity ceiling in `pyproject.toml` or a check without asking the user first. Record the reason with a date.
 
@@ -45,5 +47,5 @@ A personal app, run locally, that answers one question for every US-listed stock
 - `python -m thirteenf.tickers` maps new CUSIPs to tickers with OpenFIGI and caches them in DuckDB; `--retry-missing` asks again about the ones OpenFIGI did not know. A batch OpenFIGI refuses or fails goes at once to the SEC's fails-to-deliver data (zips kept in `data/raw/ftd/`), then to an exact issuer-name match (unverified); those tickers are provisional, and the next run asks OpenFIGI again (`docs/sources.md`). It reads a free OpenFIGI key from `openfigi_api_key` in `data/settings.toml` (git-ignored; an `OPENFIGI_API_KEY` environment variable overrides it); without a key the first run takes about 2.5 hours. `python -m thirteenf.ingest` runs it too when a key is set.
 - `python -m thirteenf.web` serves the app at http://127.0.0.1:8000. `--open` also opens it in the browser; `--reload` restarts it when the Python code changes.
 - `pytest` runs the tests, including the reference-number checks.
-- `scripts/verify.sh` (or `scripts\verify.cmd`) is the one check: ruff format, ruff lint, mypy, the dependency licence check (pip-licenses: free, open-source licences only), then the tests. CI runs the same script on every push to `main` and every pull request.
+- `scripts/verify.sh` (or `scripts\verify.cmd`) is the one check: ruff format, ruff lint, mypy, the dependency licence check (pip-licenses: free, open-source licences only), the tests, then the core flows check (`scripts/check_core_flows.py`). CI runs the same script on every push to `main` and every pull request.
 - `scripts/` wraps these for people running the app: `setup`, `update-data`, `start` and `test`, as `.cmd` for Windows and `.sh` for macOS and Linux. `README.md` has the table; `docs/` has the user and developer documentation.

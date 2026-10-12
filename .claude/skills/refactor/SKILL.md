@@ -2,7 +2,7 @@
 name: refactor
 description: Measure what makes this code hard to change (complexity, duplication, dead code, churn) and apply the few cleanups with the best payoff, with scripts/verify passing; also fixes drift in the scripts, docs references and workflows. Runs monthly in CI as a pull request; type /refactor to run it locally.
 disable-model-invocation: true
-allowed-tools: Read Glob Grep Edit MultiEdit Write Bash(scripts/verify.sh *) Bash(scripts/verify.cmd *) Bash(.venv/bin/* *) Bash(.venv/Scripts/* *) Bash(pipx run *) Bash(npx *) Bash(git *) Bash(gh pr *) Bash(wc *) Bash(sort *) Bash(uniq *) Bash(head *) Bash(tail *) Bash(xargs *)
+allowed-tools: Read Glob Grep Edit MultiEdit Write Bash(scripts/verify.sh *) Bash(scripts/verify.cmd *) Bash(.venv/bin/* *) Bash(.venv/Scripts/* *) Bash(pipx run *) Bash(npx *) Bash(git *) Bash(gh pr *) Bash(gh issue *) Bash(wc *) Bash(sort *) Bash(uniq *) Bash(head *) Bash(tail *) Bash(xargs *)
 ---
 
 # Refactor for cheaper changes
@@ -20,6 +20,8 @@ Use `.venv/bin/<tool>` on macOS and Linux, `.venv/Scripts/<tool>.exe` on Windows
 - Duplication: `npx --yes jscpd --min-tokens 70 --format python --reporters consoleFull src 2>&1 | tail -40`
 
 ## 2. Choose at most three cleanups
+
+Start from the backlog: `gh issue list --label debt --state open --json number,title,body`. Rank those with what you measured; a cleanup that resolves one says `Fixes #<n>` in its commit and pull request. Debt you measured but won't fix this month: file it as a `debt` issue (search the open ones first; body: Where, Cost of leaving it, Fix, Size).
 
 Rank by payoff divided by risk. Good candidates:
 - The same logic in two or three places → one helper, with the existing tests covering each caller.

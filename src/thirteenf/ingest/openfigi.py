@@ -15,8 +15,9 @@ OpenFIGI is the primary source for tickers (docs/sources.md). Requests are paced
 to its published limits and nothing else: a batch it refuses (429) or fails (a
 5xx, a failed connection), and a job it answers with an error, go at once to the
 fallback the caller passes (thirteenf.tickers: the SEC's fails-to-deliver data,
-then an issuer-name match), and the next batch asks OpenFIGI again. Fallback
-tickers are kept in `ticker_fallbacks` as provisional: those CUSIPs stay unanswered
+then an issuer-name match), and the next batch asks OpenFIGI again. The caller also
+gives the fails-to-deliver symbol to the CUSIPs this module stores as not found
+(decision #14). Fallback tickers are kept in `ticker_fallbacks` as provisional: those CUSIPs stay unanswered
 here, so later runs ask OpenFIGI again, and its answer, stored, replaces them.
 """
 

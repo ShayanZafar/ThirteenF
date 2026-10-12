@@ -21,7 +21,8 @@ filings, positions, holders,        the model
 changes, stock_periods, ...
         |  tickers.py: CUSIP -> ticker, cached; ingest/openfigi.py first, and for what
         |  OpenFIGI does not answer, ingest/ftd.py (the SEC's fails-to-deliver data,
-        |  data/raw/ftd/*.zip -> raw_ftd), then ingest/issuer_names.py
+        |  data/raw/ftd/*.zip -> raw_ftd), then ingest/issuer_names.py; for what
+        |  OpenFIGI does not know, ingest/ftd.py alone
         v
 openfigi, ticker_fallbacks, stocks
         |
@@ -82,7 +83,7 @@ Built by `model/build.py` in this order. Definitions are in [13f-data.md](13f-da
 | `fundamentals` | company (CIK) | Its last two fiscal years of operating cash flow, capital spending and free cash flow, share counts, and whether it is a bank, insurer or lender |
 | `stock_cash_flows` | stock | Its company's `fundamentals`, matched by ticker; rebuilt after a ticker run |
 | `openfigi` | CUSIP | OpenFIGI's answer, as returned |
-| `ticker_fallbacks` | CUSIP | A provisional ticker for a CUSIP OpenFIGI did not answer: its source (`sec-ftd` or `issuer-name`), date and details. OpenFIGI's later answer replaces it |
+| `ticker_fallbacks` | CUSIP | A provisional ticker for a CUSIP OpenFIGI did not answer, or (fails-to-deliver only) does not know: its source (`sec-ftd` or `issuer-name`), date and details. OpenFIGI's later answer replaces it |
 | `raw_ftd` | line of a fails-to-deliver file | The SEC's fails-to-deliver files as text, tagged with their zip |
 
 Nothing in the model is edited by hand: drop it and `python -m thirteenf.model` rebuilds it from the raw tables. `openfigi` and `ticker_fallbacks` are caches of answers from outside, not model tables; `python -m thirteenf.tickers` fills them.

@@ -4,6 +4,7 @@ Against a fake OpenFIGI, a fake SEC and made-up files (no network, no real waiti
 which source answers, what the cache records, what the stock page says, how a later
 OpenFIGI answer replaces a provisional ticker, and what the source health file says."""
 
+import json
 import sys
 from contextlib import nullcontext
 from datetime import date
@@ -12,7 +13,15 @@ import duckdb
 import httpx
 import minidata
 import pytest
-from conftest import QUIET, FakeFtdSec, ftd_zip_bytes, map_mini_tickers, openfigi_down, write_ftd_zip
+from conftest import (
+    QUIET,
+    REAL_OPENFIGI_CLIENT,
+    FakeFtdSec,
+    ftd_zip_bytes,
+    map_mini_tickers,
+    openfigi_down,
+    write_ftd_zip,
+)
 from fastapi.testclient import TestClient
 
 from thirteenf import health, tickers
@@ -186,6 +195,21 @@ def test_without_sec_user_agent_the_files_already_here_still_answer(db, tmp_path
     assert any("SEC_USER_AGENT is not set" in line for line in logged)
 
 
+def test_a_cusip_openfigi_does_not_know_takes_only_the_fails_to_deliver_symbol(db):
+    """Decision #14: for "not found" the SEC's fails-to-deliver symbol stands in, never the issuer-name match."""
+    name = "cnsfails202609a.zip"
+    fake = FakeFtdSec({name: ftd_zip_bytes(name, [("20260915", AAPL, "AAPL", "10", "APPLE INC", "1")])})
+    fallback = _chain(db, fake)
+    fallback.not_found([AAPL, NVDA])
+    assert _fallbacks(db) == {AAPL: ("AAPL", "sec-ftd", date(2026, 9, 15), None)}  # NVDA's name would match
+    assert fallback.unknown == {"asked": 2, "sec-ftd": 1}
+    assert fallback.counts == {"asked": 0, "sec-ftd": 0, "issuer-name": 0}
+    assert fallback.summary() == (
+        "  OpenFIGI does not know 2 CUSIPs. For now 1 takes its ticker from the SEC's fails-to-deliver data; "
+        "the next run asks OpenFIGI about it again."
+    )
+
+
 def test_a_later_fallback_answer_replaces_an_earlier_one(db):
     _chain(db, FakeFtdSec({}, refuse=lambda: httpx.Response(503)))([AAPL])
     assert _fallbacks(db)[AAPL][1] == "issuer-name"
@@ -251,6 +275,79 @@ def test_when_openfigi_is_down_the_chain_answers_and_the_page_says_where_from(mi
         assert dict(sources) == {"openfigi": len(minidata.SECURITIES)}
         assert con.execute("SELECT ticker FROM stocks WHERE cusip = ?", [AAPL]).fetchone()[0] == "T037"
     assert "<b>Ticker</b>" not in TestClient(app).get(f"/stock/{AAPL}").text
+
+
+def openfigi_knowing(monkeypatch, known: set[str], asked: list[str]) -> None:
+    """An OpenFIGI that knows only the CUSIPs in `known` (common stock ticked T + 3 digits) and
+    answers "not found" for every other job. Every identifier it is asked about goes to `asked`."""
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        out = []
+        for job in json.loads(request.content):
+            asked.append(job["idValue"])
+            if job["idType"] == "ID_CUSIP" and job["idValue"] in known:
+                listing = {"ticker": f"T{job['idValue'][:3]}", "exchCode": "US", "securityType": "Common Stock"}
+                out.append({"data": [listing]})
+            else:
+                out.append({"warning": "No identifier found."})
+        return httpx.Response(200, json=out)
+
+    monkeypatch.setattr(tickers, "openfigi_api_key", lambda: "test-key")
+    monkeypatch.setattr(
+        openfigi,
+        "OpenFigiClient",
+        lambda key: REAL_OPENFIGI_CLIENT(key, transport=httpx.MockTransport(answer), sleep=lambda _: None),
+    )
+
+
+def _stocks() -> dict:
+    with connect(read_only=True) as con:
+        rows = con.execute("SELECT cusip, ticker, ticker_source, ticker_as_of FROM stocks").fetchall()
+    return {r[0]: r[1:] for r in rows}
+
+
+def test_openfigis_not_found_takes_the_fails_to_deliver_symbol_until_openfigi_knows_it(mini_db, monkeypatch):
+    """Decision #14, end to end: OpenFIGI answers, but does not know AMZN and NVDA."""
+    with connect() as con:
+        con.execute("INSERT INTO raw_sec_tickers VALUES (1045810, 'NVDA', 'NVIDIA CORP')")
+    name = "cnsfails202409b.zip"
+    rows = [("20240920", AMZN, "AMZN", "50", "AMAZON COM INC", "190.00"), ("20240920", AAPL, "XAPL", "1", "APPLE", "1")]
+    fake = FakeFtdSec({name: ftd_zip_bytes(name, rows)})
+    known = set(minidata.SECURITIES) - {AMZN, NVDA}
+
+    def run() -> tuple[dict, list[str]]:
+        asked: list[str] = []
+        openfigi_knowing(monkeypatch, known, asked)
+        counts = tickers.update_tickers(log=QUIET, fallback=tickers.TickerFallback(connect, QUIET, fake.client))
+        return counts, asked
+
+    counts, _ = run()
+    assert counts["not_found"] == {"asked": 2, "sec-ftd": 1} and counts["fallback"]["asked"] == 0
+    stocks = _stocks()
+    assert stocks[AMZN] == ("AMZN", "sec-ftd", date(2024, 9, 20))  # provisional, and says where from
+    assert stocks[NVDA] == (None, None, None)  # neither knows it; the issuer-name match is not used for this
+    assert stocks[AAPL] == ("T037", "openfigi", None)  # a verified answer is never overwritten
+    page = TestClient(app).get(f"/stock/{AMZN}").text
+    assert (
+        '<span class="tf-stamp"><b>Ticker</b><i>·</i>From the SEC’s fails-to-deliver data<i>·</i>As of Sep 20, 2024</span>'
+        in page
+    )
+
+    # The next run asks OpenFIGI about AMZN again (not NVDA: nothing stands in for it). Still unknown, AMZN stays provisional.
+    counts, asked = run()
+    assert AMZN in asked and NVDA not in asked and AAPL not in asked
+    assert _stocks()[AMZN] == ("AMZN", "sec-ftd", date(2024, 9, 20))
+
+    # Once OpenFIGI knows it, its answer replaces the provisional ticker.
+    known.add(AMZN)
+    counts, asked = run()
+    assert AMZN in asked and counts["not_found"] == {"asked": 1, "sec-ftd": 0}
+    stocks = _stocks()
+    assert stocks[AMZN] == ("T023", "openfigi", None)
+    assert stocks[NVDA] == (None, None, None) and stocks[AAPL] == ("T037", "openfigi", None)
+    with connect(read_only=True) as con:
+        assert con.execute("SELECT count(*) FROM ticker_fallbacks").fetchone()[0] == 0
+    assert "<b>Ticker</b>" not in TestClient(app).get(f"/stock/{AMZN}").text
 
 
 def test_tickers_count_as_unreliable_once_openfigi_and_its_fallback_both_are(mini_db, monkeypatch, capsys):

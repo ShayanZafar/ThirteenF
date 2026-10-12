@@ -36,7 +36,7 @@ Press Ctrl+C in the app's window to stop it. Every script also runs from a termi
 | `scripts\test.cmd` / `scripts/test.sh` | `python -m pytest` | Runs the tests |
 | `scripts\verify.cmd` / `scripts/verify.sh` | | Checks formatting, lint and types, then runs the tests; CI runs the same |
 | | `python -m thirteenf.model` | Rebuilds the model tables from the loaded data (a few minutes) |
-| | `python -m thirteenf.tickers` | Maps new CUSIPs to tickers with OpenFIGI, or, where it cannot answer, the SEC's fails-to-deliver data and the issuer's name until the next run |
+| | `python -m thirteenf.tickers` | Maps new CUSIPs to tickers with OpenFIGI, or, where it cannot answer, the SEC's fails-to-deliver data and the issuer's name until the next run (for a CUSIP OpenFIGI does not know, the fails-to-deliver data alone) |
 
 `start` and `update-data` run `setup` for you when `.venv` is missing. The `.command` files run the matching `.sh` from Finder on macOS, and `scripts\keep-window.cmd` keeps a double-clicked window open to read the result. Scripts pass options through: `scripts\start.cmd --port 8001`, `scripts\update-data.cmd --no-download`, `scripts\test.cmd -k tickers`.
 

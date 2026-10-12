@@ -5,3 +5,5 @@ Choices the owner made, or that took their default after 7 days without an answe
 Decisions made before Oct 12, 2026 are recorded inline in CLAUDE.md with their dates.
 
 <!-- Format: - YYYY-MM-DD — <decision>. Why: <reason>. (#n) -->
+
+- 2026-10-12 — A CUSIP OpenFIGI answers "not found" for takes the SEC's fails-to-deliver symbol (never the issuer-name match), marked provisional and from that source, and OpenFIGI is asked about it again on the next run (option B). Why: the fails-to-deliver files carry symbols for about 20,500 CUSIPs, so many stocks OpenFIGI misses get a ticker, and each says where it came from. (#14)

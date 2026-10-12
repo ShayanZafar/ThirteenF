@@ -15,10 +15,12 @@ import pytest
 from conftest import QUIET, FakeFtdSec, ftd_zip_bytes, map_mini_tickers, openfigi_down, write_ftd_zip
 from fastapi.testclient import TestClient
 
-from thirteenf import health, tickers
+from thirteenf import config, health, tickers
 from thirteenf.db import connect
 from thirteenf.ingest import ftd, issuer_names, openfigi, xbrl
-from thirteenf.web.app import app
+from thirteenf.web import format as fmt
+from thirteenf.web import watchlist
+from thirteenf.web.app import app, templates
 
 AAPL, MSFT, NVDA, AMZN, QQQ = "037833100", "594918104", "67066G104", "023135106", minidata.QQQ
 GOOGL, GOOG = "02079K305", "02079K107"
@@ -195,6 +197,46 @@ def test_a_later_fallback_answer_replaces_an_earlier_one(db):
     assert _fallbacks(db) == {AAPL: ("AAPL", "sec-ftd", date(2026, 9, 15), None)}
 
 
+# --- The mark a fallback ticker carries ---------------------------------------
+
+
+def test_a_fallback_ticker_says_which_fallback_it_came_from():
+    ftd_mark = fmt.ticker_fallback("sec-ftd", date(2024, 9, 20))
+    assert ftd_mark is not None
+    assert (ftd_mark.mark, ftd_mark.source) == ("FTD", "From the SEC’s fails-to-deliver data")
+    assert ftd_mark.note == "Ticker from the SEC’s fails-to-deliver data, as of Sep 20, 2024"
+    undated = fmt.ticker_fallback("sec-ftd")
+    assert undated is not None and undated.note == "Ticker from the SEC’s fails-to-deliver data"
+    name_mark = fmt.ticker_fallback("issuer-name")
+    assert name_mark is not None
+    assert (name_mark.mark, name_mark.note) == ("Unverified", "Ticker matched by issuer name, unverified")
+    assert fmt.ticker_fallback("openfigi") is None and fmt.ticker_fallback(None) is None
+
+
+def mark(short: str, note: str) -> str:
+    return (
+        f'<span class="tf-tag tf-tag--hold" title="{note}"><span aria-hidden="true">{short}</span>'
+        f'<span class="sr-only">{note}</span></span>'
+    )
+
+
+FTD_SEP_4 = mark("FTD", "Ticker from the SEC’s fails-to-deliver data, as of Sep 4, 2024")
+FTD_SEP_20 = mark("FTD", "Ticker from the SEC’s fails-to-deliver data, as of Sep 20, 2024")
+BY_NAME = mark("Unverified", "Ticker matched by issuer name, unverified")
+
+
+def test_the_ticker_macro_marks_only_a_fallback_ticker():
+    template = templates.env.from_string('{% import "_macros.html" as m %}{{ m.ticker(*args) }}')
+
+    def ticker(*args) -> str:
+        return template.render(args=args)
+
+    assert (ticker("NVDA", "issuer-name")) == f'<span class="tf-ticker">NVDA</span> {BY_NAME}'
+    assert (ticker("AAPL", "sec-ftd", date(2024, 9, 20))) == f'<span class="tf-ticker">AAPL</span> {FTD_SEP_20}'
+    assert (ticker("T037", "openfigi")) == '<span class="tf-ticker">T037</span>'
+    assert (ticker("", "sec-ftd")) == ""
+
+
 # --- The whole ticker step, on the made-up data -------------------------------
 
 FTD_FILES = {
@@ -289,3 +331,37 @@ def test_a_database_built_before_ticker_sources_still_shows_its_stocks(mini_db):
         con.execute("ALTER TABLE stocks DROP COLUMN ticker_as_of")
     response = TestClient(app).get(f"/stock/{AAPL}")
     assert response.status_code == 200 and "<b>Ticker</b>" not in response.text
+
+
+def test_the_list_pages_mark_a_fallback_ticker_and_not_an_openfigi_one(mini_db, monkeypatch, tmp_path):
+    """Biggest changes and the watchlist mark a ticker from the fails-to-deliver data or an
+    issuer-name match, with its source in the tooltip; once OpenFIGI answers, the marks go."""
+    monkeypatch.setattr(config, "WATCHLIST_PATH", tmp_path / "watchlist.csv")
+    watchlist.save([watchlist.Entry(cusip=c) for c in (AAPL, NVDA, AMZN)])
+    with connect() as con:
+        con.execute("INSERT INTO raw_sec_tickers VALUES (1045810, 'NVDA', 'NVIDIA CORP')")
+    openfigi_down(monkeypatch, [])
+    tickers.update_tickers(log=QUIET, fallback=tickers.TickerFallback(connect, QUIET, _sec_with_ftd().client))
+
+    client = TestClient(app)
+    changes = client.get("/changes").text  # Microsoft gained funds, Nvidia lost them
+    assert f'<span class="tf-ticker">MSFT</span> {FTD_SEP_4} <a href="/stock/{MSFT}">' in changes
+    assert f'<span class="tf-ticker">NVDA</span> {BY_NAME} <a href="/stock/{NVDA}">' in changes
+    overview = client.get("/").text
+    assert f'<span class="tf-ticker">AAPL</span> {FTD_SEP_20} <a href="/stock/{AAPL}">' in overview
+    assert f'<span class="tf-ticker">NVDA</span> {BY_NAME} <a href="/stock/{NVDA}">' in overview
+
+    map_mini_tickers(monkeypatch)  # OpenFIGI answers: verified tickers carry no mark
+    for page in (client.get("/changes").text, client.get("/").text):
+        assert '<span class="tf-ticker">T670</span> <a href=' in page
+        assert 'title="Ticker ' not in page and "tf-tag--hold" not in page
+
+
+def test_a_ticker_written_into_the_watchlist_carries_no_mark(mini_db, monkeypatch, tmp_path):
+    """A ticker you typed into the watchlist is yours, not a fallback's."""
+    monkeypatch.setattr(config, "WATCHLIST_PATH", tmp_path / "watchlist.csv")
+    watchlist.save([watchlist.Entry(cusip=AAPL, ticker="APPL")])
+    openfigi_down(monkeypatch, [])
+    tickers.update_tickers(log=QUIET, fallback=tickers.TickerFallback(connect, QUIET, _sec_with_ftd().client))
+    overview = TestClient(app).get("/").text
+    assert '<span class="tf-ticker">APPL</span> <a href=' in overview and 'title="Ticker ' not in overview

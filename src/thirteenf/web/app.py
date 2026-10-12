@@ -340,6 +340,8 @@ class WatchRow:
     long_change: float | None
     left_out_total: int
     left_out_top: dict | None
+    ticker_source: str | None = None  # where the ticker shown came from; None for one you wrote yourself
+    ticker_as_of: date | None = None
 
 
 def _back(url: str) -> str:
@@ -373,10 +375,12 @@ def overview(request: Request):
             latest, first = series[-1], series[0]
             top, total = data.left_out_rows(con, sec.cusip, latest.period, limit=1) if latest.held else ([], 0)
             funds_by_period = {r.period: r.funds for r in series}
+            shown = entry.ticker or sec.ticker
+            ours = shown == sec.ticker  # the stock's own ticker, not one written into the watchlist
             rows.append(
                 WatchRow(
                     cusip=sec.cusip,
-                    ticker=entry.ticker or sec.ticker,
+                    ticker=shown,
                     name=entry.name or sec.name,
                     latest=latest,
                     spark=Markup(charts.sparkline([funds_by_period.get(p.period) for p in periods])),
@@ -384,6 +388,8 @@ def overview(request: Request):
                     long_change=(latest.funds / first.funds - 1) if first is not latest and first.funds else None,
                     left_out_total=total,
                     left_out_top=top[0] if top else None,
+                    ticker_source=sec.ticker_source if ours else None,
+                    ticker_as_of=sec.ticker_as_of if ours else None,
                 )
             )
     rows.sort(key=lambda r: (r.latest.vs_median_pts is None, -(r.latest.vs_median_pts or 0)))

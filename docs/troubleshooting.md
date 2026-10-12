@@ -39,7 +39,7 @@ Tickers need the OpenFIGI step: put your key in `data/settings.toml` and run `py
 **"OpenFIGI did not answer: HTTP 429. Its CUSIPs go to the next source"** (the ticker step)
 OpenFIGI refused or failed a request, so its CUSIPs got their tickers from the SEC's fails-to-deliver data, or else from an exact match of the issuer's name, and the run carried on at full speed. Nothing to do: those tickers are provisional, and the next run asks OpenFIGI about them again. The line at the end of the step says how many came from each.
 
-**A stock's page says "Ticker · From the SEC's fails-to-deliver data" or "Matched by issuer name, unverified"**
+**A stock's page says "Ticker · From the SEC's fails-to-deliver data" or "Matched by issuer name, unverified", or a list shows "FTD" or "Unverified" beside a ticker**
 OpenFIGI could not answer for that stock on the last ticker run, so its ticker came from a fallback ([sources.md](sources.md)). A ticker matched by issuer name is unverified: check it against the company's filings, and note that it never brings a company's cash flow to the Accumulate list. Run `python -m thirteenf.tickers` again; OpenFIGI's answer replaces it.
 
 **"cnsfails….zip: not loaded (...)"** (the ticker step)

@@ -1,6 +1,6 @@
 # Core flows
 
-This file lists what a person relies on ThirteenF for and names, for each flow, the tests at each level the [definition of done](../CLAUDE.md#definition-of-done) asks for: unit (one module, no network), integration (real routes, DuckDB or the ingest pipeline together, outside services played by stand-ins) and UI (a real browser driving the running app), with `—` for a gap. `scripts/verify.sh` checks it with `scripts/check_core_flows.py`, failing when a flow lacks a level, a named test no longer exists, or the gaps differ from the count below, which only ever goes down.
+This file lists what a person relies on ThirteenF for and names, for each flow, the tests at each level the [definition of done](../CLAUDE.md#definition-of-done) asks for: unit (one module, no network), integration (real routes, DuckDB or the ingest pipeline together, outside services played by stand-ins) and UI (a real browser driving the running app), with `—` for a gap. `scripts/verify.sh` checks it with `scripts/check_core_flows.py`, failing when a flow lacks a level, a named test no longer exists, or the gaps differ from the count below, which only ever goes down. All three levels run on every pull request: tests that need the real SEC download or another live service (the `data` tests) are kept separate and are not named here.
 
 Gaps allowed: 14
 

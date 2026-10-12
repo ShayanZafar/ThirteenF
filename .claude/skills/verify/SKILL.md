@@ -11,7 +11,7 @@ Run the project's check script from the repo root, showing only the end of the o
 - Windows: `scripts/verify.cmd 2>&1 | tail -40`
 - macOS/Linux: `scripts/verify.sh 2>&1 | tail -40`
 
-It runs ruff format --check, ruff check, mypy, pip-licenses (every dependency must carry a free, open-source licence; a failure names the package and its licence, which means replacing the package, not widening the allow-list), then pytest, and stops at the first step that fails. Tests marked `data` skip when `data/thirteenf.duckdb` is missing; that's expected. CI runs the same script on every push to main and every pull request.
+It runs ruff format --check, ruff check, mypy, pip-licenses (every dependency must carry a free, open-source licence; a failure names the package and its licence, which means replacing the package, not widening the allow-list), pytest, the core flows check (`scripts/check_core_flows.py`), then the Claude files check (`scripts/check_claude_files.py`: CLAUDE.md at most 600 words, each `.claude/rules/` file scoped to tracked files and at most 500), and stops at the first step that fails. Tests marked `data` skip when `data/thirteenf.duckdb` is missing; that's expected. CI runs the same script on every push to main and every pull request.
 
 Report which step failed and, for each failure, the file, line and message (for tests: the test name and the assertion line). Don't paste the full log. For a formatting failure in files you changed, run `.venv/Scripts/ruff.exe format src tests` (or `.venv/bin/ruff`) and re-check.
 

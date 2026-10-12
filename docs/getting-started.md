@@ -64,7 +64,7 @@ The first run:
 2. Loads each zip into DuckDB exactly as filed, checking every table's row count against its file.
 3. Builds the model: one current filing per manager, positions, funds holding, changes, net 13F flow, and the data checks.
 4. Downloads the companies' cash flow data from the SEC (about 60 files), for the Accumulate page.
-5. Maps CUSIPs to tickers, if you added an OpenFIGI key. The Accumulate page needs tickers to match companies to their stocks. Where OpenFIGI cannot answer, the SEC's fails-to-deliver data and the issuer's name stand in until the next run ([sources.md](sources.md)).
+5. Maps CUSIPs to tickers, if you added an OpenFIGI key. The Accumulate page needs tickers to match companies to their stocks. Where OpenFIGI cannot answer, the SEC's fails-to-deliver data and the issuer's name stand in until the next run; for a CUSIP OpenFIGI does not know, the fails-to-deliver data alone ([sources.md](sources.md)).
 
 Allow about 15 minutes. Later runs skip zips already downloaded and loaded.
 
@@ -86,7 +86,7 @@ Run `update-data` after each window is published. It downloads only the new zip,
 | --- | --- |
 | `data/raw/` | The SEC's zips, never edited |
 | `data/raw/xbrl/` | The SEC's company cash flow data (XBRL frames) and ticker list, as downloaded |
-| `data/raw/ftd/` | The SEC's fails-to-deliver files, downloaded only when OpenFIGI could not answer for some CUSIPs, and kept as downloaded |
+| `data/raw/ftd/` | The SEC's fails-to-deliver files, downloaded only when OpenFIGI could not answer for some CUSIPs or does not know them, and kept as downloaded |
 | `data/thirteenf.duckdb` | The database: the raw tables as loaded, and the model built from them |
 | `data/settings.toml` | Your settings, such as the OpenFIGI key |
 | `data/source-health.json` | How the SEC and OpenFIGI answered over the last 24 hours, rewritten after every request (the requests themselves are in `data/source-health-events.json`); [sources.md](sources.md) explains it |

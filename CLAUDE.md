@@ -14,7 +14,7 @@ A personal app, run locally, that answers one question for every US-listed stock
 - `docs/core-flows.md`: the core flows (what a person relies on the app for), each with the unit, integration and UI tests that prove it, and the count of gaps still open. `scripts/check_core_flows.py` checks it in `scripts/verify.sh`.
 - `docs/reference/13finfo-holdings.csv`: published numbers for 8 stocks, used as test fixtures.
 - `config/watchlist.csv`: an example starting watchlist (ticker, CUSIP, name); the user can change it in the app.
-- `.github/workflows/`: CI (verify, CodeQL, Claude Code Review, the monthly Claude Refactor and mutation testing); `docs/development.md` has the list. `.claude/skills/`: the `/verify` and `/refactor` skills.
+- `.github/workflows/`: CI (verify, CodeQL, Claude Code Review, the monthly Claude Refactor and mutation testing); `docs/development.md` has the list. `.claude/skills/`: the `/verify`, `/refactor` and `backlog` skills (`backlog` files, triages and works the `debt` and `decision` issues).
 
 ## Stack
 

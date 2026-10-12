@@ -42,7 +42,7 @@ OpenFIGI refused or failed a request, so its CUSIPs got their tickers from the S
 **"OpenFIGI does not know N CUSIPs. For now M take their ticker from the SEC's fails-to-deliver data"** (the ticker step)
 OpenFIGI looked these CUSIPs up and found nothing, so those the SEC's fails-to-deliver data has a symbol for take it, marked as from that source. Nothing to do: the next run asks OpenFIGI about them again, and its answer replaces the symbol once it knows them.
 
-**A stock's page says "Ticker · From the SEC's fails-to-deliver data" or "Matched by issuer name, unverified"**
+**A stock's page says "Ticker · From the SEC's fails-to-deliver data" or "Matched by issuer name, unverified", or a list shows "FTD" or "Unverified" beside a ticker**
 OpenFIGI could not answer for that stock on the last ticker run, or does not know it, so its ticker came from a fallback ([sources.md](sources.md)). A stock OpenFIGI does not know only ever takes the fails-to-deliver symbol. A ticker matched by issuer name is unverified: check it against the company's filings, and note that it never brings a company's cash flow to the Accumulate list. Run `python -m thirteenf.tickers` again; OpenFIGI's answer replaces it.
 
 **"cnsfails….zip: not loaded (...)"** (the ticker step)

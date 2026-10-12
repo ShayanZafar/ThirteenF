@@ -98,13 +98,14 @@ class Security:
     ticker_as_of: date | None = None  # sec-ftd: the settlement date the symbol was reported on
 
 
-def _ticker_source_columns(con) -> str:
-    """The stock's ticker source and date, or NULLs in a database built before tickers had fallbacks."""
+def _ticker_source_columns(con, alias: str = "st") -> str:
+    """The stock's ticker source and date (from the stocks table as `alias`), or NULLs
+    in a database built before tickers had fallbacks."""
     present = scalar(
         con,
         "SELECT count(*) FROM information_schema.columns WHERE table_name = 'stocks' AND column_name = 'ticker_source'",
     )
-    return "st.ticker_source, st.ticker_as_of" if present else "NULL AS ticker_source, NULL AS ticker_as_of"
+    return f"{alias}.ticker_source, {alias}.ticker_as_of" if present else "NULL AS ticker_source, NULL AS ticker_as_of"
 
 
 def security(con, cusip: str) -> Security | None:
@@ -502,6 +503,7 @@ def ranked_changes(con, period: date, minimum: int, by: str, limit: int, most: s
         con,
         f"""
         SELECT sp.cusip, s.name_filed, s.name_mixed, s.title_of_class, s.ticker, s.security_type, s.kind,
+               {_ticker_source_columns(con, "s")},
                sp.funds_holding AS funds, sp.funds_prev, sp.funds_change, sp.funds_pct,
                sp.filers_pct, sp.vs_tide_pts, sp.market_median_pct, sp.vs_median_pts,
                sp.shares, sp.shares_prev, sp.shares_pct, sp.share_check, sp.streak, sp.direction
@@ -943,6 +945,7 @@ def accumulate(
         f"""
         SELECT * FROM (
             SELECT sp.cusip, s.name_filed, s.name_mixed, s.title_of_class, s.ticker,
+                   {_ticker_source_columns(con, "s")},
                    sp.funds_holding AS funds, sp.funds_prev, sp.funds_pct, sp.filers_pct, sp.vs_tide_pts,
                    sp.streak, sp.direction, sp.net_flow, sp.price_pct, sp.median_price,
                    cf.free_cash_flow, cf.prior_free_cash_flow, cf.lower_free_cash_flow,

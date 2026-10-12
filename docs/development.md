@@ -28,7 +28,7 @@ or `.venv\Scripts\python -m pytest`. About 230 tests, two kinds:
 | `tests/test_overview.py` | The overview and the watchlist (on a temporary watchlist file) |
 | `tests/test_openfigi.py`, `tests/test_tickers.py` | Ticker mapping and search; a batch OpenFIGI refuses or fails going down the chain with no waiting, and OpenFIGI's later answer replacing a provisional ticker |
 | `tests/test_ftd.py` | The SEC's fails-to-deliver files: links ordered by the date in their names, the newest 13 months, only missing files downloaded, loading as text with the header and trailer checks, the newest symbol winning, a refusing SEC left at once |
-| `tests/test_ticker_fallbacks.py` | The issuer-name match, the chain after OpenFIGI, the fails-to-deliver symbol for a CUSIP OpenFIGI does not know, the stock page saying where a fallback's ticker came from, and when tickers count as unreliable |
+| `tests/test_ticker_fallbacks.py` | The issuer-name match, the chain after OpenFIGI, the fails-to-deliver symbol for a CUSIP OpenFIGI does not know, the stock page and the list pages saying where a fallback's ticker came from, and when tickers count as unreliable |
 | `tests/test_flows.py` | Net 13F flow, who moved, the typical stock, manager pages |
 | `tests/test_signed.py` | Every signed number painted by its sign, on every page |
 | `tests/test_periods.py`, `tests/test_config.py` | Deadlines and settings |

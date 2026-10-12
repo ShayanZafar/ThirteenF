@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_macros.html" as m %}
 {% block title %}Accumulate list, {{ selected.label }} · ThirteenF{% endblock %}
 {% block main %}
 <section class="app-section app-section--tight">
@@ -37,7 +38,7 @@
 {% for r in rows %}
 <tr>
 <td class="tf-r tf-muted">{{ loop.index }}</td>
-<td class="app-td-wrap"><div class="app-cell"><span>{% if r.ticker %}<span class="tf-ticker">{{ r.ticker }}</span> {% endif %}<a href="/stock/{{ r.cusip }}">{{ r.name }}</a></span><span class="app-cell__sub"><span class="type-id">{{ r.cusip }}</span>{% if r.title_of_class %} · {{ r.title_of_class }}{% endif %}</span></div></td>
+<td class="app-td-wrap"><div class="app-cell"><span>{% if r.ticker %}{{ m.ticker(r.ticker, r.ticker_source, r.ticker_as_of) }} {% endif %}<a href="/stock/{{ r.cusip }}">{{ r.name }}</a></span><span class="app-cell__sub"><span class="type-id">{{ r.cusip }}</span>{% if r.title_of_class %} · {{ r.title_of_class }}{% endif %}</span></div></td>
 <td><div class="app-cell">{% if by == "yield" %}<span class="app-bar"><span class="app-bar__track"><span class="app-bar__fill" style="width: {{ r.bar }}%"></span></span><span class="tf-num app-strong">{{ fmt.pct(r.fcf_yield, signed=False) }}</span></span>{% else %}<span class="tf-num">{{ fmt.pct(r.fcf_yield, signed=False) }}</span>{% endif %}</div></td>
 <td class="tf-r"><div class="app-cell"><span class="tf-num">{{ fmt.money(r.lower_free_cash_flow) }}</span><span class="app-cell__sub tf-num">Lower of 2 years to {{ fmt.short_day(r.fiscal_end) }}</span></div></td>
 <td class="tf-r"><div class="app-cell"><span class="tf-num">{{ fmt.money(r.market_value) }}</span><span class="app-cell__sub tf-num">At {{ fmt.price(r.median_price) }}</span></div></td>

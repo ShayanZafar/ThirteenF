@@ -1,4 +1,4 @@
-{# Shared pieces of the design system's Holder table, Conviction meter and Flow bar. #}
+{# Shared pieces of the design system's Holder table, Conviction meter and Flow bar, and the ticker with its fallback mark. #}
 
 {% macro tag(action) -%}
 {%- if action == "new" -%}<span class="tf-tag tf-tag--new">New</span>
@@ -9,6 +9,10 @@
 {%- elif action == "check" -%}<span class="tf-tag tf-tag--hold">Check</span>
 {%- else -%}<span class="tf-tag tf-tag--hold">Hold</span>
 {%- endif -%}
+{%- endmacro %}
+
+{% macro ticker(text, source=none, as_of=none) -%}
+{%- if text -%}<span class="tf-ticker">{{ text }}</span>{% set fallback = fmt.ticker_fallback(source, as_of) %}{% if fallback %} <span class="tf-tag tf-tag--hold" title="{{ fallback.note }}"><span aria-hidden="true">{{ fallback.mark }}</span><span class="sr-only">{{ fallback.note }}</span></span>{% endif %}{%- endif -%}
 {%- endmacro %}
 
 {% macro mini_meter(now, before, action) -%}

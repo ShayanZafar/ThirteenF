@@ -23,11 +23,10 @@ paths:
 
 ## The SEC client (`ingest/sec.py`)
 
-- Stay under 10 requests per second: every SEC request goes through `SecClient`, which paces them 0.11 s apart.
+- `SecClient` keeps under 10 requests per second by pacing every request 0.11 s apart.
 - `SecClient` already waits only where nothing else can answer: for the 13F data sets and the XBRL frames, a failed connection or a 5xx is asked again after about 1, 2 and 4 seconds (four attempts in all), and an SEC block (a 429, or the 403 "Request Rate Threshold" page) is waited out for as long as `Retry-After` says, else 10 minutes, as many times as it comes (decision #13, Oct 12, 2026).
 - The 403 "Undeclared Automated Tool" page means `SEC_USER_AGENT` is wrong, so waiting won't help: it stops at once with a `RuntimeError` saying to set it correctly.
 - A caller with another source for the same data passes `has_fallback=True`: a block or a failure then raises `SecUnavailable` (`SecBlocked` for a block) at once and the caller moves on.
-- Callers never add their own retries or waits.
 - Every answer is recorded in `data/source-health.json` (`thirteenf.health`).
 
 ## Tickers (`tickers.py`, `ingest/openfigi.py`, `ingest/ftd.py`, `ingest/issuer_names.py`)

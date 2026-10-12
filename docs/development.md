@@ -77,6 +77,7 @@ The workflows are in `.github/workflows/`. The two that use Claude run on the `C
 | `codeql.yml` | Pushes and pull requests to `main`, and weekly | CodeQL's Python security and quality queries; findings appear under Security > Code scanning |
 | `claude-code-review.yml` | A pull request opened, reopened or marked ready | Claude reviews it once and posts inline comments. Drafts, forks and Dependabot's pull requests are skipped |
 | `claude-refactor.yml` | The 1st of each month, or from the Actions tab | Claude runs the `/refactor` skill and opens a pull request with at most three behavior-preserving cleanups |
+| `claude-backlog.yml` | When you comment on a `decision` or `debt` issue, or from the Actions tab | Claude records your answer in `docs/decisions.md`, does the work it calls for and opens a pull request (the `backlog` skill) |
 | `mutation.yml` | The 1st of each month, or from the Actions tab | Mutation testing with mutmut (Linux only): lists the mutants no test noticed, in the job summary and the `mutmut-results` artifact. It never fails the build |
 
 Dependabot (`.github/dependabot.yml`) opens monthly pull requests for the Python dependencies and the GitHub Actions versions.

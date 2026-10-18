@@ -1,6 +1,9 @@
 import csv
 import io
 import json
+import socket
+import threading
+import time
 import zipfile
 from datetime import date
 from pathlib import Path
@@ -9,6 +12,7 @@ import duckdb
 import httpx
 import minidata
 import pytest
+import uvicorn
 
 import thirteenf.db
 import thirteenf.tickers
@@ -19,6 +23,7 @@ from thirteenf.ingest import ftd, load, openfigi
 from thirteenf.ingest.sec import SecClient
 from thirteenf.model import build
 from thirteenf.model.periods import quarter_end
+from thirteenf.web.app import app
 
 QUIET = lambda *_: None
 
@@ -91,6 +96,13 @@ def source_health(tmp_path, monkeypatch):
     """Every test records how sources answer in a folder of its own, never in data/."""
     monkeypatch.setattr(health, "HEALTH_PATH", tmp_path / "source-health.json")
     monkeypatch.setattr(health, "EVENTS_PATH", tmp_path / "source-health-events.json")
+
+
+@pytest.fixture(autouse=True)
+def own_watchlist_file(tmp_path, monkeypatch):
+    """Every test reads and writes a watchlist of its own, started from the example list,
+    never yours in data/ (a test can point it elsewhere)."""
+    monkeypatch.setattr("thirteenf.config.WATCHLIST_PATH", tmp_path / "watchlist.csv")
 
 
 @pytest.fixture(scope="session")
@@ -180,3 +192,55 @@ def openfigi_down(monkeypatch, slept: list[float], refusal: str = "dropped") -> 
         "OpenFigiClient",
         lambda key: REAL_OPENFIGI_CLIENT(key, transport=httpx.MockTransport(down), sleep=slept.append),
     )
+
+
+# --- The browser tests (marked ui) ------------------------------------------------
+
+
+@pytest.fixture(scope="session")
+def app_url():
+    """The app served over HTTP on a free port, in a thread of the test process, for the
+    browser tests. It reads the database and watchlist each test sets up (mini_db and the
+    monkeypatched paths), since those are module globals the server looks up per request."""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.bind(("127.0.0.1", 0))
+    port = sock.getsockname()[1]
+    server = uvicorn.Server(uvicorn.Config(app, log_level="warning", lifespan="off"))
+    thread = threading.Thread(target=server.run, kwargs={"sockets": [sock]}, daemon=True)
+    thread.start()
+    deadline = time.monotonic() + 10
+    while not server.started:  # the test's own wait for its server, never the app's
+        if not thread.is_alive() or time.monotonic() > deadline:
+            raise RuntimeError("The app did not start for the browser tests")
+        time.sleep(0.01)
+    yield f"http://127.0.0.1:{port}"
+    server.should_exit = True
+    thread.join(timeout=10)
+    sock.close()
+
+
+@pytest.fixture(scope="session")
+def browser():
+    """Headless Chromium, through Playwright, for the whole run."""
+    from playwright.sync_api import Error, sync_playwright
+
+    with sync_playwright() as playwright:
+        try:
+            chromium = playwright.chromium.launch()
+        except Error as err:
+            raise RuntimeError(
+                "The browser tests need Chromium: run .venv/bin/python -m playwright install chromium "
+                "(.venv\\Scripts\\python -m playwright install chromium on Windows)"
+            ) from err
+        yield chromium
+        chromium.close()
+
+
+@pytest.fixture
+def page(browser, app_url):
+    """A fresh browser tab on the running app: page.goto("/changes") opens that page."""
+    context = browser.new_context(base_url=app_url, accept_downloads=True)
+    tab = context.new_page()
+    tab.set_default_timeout(10_000)
+    yield tab
+    context.close()

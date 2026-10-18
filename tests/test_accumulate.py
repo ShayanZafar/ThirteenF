@@ -1,5 +1,6 @@
 """The accumulate list: company cash flow from the SEC's XBRL frames, met with the
-13F flows. Runs on the made-up data set, with made-up frames, so it never skips."""
+13F flows. Runs on rows written by hand, on the made-up data set with made-up frames,
+and in a browser, so it never skips."""
 
 import json
 import re
@@ -8,10 +9,13 @@ from datetime import date
 import pytest
 from conftest import QUIET, FakeFtdSec, ftd_zip_bytes, map_mini_tickers, openfigi_down
 from fastapi.testclient import TestClient
+from model_rows import PERIOD, cash_flow, model, stock, stock_period
+from playwright.sync_api import Page, expect
 
 from thirteenf.db import connect
 from thirteenf.ingest import ftd, xbrl
 from thirteenf.tickers import TickerFallback, update_tickers
+from thirteenf.web import data
 from thirteenf.web.app import app
 
 AAPL, MSFT, NVDA, AMZN = "037833100", "594918104", "67066G104", "023135106"
@@ -24,6 +28,95 @@ COMPANIES = {
     789019: ("T594", 30e9, "PaymentsToAcquirePropertyPlantAndEquipment", 6e9, 1e9),
     1018724: ("T023", 20e9, "PaymentsToAcquireProductiveAssets", 5.6e9, 1e9),
 }
+
+
+# --- The list's rules, on rows written by hand (docs/13f-data.md, "The list") ---------------
+
+
+def _period(month_end: date, prev: date | None, deadline: date, data_through: date) -> data.Period:
+    label = f"Q{(month_end.month - 1) // 3 + 1} {month_end.year}"
+    return data.Period(month_end, label, prev, deadline, False, data_through, 160, 0.0)
+
+
+def test_the_list_opens_on_the_latest_period_whose_on_time_filings_are_all_in():
+    q2, q3, q4 = date(2024, 6, 30), date(2024, 9, 30), date(2024, 12, 31)
+    periods = [
+        _period(q2, None, date(2024, 8, 14), date(2024, 11, 30)),
+        _period(q3, q2, date(2024, 11, 14), date(2024, 11, 30)),
+        _period(q4, q3, date(2025, 2, 14), date(2024, 11, 30)),  # its deadline is still ahead
+    ]
+    assert data.accumulate_period(periods).period == q3
+    # Before any period with one before it is complete, the latest such period.
+    early = [periods[0], _period(q3, q2, date(2024, 11, 14), date(2024, 10, 31))]
+    assert data.accumulate_period(early).period == q3
+
+
+# The stock that meets every rule: 150 funds from 140 (+7.1%) while all filers grew 2%, for
+# the second period running, money flowing in, and free cash flow of $6B and $7B on a market
+# value of $100 x 1B shares: a 6% yield on the lower year.
+MEETS = "M00000001"
+LEFT_OUT = {
+    "S00000001": ({"streak": 1}, {}),  # more funds for one period only
+    "T00000001": ({"funds": 141}, {}),  # more funds, but fewer than the tide brought
+    "N00000001": ({"net_flow": -1e6}, {}),  # money flowed out
+    "P00000001": ({}, {"prior": -1e9}),  # free cash flow negative in the year before
+    "Y00000001": ({}, {"free_cash_flow": 4e9, "prior": 4.5e9}),  # a 4% yield
+    "B00000001": ({}, {"financial": True}),  # a bank, insurer or lender
+    "C00000001": ({}, {"shares_outstanding": 2e9}),  # the cover page counts twice the shares: a split
+    "V00000001": ({"value": 1.6e11}, {}),  # funds hold more than the company is worth
+    "O00000001": ({}, {"fiscal_end": date(2023, 3, 31)}),  # a fiscal year over 18 months before the period
+    "F00000001": ({"funds_prev": 99}, {}),  # under 100 funds before
+}
+
+
+def _criteria_db():
+    rows, flows, stocks = [], [], []
+    for cusip, (period_rule, cash_rule) in {MEETS: ({}, {}), **LEFT_OUT}.items():
+        period_change, cash_change = dict(period_rule), dict(cash_rule)
+        funds, funds_prev = period_change.pop("funds", 150), period_change.pop("funds_prev", 140)
+        rows.append(
+            stock_period(
+                cusip,
+                funds,
+                funds_prev,
+                filers_pct=0.02,
+                **{"streak": 2, "net_flow": 1e6, "value": 1e9} | period_change,
+            )
+        )
+        fcf, prior = cash_change.pop("free_cash_flow", 6e9), cash_change.pop("prior", 7e9)
+        flows.append(cash_flow(cusip, fcf, prior, diluted_shares=1e9, **cash_change))
+        stocks.append(stock(cusip, f"Company {cusip[0]}"))
+    return model(stocks, rows, flows)
+
+
+def test_a_stock_is_listed_only_when_every_rule_holds():
+    con = _criteria_db()
+    rows = data.accumulate(con, PERIOD, minimum=100, min_yield=0.05, min_streak=2)
+    assert [r["cusip"] for r in rows] == [MEETS]
+    assert rows[0]["fcf_yield"] == pytest.approx(0.06)  # the lower year over the market value
+    assert rows[0]["market_value"] == pytest.approx(1e11)
+    coverage = data.accumulate_coverage(con, PERIOD, minimum=100)
+    assert coverage == {"compared": 10, "with_cash_flow": 8, "financial": 1, "shares_differ": 2}
+
+
+def test_the_settings_on_the_page_widen_or_narrow_the_list():
+    con = _criteria_db()
+
+    def listed(**settings) -> list[str]:
+        rules = {"minimum": 100, "min_yield": 0.05, "min_streak": 2} | settings
+        return [r["cusip"] for r in data.accumulate(con, PERIOD, **rules)]
+
+    assert listed(min_streak=1) == [MEETS, "S00000001"]  # same yield: by CUSIP
+    assert listed(min_yield=0.04) == [MEETS, "Y00000001"]
+    assert listed(min_yield=0.07) == []
+    assert listed(min_streak=3) == []
+    assert listed(minimum=99) == ["F00000001", MEETS]  # the same yield: by CUSIP
+    # Ranked by the change against the tide, Y's and M's tie; by yield M's 6% comes first.
+    assert listed(min_yield=0.04, by="tide") == [MEETS, "Y00000001"]
+    assert listed(min_yield=0.04, by="yield") == [MEETS, "Y00000001"]
+
+
+# --- The list on the made-up data set ---------------------------------------------------
 
 
 def _frame(taxonomy, tag, unit, period, facts):
@@ -234,3 +327,27 @@ def test_the_page_asks_for_update_data_before_cash_flow_exists(mini_db):
         con.execute("DROP TABLE stock_cash_flows")
     html = TestClient(app).get("/accumulate").text
     assert "Run update-data" in html
+
+
+# --- In the browser --------------------------------------------------------------------
+
+
+@pytest.mark.ui
+def test_a_person_reads_the_list_and_changes_its_settings(accumulate_db, page: Page):
+    accumulate_db()
+    page.goto("/")
+    page.get_by_role("navigation", name="Main").get_by_role("link", name="Accumulate").click()
+    table = page.locator("section").filter(has=page.get_by_role("heading", name=re.compile("^Stocks to accumulate")))
+    expect(page.get_by_role("heading", level=1)).to_contain_text("Q4 2024")
+    expect(table.locator("tbody a[href^='/stock/']")).to_have_count(1)
+    expect(table.locator("tbody tr").first).to_contain_text("6.0%")
+    expect(page.get_by_text("not advice", exact=False).first).to_be_visible()
+
+    page.get_by_label("Periods with more funds").fill("1")
+    page.get_by_role("button", name="Update").click()
+    expect(page).to_have_url(re.compile(r"streak=1"))
+    hrefs = table.locator("tbody a[href^='/stock/']").evaluate_all("els => els.map(e => e.getAttribute('href'))")
+    assert hrefs == [f"/stock/{AMZN}", f"/stock/{MSFT}"]  # 8% before 6%
+
+    table.get_by_role("link").filter(has_text=re.compile("Amazon", re.I)).first.click()
+    expect(page).to_have_url(re.compile(f"/stock/{AMZN}$"))

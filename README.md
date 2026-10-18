@@ -30,7 +30,7 @@ Press Ctrl+C in the app's window to stop it. Every script also runs from a termi
 
 | Script (Windows / macOS, Linux) | Command it runs | What it does |
 | --- | --- | --- |
-| `scripts\setup.cmd` / `scripts/setup.sh` (`setup.command` on macOS) | | Creates `.venv`, installs the app, creates `data/settings.toml` |
+| `scripts\setup.cmd` / `scripts/setup.sh` (`setup.command` on macOS) | | Creates `.venv`, installs the app, the test tools and Chromium for the browser tests, creates `data/settings.toml` |
 | `scripts\update-data.cmd` / `scripts/update-data.sh` (`update-data.command` on macOS) | `python -m thirteenf.ingest` | Downloads new SEC data sets and company cash flow data, loads them, rebuilds the model, maps new tickers |
 | `scripts\start.cmd` / `scripts/start.sh` (`start.command` on macOS) | `python -m thirteenf.web --open` | Serves the app at <http://127.0.0.1:8000> and opens it |
 | `scripts\test.cmd` / `scripts/test.sh` | `python -m pytest` | Runs the tests |

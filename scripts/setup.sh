@@ -28,6 +28,8 @@ VENV_PY=.venv/bin/python
 echo "Installing ThirteenF and its dependencies ..."
 "$VENV_PY" -m pip install --quiet --upgrade pip
 "$VENV_PY" -m pip install --quiet -e ".[dev]"
+echo "Installing Chromium for the browser tests (skipped when it is already there) ..."
+"$VENV_PY" -m playwright install chromium
 "$VENV_PY" -c "from thirteenf.config import ensure_settings_file; print('Settings file:', ensure_settings_file())"
 
 if ! "$VENV_PY" -c "import sys; from thirteenf.config import user_setting; sys.exit(0 if user_setting('SEC_USER_AGENT') else 1)"; then

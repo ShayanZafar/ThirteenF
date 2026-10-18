@@ -14,7 +14,6 @@ import minidata
 import pytest
 import uvicorn
 
-import thirteenf.config
 import thirteenf.db
 import thirteenf.tickers
 import thirteenf.web.data
@@ -103,7 +102,7 @@ def source_health(tmp_path, monkeypatch):
 def own_watchlist_file(tmp_path, monkeypatch):
     """Every test reads and writes a watchlist of its own, started from the example list,
     never yours in data/ (a test can point it elsewhere)."""
-    monkeypatch.setattr(thirteenf.config, "WATCHLIST_PATH", tmp_path / "watchlist.csv")
+    monkeypatch.setattr("thirteenf.config.WATCHLIST_PATH", tmp_path / "watchlist.csv")
 
 
 @pytest.fixture(scope="session")

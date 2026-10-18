@@ -40,16 +40,18 @@ def test_the_first_look_starts_from_the_example_list(own_watchlist):
 
 def test_a_stock_is_added_once_by_its_cusip_as_written_in_capitals():
     watchlist.save([])
-    assert watchlist.add(" 67066g104 ", ticker="nvda ", name=" NVIDIA ") is True
-    assert watchlist.add("67066G104") is False
+    added = watchlist.add(" 67066g104 ", ticker="nvda ", name=" NVIDIA ")
+    added_again = watchlist.add("67066G104")
+    assert (added, added_again) == (True, False)
     assert watchlist.load() == [watchlist.Entry(NVDA, "NVDA", "NVIDIA")]
     assert watchlist.cusips() == {NVDA}
 
 
 def test_removing_a_stock_keeps_the_others_in_order():
     watchlist.save([watchlist.Entry(c) for c in (AAPL, MSFT, NVDA)])
-    assert watchlist.remove(msft := MSFT.lower()) is True
-    assert watchlist.remove(msft) is False
+    removed = watchlist.remove(MSFT.lower())
+    removed_again = watchlist.remove(MSFT.lower())
+    assert (removed, removed_again) == (True, False)
     assert [e.cusip for e in watchlist.load()] == [AAPL, NVDA]
 
 

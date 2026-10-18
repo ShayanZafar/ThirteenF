@@ -10,6 +10,11 @@ paths:
   - "tests/test_changes.py"
   - "tests/test_accumulate.py"
   - "tests/test_flows.py"
+  - "tests/test_biggest_changes.py"
+  - "tests/test_watchlist.py"
+  - "tests/test_managers.py"
+  - "tests/test_lookup.py"
+  - "tests/test_freshness.py"
   - "docs/using-the-app.md"
 ---
 

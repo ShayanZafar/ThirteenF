@@ -4,9 +4,16 @@ import zipfile
 from datetime import date
 
 import duckdb
+import httpx
+import minidata
 import pytest
+from conftest import QUIET
+from playwright.sync_api import Page, expect
 
+import thirteenf.db
+import thirteenf.web.data
 from thirteenf.ingest import load, sec
+from thirteenf.model import build
 
 TEST_STOCKS = {
     "SHOP": "82509L107",
@@ -113,3 +120,54 @@ def test_each_test_stock_has_rows_in_all_nine_periods(con, ticker):
         [TEST_STOCKS[ticker]],
     ).fetchone()[0]
     assert periods == 9
+
+
+@pytest.mark.ui
+def test_each_refresh_brings_the_newest_period_to_the_pages(tmp_path, monkeypatch, page: Page):
+    """Before the first update every page says how to load the data; then each run of the
+    update's 13F steps (download from the SEC, played by a stand-in serving the made-up zips;
+    load; build) brings the newest filing window to the pages the person has open."""
+    data_dir = tmp_path / "data"
+    for module in (thirteenf.db, thirteenf.web.data):
+        monkeypatch.setattr(module, "DB_PATH", data_dir / "thirteenf.duckdb")
+    monkeypatch.setattr(sec, "RAW_DIR", data_dir / "raw")
+    monkeypatch.setattr(load, "RAW_DIR", data_dir / "raw")
+    monkeypatch.setattr(load, "DATA_DIR", data_dir)
+    monkeypatch.setenv("SEC_USER_AGENT", "ThirteenF tests@example.com")
+    zips = {path.name: path.read_bytes() for path in minidata.write_zips(tmp_path / "published")}
+    published: list[str] = []  # the zips the SEC's page links so far
+
+    def the_sec(request: httpx.Request) -> httpx.Response:
+        name = request.url.path.rsplit("/", 1)[-1]
+        if name.endswith(".zip"):
+            return httpx.Response(200, content=zips[name]) if name in published else httpx.Response(404)
+        folder = "/files/structureddata/data/form-13f-data-sets/"
+        return httpx.Response(200, text="".join(f'<a href="{folder}{n}">{n}</a>' for n in published))
+
+    def update_data() -> None:
+        client = sec.SecClient(transport=httpx.MockTransport(the_sec), sleep=lambda _: None, log=QUIET)
+        sec.download_all(log=QUIET, client=client)
+        load.load_all(log=QUIET)
+        build.build_all(log=QUIET)
+
+    heading = page.get_by_role("heading", level=1)
+    page.goto("/")
+    expect(heading).to_have_text("ThirteenF")
+    expect(page.get_by_text("The SEC’s Form 13F data has not been loaded yet.")).to_be_visible()
+    expect(page.locator("code")).to_have_text("python -m thirteenf.ingest")
+
+    published += list(zips)[:2]  # Q2 and Q3 2024
+    update_data()
+    page.reload()
+    expect(heading).to_have_text("Your watchlist, Q3 2024")
+    expect(page.locator(".app-stamps")).to_contain_text("As of Sep 30, 2024")
+    expect(page.locator(".app-stamps")).to_contain_text("filed through Nov 30, 2024")
+
+    published.append(list(zips)[2])  # the SEC publishes the December to February window
+    update_data()
+    page.get_by_role("navigation", name="Main").get_by_role("link", name="Biggest changes").click()
+    expect(heading).to_have_text("Biggest changes in funds holding, Q4 2024")
+    page.get_by_role("navigation", name="Main").get_by_role("link", name="Overview").click()
+    expect(heading).to_have_text("Your watchlist, Q4 2024")
+    expect(page.locator(".app-stamps")).to_contain_text("filed through Feb 28, 2025")
+    assert sorted(p.name for p in (data_dir / "raw").glob("*.zip")) == sorted(zips)

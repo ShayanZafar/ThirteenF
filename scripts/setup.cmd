@@ -26,6 +26,9 @@ echo Installing ThirteenF and its dependencies ...
 if errorlevel 1 goto :failed
 ".venv\Scripts\python.exe" -m pip install --quiet -e ".[dev]"
 if errorlevel 1 goto :failed
+echo Installing Chromium for the browser tests (skipped when it is already there) ...
+".venv\Scripts\python.exe" -m playwright install chromium
+if errorlevel 1 goto :failed
 
 ".venv\Scripts\python.exe" -c "from thirteenf.config import ensure_settings_file; print('Settings file:', ensure_settings_file())"
 

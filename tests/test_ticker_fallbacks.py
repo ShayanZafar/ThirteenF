@@ -5,6 +5,7 @@ which source answers, what the cache records, what the stock page says, how a la
 OpenFIGI answer replaces a provisional ticker, and what the source health file says."""
 
 import json
+import re
 import sys
 from contextlib import nullcontext
 from datetime import date
@@ -23,6 +24,7 @@ from conftest import (
     write_ftd_zip,
 )
 from fastapi.testclient import TestClient
+from playwright.sync_api import expect
 
 from thirteenf import config, health, tickers
 from thirteenf.db import connect
@@ -462,3 +464,35 @@ def test_a_ticker_written_into_the_watchlist_carries_no_mark(mini_db, monkeypatc
     tickers.update_tickers(log=QUIET, fallback=tickers.TickerFallback(connect, QUIET, _sec_with_ftd().client))
     overview = TestClient(app).get("/").text
     assert '<span class="tf-ticker">APPL</span> <a href=' in overview and 'title="Ticker ' not in overview
+
+
+# --- In the browser ------------------------------------------------------------------
+
+
+@pytest.mark.ui
+def test_a_person_finds_a_stock_by_a_fallback_ticker_and_sees_where_it_came_from(mini_db, monkeypatch, page):
+    """OpenFIGI is down: Microsoft's ticker comes from the fails-to-deliver data, Nvidia's from
+    its issuer name. Once OpenFIGI answers again, its tickers replace them and the stamps go."""
+    with connect() as con:
+        con.execute("INSERT INTO raw_sec_tickers VALUES (1045810, 'NVDA', 'NVIDIA CORP')")
+    openfigi_down(monkeypatch, [])
+    tickers.update_tickers(log=QUIET, fallback=tickers.TickerFallback(connect, QUIET, _sec_with_ftd().client))
+
+    page.goto("/")
+    page.get_by_role("combobox", name="Search").fill("MSFT")
+    option = page.get_by_role("option", name=re.compile("Microsoft"))
+    expect(option.locator(".tf-ticker")).to_have_text("MSFT")
+    option.click()
+    expect(page).to_have_url(re.compile(f"/stock/{MSFT}$"))
+    stamp = page.locator(".tf-stamp").filter(has_text="Ticker")
+    expect(stamp).to_have_text("Ticker·From the SEC’s fails-to-deliver data·As of Sep 4, 2024")
+
+    page.get_by_role("combobox", name="Look up a stock").fill("NVDA")
+    page.get_by_role("button", name="Look up").click()
+    expect(page).to_have_url(re.compile(f"/stock/{NVDA}$"))
+    expect(stamp).to_have_text("Ticker·Matched by issuer name, unverified")
+
+    map_mini_tickers(monkeypatch)  # OpenFIGI answers again
+    page.reload()
+    expect(page.locator(".app-eyebrow .tf-ticker")).to_have_text("T670")
+    expect(stamp).to_have_count(0)

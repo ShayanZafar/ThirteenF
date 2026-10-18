@@ -22,7 +22,7 @@ macOS (double-click `scripts/setup.command`, or) and Linux:
 scripts/setup.sh
 ```
 
-Setup finds Python, creates a virtual environment in `.venv`, installs the app and its dependencies, and creates `data/settings.toml`. It is safe to run again, for example after pulling new code.
+Setup finds Python, creates a virtual environment in `.venv`, installs the app and its dependencies (with the test tools and, for the browser tests, Chromium through Playwright, about 150 MB the first time), and creates `data/settings.toml`. It is safe to run again, for example after pulling new code.
 
 ## 2. Tell the SEC who you are
 

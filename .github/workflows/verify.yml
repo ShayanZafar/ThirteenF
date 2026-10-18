@@ -1,7 +1,8 @@
 # The same check as scripts/verify.sh on your computer (formatting, lint,
 # types, then the tests), run on every push to main and every pull request.
-# Tests that need the SEC data skip here; the rest run on the small made-up
-# data set. A second pytest run then reports test coverage in the job summary
+# Tests that need the SEC data skip here; the rest, the browser (UI) tests
+# included, run on the small made-up data set with stand-ins for the SEC and
+# OpenFIGI. A second pytest run then reports test coverage in the job summary
 # (Actions tab, open the run): it never fails the build, it shows where the
 # test-gaps skill should look next.
 name: verify
@@ -33,6 +34,11 @@ jobs:
 
       - name: Install
         run: scripts/setup.sh
+
+      # The UI tests (marked ui) drive Chromium through Playwright; this adds the
+      # system libraries it needs on Ubuntu. setup.sh has already downloaded it.
+      - name: Browser for the UI tests
+        run: .venv/bin/python -m playwright install --with-deps chromium
 
       - name: Verify
         run: scripts/verify.sh

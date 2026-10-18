@@ -14,22 +14,29 @@ scripts\start.cmd --reload
 scripts\test.cmd
 ```
 
-or `.venv\Scripts\python -m pytest`. About 230 tests, two kinds:
+or `.venv\Scripts\python -m pytest`. About 340 tests, three kinds:
 
-- **Unit tests** need nothing loaded: period deadlines, the zip loader on a tiny fake zip, the OpenFIGI client against a fake OpenFIGI, the SEC client and the ticker fallbacks against a fake SEC (no test touches a live service or really waits), settings, and the seam tests, which load and build a small made-up data set (`tests/minidata.py`) end to end.
+- **Unit tests** need nothing loaded: period deadlines, the zip loader on a tiny fake zip, the OpenFIGI client against a fake OpenFIGI, the SEC client and the ticker fallbacks against a fake SEC (no test touches a live service or really waits), the watchlist file, the rankings of Biggest changes and the Accumulate rules on model rows written by hand (`tests/model_rows.py`), settings, and the seam tests, which load and build a small made-up data set (`tests/minidata.py`) end to end.
+- **Browser tests** (marked `ui`) drive headless Chromium through Playwright against the app, served by `uvicorn` in the test process on the made-up data set, with OpenFIGI and the SEC played by stand-ins: search as you type, the watchlist, Biggest changes, Accumulate, a manager's page and its CSV download, the freshness stamps, and a refresh bringing a new period to the pages. They run with the rest (`scripts\test.cmd -m ui` runs only them). Setup installs Chromium (`.venv\Scripts\python -m playwright install chromium`); without it they fail and say so. The fixtures are `app_url`, `browser` and `page` in `tests/conftest.py`.
 - **Data tests** (marked `data`) use the loaded database and skip until it exists. They check the model against 13f.info's published figures in `docs/reference/13finfo-holdings.csv`, render every page, and test the rankings against plain SQL.
 
 | File | Covers |
 | --- | --- |
-| `tests/test_ingest.py` | Download links, the loader, the first data checks |
+| `tests/test_ingest.py` | Download links, the loader, the first data checks, and a refresh bringing the newest period to the pages in a browser |
 | `tests/test_model.py` | Filings, amendments, CUSIP changes, kinds, the reference numbers |
 | `tests/test_web.py` | The stock page for many kinds of stock, both themes, no hard-coded colors |
 | `tests/test_changes.py` | Biggest changes: rankings, the minimum, tabs |
+| `tests/test_biggest_changes.py` | Biggest changes without the download: the ranking against the tide on hand-written rows, the page on the made-up data, and in a browser |
+| `tests/test_watchlist.py` | The watchlist file (started from the example, added once, a failed write leaving it whole), adding and removing through the routes, and in a browser |
+| `tests/test_managers.py` | What a manager did with each position, the answer sentence, the manager page, the CSV and the managers list on the made-up data, and the CSV downloaded in a browser |
+| `tests/test_lookup.py` | Looking up a stock in a browser: suggestions as you type, its periods, who added and who left |
+| `tests/test_freshness.py` | The freshness stamps and fallback-ticker marks on every page, in a browser |
 | `tests/test_overview.py` | The overview and the watchlist (on a temporary watchlist file) |
 | `tests/test_openfigi.py`, `tests/test_tickers.py` | Ticker mapping and search; a batch OpenFIGI refuses or fails going down the chain with no waiting, and OpenFIGI's later answer replacing a provisional ticker |
 | `tests/test_ftd.py` | The SEC's fails-to-deliver files: links ordered by the date in their names, the newest 13 months, only missing files downloaded, loading as text with the header and trailer checks, the newest symbol winning, a refusing SEC left at once |
 | `tests/test_ticker_fallbacks.py` | The issuer-name match, the chain after OpenFIGI, the fails-to-deliver symbol for a CUSIP OpenFIGI does not know, the stock page and the list pages saying where a fallback's ticker came from, and when tickers count as unreliable |
 | `tests/test_flows.py` | Net 13F flow, who moved, the typical stock, manager pages |
+| `tests/test_accumulate.py` | The Accumulate rules on hand-written rows, the list on the made-up data with made-up XBRL frames, and in a browser |
 | `tests/test_signed.py` | Every signed number painted by its sign, on every page |
 | `tests/test_periods.py`, `tests/test_config.py` | Deadlines and settings |
 | `tests/test_seams.py` | Where steps meet: search redirects, build then tickers, an OpenFIGI that stays down never stopping the run |
@@ -42,7 +49,7 @@ Run one file or one test: `scripts\test.cmd tests\test_flows.py -k alphabet`.
 
 ### Core flows
 
-[core-flows.md](core-flows.md) lists what a person relies on the app for, and for each flow the tests at three levels: unit (one module, no network), integration (real routes, DuckDB on `tests/minidata.py` or the ingest pipeline together, outside services played by stand-ins) and UI (a real browser driving the running app; none yet). The `data` tests skip on pull requests, so they are not named there. `scripts/check_core_flows.py`, the last step of the verify check, fails when a flow lacks a level without counting it as a gap (`—`), when a named test no longer exists, or when the gaps differ from `Gaps allowed`: close a gap and lower the count in the same change; it never goes up.
+[core-flows.md](core-flows.md) lists what a person relies on the app for, and for each flow the tests at three levels: unit (one module, no network), integration (real routes, DuckDB on `tests/minidata.py` or the ingest pipeline together, outside services played by stand-ins) and UI (a real browser driving the running app, the `ui` tests). The `data` tests skip on pull requests, so they are not named there. `scripts/check_core_flows.py`, the last step of the verify check, fails when a flow lacks a level without counting it as a gap (`—`), when a named test no longer exists, or when the gaps differ from `Gaps allowed`: close a gap and lower the count in the same change; it never goes up.
 
 ## Before a change is done
 

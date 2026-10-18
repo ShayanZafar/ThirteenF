@@ -6,6 +6,8 @@ paths:
   - "docs/13f-data.md"
   - "docs/reference/**"
   - "tests/minidata.py"
+  - "tests/model_rows.py"
+  - "tests/test_biggest_changes.py"
   - "tests/test_ingest.py"
   - "tests/test_model.py"
   - "tests/test_periods.py"

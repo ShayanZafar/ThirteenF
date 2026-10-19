@@ -15,6 +15,7 @@ paths:
   - "tests/test_managers.py"
   - "tests/test_lookup.py"
   - "tests/test_freshness.py"
+  - "tests/test_source_warning.py"
   - "docs/using-the-app.md"
 ---
 
@@ -25,4 +26,5 @@ paths:
 - `flow-in` and `flow-out` mean only more or fewer funds (money in or out).
 - Signed numbers take the color of their sign through the `|signed` template filter: + in `flow-in` green, − in `flow-out` red (the user asked for this).
 - Every number shows its as-of date and source with a freshness stamp.
+- Every page shows the source health warning (`health.page_status()`) as a stale stamp while a data need has no reliable source, and the pages with a Source stamp say when the 13F data was last fetched (decision #25, Oct 19, 2026).
 - Copy follows `design-system/README.md`: plain, dated, sentence case, no buy or sell language. One exception, asked for by the user (Oct 10, 2026): the Accumulate page names stocks to accumulate, because recommending them is the app's goal. It still says how each was chosen and that it is not advice.

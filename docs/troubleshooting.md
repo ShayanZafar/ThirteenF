@@ -18,8 +18,8 @@ The connection failed or the SEC answered with a server error four times in a ro
 **Downloads fail with another 403 or a 404**
 The SEC refused that request outright, so it is not tried again. Check `SEC_USER_AGENT`; a 404 means the SEC moved a file, and the app needs a fix.
 
-**"Sources: No reliable source for ..."** (update-data or `python -m thirteenf.tickers`)
-In the last 24 hours, every source for that data answered under half of at least 5 requests. The app keeps working on the data it already has. Check your connection, `SEC_USER_AGENT` and your OpenFIGI key, then run the update again later; the line goes away once the sources answer again. `data/source-health.json` has each source's counts and its last error, and [sources.md](sources.md) lists the sources.
+**"Sources: No reliable source for ..."** (update-data or `python -m thirteenf.tickers`, and a dashed stamp at the top of every page)
+In the last 24 hours, every source for that data answered under half of at least 5 requests. The app keeps working on the data it already has. Check your connection, `SEC_USER_AGENT` and your OpenFIGI key, then run the update again later; the line and the stamp go away once the sources answer again, or once the failed requests are over a day old. `data/source-health.json` has each source's counts and its last error, and [sources.md](sources.md) lists the sources.
 
 **"Running scripts is disabled on this system"**
 That message comes from PowerShell `.ps1` scripts. The Windows scripts here are `.cmd` batch files, which are not affected: run `scripts\start.cmd` from PowerShell or Command Prompt, or double-click it.

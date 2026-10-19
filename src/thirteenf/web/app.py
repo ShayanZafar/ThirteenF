@@ -14,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup, escape
 
+from thirteenf import health
 from thirteenf.config import DESIGN_SYSTEM_DIR, WATCHLIST_CSV
 from thirteenf.db import Busy
 from thirteenf.web import charts, data, story, watchlist
@@ -61,8 +62,20 @@ def theme_of(request: Request) -> str:
 
 
 def render(request: Request, name: str, nav: str = "", status_code: int = 200, **context) -> HTMLResponse:
+    sources = health.page_status()
+    fetched = sources.fetched.astimezone().date() if sources.fetched else None
     return templates.TemplateResponse(
-        request, name, {"theme": theme_of(request), "nav": nav, **context}, status_code=status_code
+        request,
+        name,
+        {
+            "theme": theme_of(request),
+            "nav": nav,
+            "sources_warning": sources.warning,
+            "fetched": fetched,
+            "fetched_age_days": (date.today() - fetched).days if fetched else None,
+            **context,
+        },
+        status_code=status_code,
     )
 
 

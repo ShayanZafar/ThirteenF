@@ -2,7 +2,7 @@
 paths:
   - "src/thirteenf/ingest/**"
   - "src/thirteenf/model/**"
-  - "src/thirteenf/web/data.py"
+  - "src/thirteenf/web/**"
   - "docs/13f-data.md"
   - "docs/reference/**"
   - "tests/minidata.py"

@@ -31,6 +31,8 @@
 </div>
 </header>
 <main class="app-main">
+{% if sources_warning %}<div class="app-stamps app-sources"><span class="tf-stamp tf-stamp--stale"><b>Sources</b><i>·</i>{{ sources_warning }}</span></div>
+{% endif %}
 {% block main %}{% endblock %}
 </main>
 <script>

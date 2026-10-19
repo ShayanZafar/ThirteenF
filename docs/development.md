@@ -41,7 +41,8 @@ or `.venv\Scripts\python -m pytest`. About 340 tests, three kinds:
 | `tests/test_periods.py`, `tests/test_config.py` | Deadlines and settings |
 | `tests/test_seams.py` | Where steps meet: search redirects, build then tickers, an OpenFIGI that stays down never stopping the run |
 | `tests/test_sec_retry.py` | The SEC client against a fake SEC: quick retries, blocks waited out however many come, the "Undeclared Automated Tool" page stopping at once, a caller with another source moving on at once, dropped downloads, what the command line prints |
-| `tests/test_health.py` | The source health file: its shape, the 24-hour window, when a source and a data need count as unreliable |
+| `tests/test_health.py` | The source health file: its shape, the 24-hour window, when a source and a data need count as unreliable, what the pages read from it |
+| `tests/test_source_warning.py` | The pages' source health warning and Fetched stamp, on the made-up data set |
 | `tests/test_core_flows_check.py` | The core flows check on made-up files: a good map, each failure, the gap count both ways |
 | `tests/test_claude_files_check.py` | The Claude files check on made-up repos: word counts, the globs, reading `paths`, each failure |
 

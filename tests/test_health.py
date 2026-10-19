@@ -119,6 +119,24 @@ def test_the_warning_ages_out_with_the_events():
     assert health.load()["unreliable"] is False  # refreshed on disk too
 
 
+def test_the_pages_read_the_health_of_now_and_write_nothing():
+    _record("sec", ["ok"], start=T0)
+    _record("openfigi", ["failed"] * 5, start=T0 + timedelta(minutes=1))
+    _record("sec-ftd", ["throttled"] * 5, start=T0 + timedelta(minutes=1))
+    written = health.HEALTH_PATH.read_text(), health.EVENTS_PATH.read_text()
+
+    status = health.page_status(now=T0 + timedelta(hours=1))
+    assert status == health.PageStatus(warning=health.load()["summary"], fetched=T0)
+    assert status.warning is not None and status.warning.startswith("No reliable source for tickers:")
+    # A day later the failures have aged out, and the SEC's last answer is carried over.
+    assert health.page_status(now=T0 + timedelta(hours=25)) == health.PageStatus(warning=None, fetched=T0)
+    assert (health.HEALTH_PATH.read_text(), health.EVENTS_PATH.read_text()) == written
+
+    health.HEALTH_PATH.unlink()
+    health.EVENTS_PATH.unlink()
+    assert health.page_status() == health.PageStatus(warning=None, fetched=None)  # no update has run yet
+
+
 def test_unreadable_files_start_afresh_and_unwritable_ones_are_skipped(tmp_path, monkeypatch):
     health.EVENTS_PATH.write_text("{not json")
     health.HEALTH_PATH.write_text("[]")

@@ -6,6 +6,7 @@ Decisions made before Oct 12, 2026 are recorded inline with their dates, in CLAU
 
 <!-- Format: - YYYY-MM-DD — <decision>. Why: <reason>. (#n) -->
 
+- 2026-10-26 — Outside sources that need an API key are allowed when the key is free to get; paid sources stay out (rule in `docs/sources.md`). Why: every reliable free source of daily prices now needs a free key, and price data is needed to tell whether a stock is already priced in.
 - 2026-10-19 — Every page shows the source health summary as a stale stamp while some data need has no reliable source, read from the health file on each request (option A), and the pages also say when the 13F data was last fetched from the SEC. Why: the pages show old data until the sources answer again, and the person reading them should know, as well as how fresh the last fetch is. (#25)
 - 2026-10-12 — The list pages (Biggest changes, the watchlist, Accumulate) mark tickers that came from a fallback, with the source in a tooltip, as the stock page does (option B). Why: every number shows where it came from, and lists are where people compare stocks. (#16)
 - 2026-10-12 — Tickers matched only by issuer name (unverified) stay out of the Accumulate list's cash-flow matching (option A, no change). Why: the page recommends stocks, and a wrong name match would recommend a different company; verified tickers from OpenFIGI or the fails-to-deliver data still count. (#15)

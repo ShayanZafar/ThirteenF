@@ -22,6 +22,7 @@ from thirteenf.web.format import (
     number_word,
     pct,
     pct_fine,
+    priced,
     pts,
     short_day,
     signed_compact,
@@ -344,6 +345,18 @@ def accumulate_summary(rows: list[dict], period, min_yield: float, min_streak: i
     top = max(rows, key=lambda r: r["fcf_yield"])
     text += f" {top['name']} has the highest free cash flow yield, {pct(top['fcf_yield'], signed=False)}."
     return text
+
+
+def price_figure(prices: dict) -> Figure:
+    """The stock's price since the quarter funds bought in, against the market."""
+    return Figure(
+        label=f"Price since {short_day(prices['quarter_start'])}",
+        value=pct(prices["since_start_pct"]),
+        delta=Markup(
+            f"<b>{escape(priced(prices['priced']))}</b>, {escape(pts(prices['vs_market_pts']))} vs SPY, "
+            f"to {escape(short_day(prices['latest_day']))}"
+        ),
+    )
 
 
 _ORDINALS = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth"]

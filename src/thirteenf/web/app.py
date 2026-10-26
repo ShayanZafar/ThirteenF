@@ -214,6 +214,8 @@ def stock_page(request: Request, cusip: str, came_from: str = Query("", alias="f
         left_out, left_out_total = data.left_out_rows(con, sec.cusip, latest.period) if latest.held else ([], 0)
         who = data.who_moved(con, sec.cusip, latest.period, latest.prev_period, latest.median_price)
         weights = data.largest_weights(con, sec.cusip, latest.period, latest.prev_period) if latest.held else []
+        price_row = data.stock_prices(con, sec.cusip, latest.period) if latest.prev_period else None
+        prices = data.prices_status(con) if price_row else None
     chart = charts.funds_bar_chart(
         [{"label": r.label, "funds": r.funds, "change": r.funds_change} for r in series], sec.name
     )
@@ -228,7 +230,8 @@ def stock_page(request: Request, cusip: str, came_from: str = Query("", alias="f
         answer=story.answer(series, sec.name),
         comparison=story.comparison(series, sec.name),
         over_time=story.over_time(series, sec.name),
-        figures=story.key_figures(series),
+        figures=story.key_figures(series) + ([story.price_figure(price_row)] if price_row else []),
+        prices=prices,
         chart=Markup(chart),
         flow_chart=Markup(charts.flow_chart([{"label": r.label, "net": r.net_flow} for r in series], sec.name)),
         flow_text=story.flow_sentence(series, sec.name),
@@ -321,6 +324,7 @@ def accumulate_page(
         ready = data.has_cash_flows(con)
         rows = data.accumulate(con, selected.period, minimum, min_yield / 100, streak, by) if ready else []
         coverage = data.accumulate_coverage(con, selected.period, minimum) if ready else None
+        prices = data.prices_status(con)
     widest = max((r["fcf_yield"] for r in rows), default=0) or 1
     for r in rows:
         r["bar"] = round(100 * r["fcf_yield"] / widest, 1)
@@ -337,6 +341,8 @@ def accumulate_page(
         rows=rows,
         ready=ready,
         coverage=coverage,
+        prices=prices,
+        lag_pts=f"{data.PRICE_LAG_PTS:g}",
         summary_text=story.accumulate_summary(rows, selected, min_yield / 100, streak) if ready else "",
         **freshness(selected),
     )

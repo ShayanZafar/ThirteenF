@@ -24,6 +24,13 @@ SETTINGS_TEMPLATE = """\
 # It raises OpenFIGI's rate limit, so mapping CUSIPs to tickers takes minutes, not hours.
 # Paste it between the quotes and save.
 openfigi_api_key = ""
+
+# Daily prices and volume, for the Accumulate list's "priced in" column and the stock pages.
+# A free key from https://stooq.com (open any stock's historical data page and follow the API key link).
+stooq_api_key = ""
+# Optional fallback for stocks Stooq lacks or once its daily limit is reached: a free key from
+# https://www.tiingo.com (sign up, then API > Token). Its free plan allows 50 symbols an hour.
+tiingo_api_key = ""
 """
 
 
@@ -85,13 +92,25 @@ def sec_user_agent() -> str:
     return agent
 
 
+def _api_key(variable: str, setting: str) -> str:
+    """A key from the environment variable if one is set, else from data/settings.toml,
+    else the Windows user variable. Empty when not set."""
+    return os.environ.get(variable, "").strip() or settings_file_value(setting) or user_setting(variable)
+
+
 def openfigi_api_key() -> str:
     """Your free OpenFIGI key, which raises its rate limit. Empty when not set.
 
     From the OPENFIGI_API_KEY environment variable if one is set, else from
     openfigi_api_key in data/settings.toml."""
-    return (
-        os.environ.get("OPENFIGI_API_KEY", "").strip()
-        or settings_file_value("openfigi_api_key")
-        or user_setting("OPENFIGI_API_KEY")
-    )
+    return _api_key("OPENFIGI_API_KEY", "openfigi_api_key")
+
+
+def stooq_api_key() -> str:
+    """Your free Stooq key, for daily prices (STOOQ_API_KEY, else stooq_api_key in settings)."""
+    return _api_key("STOOQ_API_KEY", "stooq_api_key")
+
+
+def tiingo_api_key() -> str:
+    """Your free Tiingo key, the fallback for daily prices (TIINGO_API_KEY, else tiingo_api_key)."""
+    return _api_key("TIINGO_API_KEY", "tiingo_api_key")

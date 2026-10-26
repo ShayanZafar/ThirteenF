@@ -37,6 +37,7 @@ or `.venv\Scripts\python -m pytest`. About 340 tests, three kinds:
 | `tests/test_ticker_fallbacks.py` | The issuer-name match, the chain after OpenFIGI, the fails-to-deliver symbol for a CUSIP OpenFIGI does not know, the stock page and the list pages saying where a fallback's ticker came from, and when tickers count as unreliable |
 | `tests/test_flows.py` | Net 13F flow, who moved, the typical stock, manager pages |
 | `tests/test_accumulate.py` | The Accumulate rules on hand-written rows, the list on the made-up data with made-up XBRL frames, and in a browser |
+| `tests/test_prices.py` | Daily prices: the Stooq and Tiingo clients against fakes, Stooq's limit message moving the rest of a run to Tiingo, Tiingo's hourly budget never waited for, the "priced in" reading on hand-written rows, the Accumulate page and a stock page with made-up prices, and in a browser |
 | `tests/test_signed.py` | Every signed number painted by its sign, on every page |
 | `tests/test_periods.py`, `tests/test_config.py` | Deadlines and settings |
 | `tests/test_seams.py` | Where steps meet: search redirects, build then tickers, an OpenFIGI that stays down never stopping the run |

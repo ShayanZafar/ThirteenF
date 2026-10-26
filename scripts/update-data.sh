@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
-# Downloads any new SEC Form 13F data sets, loads them, rebuilds the model and, with an OpenFIGI
-# key in data/settings.toml, maps new CUSIPs to tickers. The first time, it runs scripts/setup.sh
+# Downloads any new SEC Form 13F data sets, loads them, rebuilds the model and, with keys in
+# data/settings.toml, maps new CUSIPs to tickers (OpenFIGI) and fetches daily prices (Stooq). The first time, it runs scripts/setup.sh
 # for you. On macOS, double-click scripts/update-data.command instead; it runs this.
 # Pass --no-download to rebuild from the zips already in data/raw.
 set -e

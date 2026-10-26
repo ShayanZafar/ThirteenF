@@ -56,6 +56,8 @@ SOURCES = {
     "sec-xbrl": Source("primary", "company cash-flow data", "the SEC's XBRL frames"),
     "openfigi": Source("primary", "tickers", "OpenFIGI"),
     "sec-ftd": Source("fallback", "tickers", "the SEC's fails-to-deliver data"),
+    "stooq": Source("primary", "daily prices", "Stooq"),
+    "tiingo": Source("fallback", "daily prices", "Tiingo"),
 }
 
 

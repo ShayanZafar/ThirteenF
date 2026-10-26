@@ -17,7 +17,7 @@ For each stock: funds holding, the change since last quarter, the change against
 From the top of the page down:
 
 - **The answer**: more or fewer funds than last quarter, the streak, and how that compares with the typical stock and with all 13F filers.
-- **Key figures**: funds holding, the distance from the peak (or low), shares held, the net 13F flow, and the change against the typical stock and against all filers.
+- **Key figures**: funds holding, the distance from the peak (or low), shares held, the net 13F flow, the change against the typical stock and against all filers, and, with daily prices loaded, the price since the latest quarter's start against the market.
 - **Funds holding by filing period**: one bar per quarter, with the change under each.
 - **Net 13F flow by filing period**: shares bought minus sold each quarter, valued at the quarter-end price. Up is money in, down is money out.
 - **Who added, who left**: the biggest moves as flow bars, then every manager whose position changed: New, Add, Trim or Exit, the change in shares (and as a percentage of their position), the value, the position's weight in their reported portfolio (with last quarter's weight), the dollar flow, and when they filed. The 25 largest moves show first; **Show all** lists every one. Each manager links to their page.
@@ -37,9 +37,9 @@ Every stock held by at least 100 funds in both periods, ranked by its change in 
 
 Stocks funds keep moving into whose free cash flow is high for their market value, rebuilt each time you run `update-data`. By default a stock is on the list when more funds held it against the tide for 2 periods running or longer, its net 13F flow was positive, its free cash flow was positive in each of its last two fiscal years, and the lower of those two years is at least 5% of its market value (its FCF yield).
 
-- **Rank by**: FCF yield (the default), or the change against the tide.
+- **Rank by**: FCF yield (the default), the change against the tide, or Price lagging (the picks whose price has moved least against the market first).
 - **Minimum FCF yield**, **periods with more funds** and **minimum funds holding** are in the filter bar, with **period**.
-- **Price, quarter** is the change in the quarter-end price. A stock funds moved into while its price lagged may not have priced the flow in yet.
+- **Price since** the quarter's start is the change from the last close before funds' buying quarter to the latest daily close, with how far that is from the market's move (SPY) over the same days: **Lagging the market** by 5 points or more while funds kept buying means the flow may not be priced in yet; **Ahead of the market** means it already is. Under the net 13F flow, the same flow as a share of the value traded in the quarter. Daily prices come from Stooq, with a free key ([getting-started.md](getting-started.md)); without one, the column shows the quarter's change in the price funds reported.
 - Banks, insurers and lenders are left out, and so are companies that report in IFRS or whose share counts fail a check. The method notes under the table list each rule; `docs/13f-data.md` has the definitions.
 
 The list is a starting point for research, not advice: check each company's filings before acting on it.

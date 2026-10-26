@@ -2,12 +2,14 @@
 paths:
   - "src/thirteenf/ingest/**"
   - "src/thirteenf/tickers.py"
+  - "src/thirteenf/prices.py"
   - "src/thirteenf/health.py"
   - "src/thirteenf/config.py"
   - "tests/conftest.py"
   - "tests/test_sec_retry.py"
   - "tests/test_ingest.py"
   - "tests/test_ftd.py"
+  - "tests/test_prices.py"
   - "tests/test_openfigi.py"
   - "tests/test_tickers.py"
   - "tests/test_ticker_fallbacks.py"
@@ -28,6 +30,11 @@ paths:
 - The 403 "Undeclared Automated Tool" page means `SEC_USER_AGENT` is wrong, so waiting won't help: it stops at once with a `RuntimeError` saying to set it correctly.
 - A caller with another source for the same data passes `has_fallback=True`: a block or a failure then raises `SecUnavailable` (`SecBlocked` for a block) at once and the caller moves on.
 - Every answer is recorded in `data/source-health.json` (`thirteenf.health`).
+
+## Daily prices (`ingest/prices.py`, `prices.py`)
+
+- Stooq first, Tiingo for what it lacks or once it says its limit is reached; a refusal or failure drops that source for the rest of the run, nothing waits, and what was fetched stays. Only the market (SPY), the watchlist and the Accumulate candidates are fetched (decision of Oct 26, 2026).
+- Answers are kept as downloaded in `data/raw/prices/` and loaded as they are; Stooq's CSV header is checked.
 
 ## Tickers (`tickers.py`, `ingest/openfigi.py`, `ingest/ftd.py`, `ingest/issuer_names.py`)
 

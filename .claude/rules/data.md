@@ -14,6 +14,7 @@ paths:
   - "tests/test_flows.py"
   - "tests/test_changes.py"
   - "tests/test_accumulate.py"
+  - "tests/test_prices.py"
   - "tests/test_seams.py"
 ---
 

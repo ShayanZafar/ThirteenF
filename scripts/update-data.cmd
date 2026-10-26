@@ -1,6 +1,6 @@
 @echo off
-rem Downloads any new SEC Form 13F data sets, loads them, rebuilds the model and, with an OpenFIGI
-rem key in data\settings.toml, maps new CUSIPs to tickers. The first time, it runs scripts\setup.cmd
+rem Downloads any new SEC Form 13F data sets, loads them, rebuilds the model and, with keys in
+rem data\settings.toml, maps new CUSIPs to tickers (OpenFIGI) and fetches daily prices (Stooq). The first time, it runs scripts\setup.cmd
 rem for you. Double-click it, or run it from a terminal.
 rem Pass --no-download to rebuild from the zips already in data\raw.
 setlocal

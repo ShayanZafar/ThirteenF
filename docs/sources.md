@@ -6,6 +6,7 @@ Added Oct 11, 2026. Every outside source the app reads, what stands in when one 
 - When a source refuses or fails (a 429, a 5xx, a block page, a dropped connection), switch to the next source for that data at once.
 - Wait only when there is no other source, and then on the app's own, honouring `Retry-After`, so nobody has to restart anything.
 - Cache answers that do not change. Results say which source they came from, errors say what to do, and the app keeps working on its last good data.
+- Use only sources anyone can use for free. A source that needs an API key is fine when the key is free to get (an account sign-up, a form); a source that needs payment or a paid plan is not (Oct 26, 2026). The app reads each key from an environment variable or `data/settings.toml`, as it does the OpenFIGI key, and works without it, using a fallback or leaving that data out.
 
 ## Sources by data need
 
@@ -47,4 +48,4 @@ A source is unreliable when it had at least 5 requests in the last 24 hours and 
 | Candidate | For | Why not |
 | --- | --- | --- |
 | EDGAR's per-filing XML (each 13F's information table) | 13F holdings, if the data sets fail | The same host and the same throttle as the data sets, so it fails when they do, and it takes thousands of requests a quarter where the data sets take one zip |
-| Keyed or paid APIs (market-data vendors, paid CUSIP services) | Tickers, cash-flow figures | Against the owner's rules for outside services |
+| Paid APIs (market-data vendors, paid CUSIP services) | Tickers, cash-flow figures | Against the owner's rules for outside services: free keys are fine, payment is not |

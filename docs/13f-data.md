@@ -113,6 +113,16 @@ The streak, the yield and the minimum funds are settings on the page. It ranks b
 
 As of Oct 2026, for Q2 2026: 3,143 stocks compared, about 2,000 with two comparable years of cash flow, 283 banks, insurers and lenders left out (Enova, World Acceptance, Rocket and loanDepot among the lenders), about 100 left out by the share checks.
 
+## Daily prices and whether a pick is priced in
+
+Added Oct 26, 2026. 13F says funds bought a stock last quarter; daily prices say what the market has done with that since.
+
+**Source.** Daily closes and volume from Stooq, else Tiingo (`docs/sources.md`), kept as downloaded in `data/raw/prices/` and loaded as they are into `raw_prices` (symbol, day, open, high, low, close, volume, source); `price_fetches` says which source answered for each symbol and when. A stock meets its prices through its ticker, as its company's financials do: letters and digits in capitals with a hyphen for anything else (`BRK/B` is `BRK-B`), never a ticker matched only by issuer name. Only the market (SPY), the watchlist and the Accumulate candidates are fetched.
+
+**`stock_prices`**, per stock and period with one before it: the last close on or before the quarter's start (the period before's end) and on or before its end, each within 7 days before the date (a weekend or holiday at a quarter end), the latest close and its day, and from them the change from the quarter's start to the latest close (`since_start_pct`) and over the quarter alone (`quarter_pct`); the value traded over the quarter (the sum of close times volume, `dollar_volume`) and the days it covers; the same change for SPY (`market_since_start_pct`) and the difference in points (`vs_market_pts`).
+
+**On the Accumulate list.** Price since the quarter's start is `since_start_pct`, with `vs_market_pts` beside it. A pick is **lagging the market** at 5 points or more behind: funds were buying and the price has not followed, so the flow may not be priced in yet. It is **ahead of the market** at 5 points or more ahead, and **in line** between. Rank by Price lagging orders by `vs_market_pts`, lowest first, stocks without prices last. Under the net 13F flow, the flow as a share of the quarter's value traded (`net_flow / dollar_volume`): how large funds' net buying was against everything that changed hands. Without prices the column falls back to the quarter's change in the 13F price (`price_pct`). Both thresholds (7 days, 5 points) are named constants, `PRICE_LOOKBACK_DAYS` in the model and `PRICE_LAG_PTS` in `web/data.py`, to be tuned once a few quarters of picks exist.
+
 ## Checks
 
 **Implied price.** For each manager, CUSIP and period, implied price = value ÷ shares. Compare it with the median implied price across all managers holding that CUSIP in that period. Flag rows more than 3 times higher or lower than the median, leave them out of share totals, and list them on the data-check table with the manager's name.

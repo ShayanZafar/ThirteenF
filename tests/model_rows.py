@@ -58,6 +58,22 @@ STOCK_CASH_FLOWS = {
     "financial": "BOOLEAN",
 }
 
+STOCK_PRICES = {
+    "cusip": "VARCHAR",
+    "period": "DATE",
+    "start_close": "DOUBLE",
+    "end_close": "DOUBLE",
+    "latest_close": "DOUBLE",
+    "latest_day": "DATE",
+    "since_start_pct": "DOUBLE",
+    "quarter_pct": "DOUBLE",
+    "dollar_volume": "DOUBLE",
+    "days_traded": "INTEGER",
+    "market_since_start_pct": "DOUBLE",
+    "vs_market_pts": "DOUBLE",
+    "price_source": "VARCHAR",
+}
+
 PERIOD = date(2024, 12, 31)
 
 
@@ -116,11 +132,38 @@ def _table(con: duckdb.DuckDBPyConnection, name: str, columns: dict[str, str], r
         )
 
 
-def model(stocks: list[dict], stock_periods: list[dict], cash_flows: list[dict] | None = None):
+def prices(cusip: str, since_start_pct: float, market_pct: float = 0.0, **overrides) -> dict:
+    """A stock's price since the quarter's start (Sep 30, 2024) to Jan 15, 2025, against the market's."""
+    row = {
+        "cusip": cusip,
+        "period": PERIOD,
+        "start_close": 100.0,
+        "end_close": 100.0 * (1 + since_start_pct),
+        "latest_close": 100.0 * (1 + since_start_pct),
+        "latest_day": date(2025, 1, 15),
+        "since_start_pct": since_start_pct,
+        "quarter_pct": since_start_pct,
+        "dollar_volume": 1e9,
+        "days_traded": 63,
+        "market_since_start_pct": market_pct,
+        "vs_market_pts": (since_start_pct - market_pct) * 100,
+        "price_source": "stooq",
+    }
+    return row | overrides
+
+
+def model(
+    stocks: list[dict],
+    stock_periods: list[dict],
+    cash_flows: list[dict] | None = None,
+    stock_prices: list[dict] | None = None,
+):
     """An in-memory database holding just these rows."""
     con = duckdb.connect()
     _table(con, "stocks", STOCKS, stocks)
     _table(con, "stock_periods", STOCK_PERIODS, stock_periods)
     if cash_flows is not None:
         _table(con, "stock_cash_flows", STOCK_CASH_FLOWS, cash_flows)
+    if stock_prices is not None:
+        _table(con, "stock_prices", STOCK_PRICES, stock_prices)
     return con

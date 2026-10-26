@@ -900,7 +900,10 @@ def managers_list(con, period: date, query: str = "", limit: int = 100) -> list[
 
 # The accumulate list: stocks funds keep moving into, whose free cash flow is
 # high for their market value. See docs/13f-data.md, "Accumulate list".
-ACCUMULATE_RANKINGS = {"yield": "fcf_yield", "tide": "vs_tide_pts"}
+ACCUMULATE_RANKINGS = {"yield": "fcf_yield DESC", "tide": "vs_tide_pts DESC", "price": "vs_market_pts ASC NULLS LAST"}
+# How far a pick's price may have moved against the market since the quarter funds bought
+# in, in points, and still count as lagging (not priced in yet) or ahead.
+PRICE_LAG_PTS = 5.0
 ACCUMULATE_MIN_YIELD = 0.05  # free cash flow at least 5% of market value
 ACCUMULATE_MIN_STREAK = 2  # more funds two periods running, or longer
 # Market value is the 13F price times the diluted share count, so two checks
@@ -919,13 +922,13 @@ def accumulate_period(all_periods: list[Period]) -> Period:
     return (on_time or choices)[-1]
 
 
-_ACCUMULATE_FROM = f"""
+_ACCUMULATE_FROM = """
     FROM stock_periods sp
     JOIN stocks s ON s.cusip = sp.cusip
     JOIN stock_cash_flows cf ON cf.cusip = sp.cusip
-    WHERE sp.period = ? AND sp.funds_holding >= ? AND sp.funds_prev >= ?
-      AND cf.fiscal_end > sp.period - INTERVAL {FISCAL_MAX_AGE_MONTHS} MONTH
 """
+_ACCUMULATE_WHERE = f"""sp.period = ? AND sp.funds_holding >= ? AND sp.funds_prev >= ?
+      AND cf.fiscal_end > sp.period - INTERVAL {FISCAL_MAX_AGE_MONTHS} MONTH"""
 _COMPARABLE = "cf.prior_free_cash_flow IS NOT NULL AND NOT cf.financial AND sp.median_price > 0"
 _SHARES_AGREE = (
     f"(cf.shares_outstanding IS NULL OR cf.shares_outstanding / cf.diluted_shares BETWEEN {1 / SHARES_AGREE} AND {SHARES_AGREE})"
@@ -939,13 +942,14 @@ def accumulate(
     """Stocks with more funds against the tide for `min_streak` periods running, a
     positive net 13F flow, positive free cash flow in each of their last two fiscal
     years, and the lower of the two at least `min_yield` of market value."""
-    column = ACCUMULATE_RANKINGS[by]
+    order = ACCUMULATE_RANKINGS[by]
+    price_columns, price_join = _price_join(con)
     rows = _rows(
         con,
         f"""
         SELECT * FROM (
             SELECT sp.cusip, s.name_filed, s.name_mixed, s.title_of_class, s.ticker,
-                   {_ticker_source_columns(con, "s")},
+                   {_ticker_source_columns(con, "s")}, {price_columns},
                    sp.funds_holding AS funds, sp.funds_prev, sp.funds_pct, sp.filers_pct, sp.vs_tide_pts,
                    sp.streak, sp.direction, sp.net_flow, sp.price_pct, sp.median_price,
                    cf.free_cash_flow, cf.prior_free_cash_flow, cf.lower_free_cash_flow,
@@ -953,12 +957,14 @@ def accumulate(
                    sp.median_price * cf.diluted_shares AS market_value,
                    cf.lower_free_cash_flow / (sp.median_price * cf.diluted_shares) AS fcf_yield
             {_ACCUMULATE_FROM}
+            {price_join}
+            WHERE {_ACCUMULATE_WHERE}
               AND {_COMPARABLE} AND {_SHARES_AGREE}
               AND sp.vs_tide_pts > 0 AND sp.direction > 0 AND sp.streak >= ? AND sp.net_flow > 0
               AND cf.free_cash_flow > 0 AND cf.prior_free_cash_flow > 0
         )
         WHERE fcf_yield >= ?
-        ORDER BY {column} DESC, cusip
+        ORDER BY {order}, cusip
         LIMIT ?
         """,
         [period, minimum, minimum, min_streak, min_yield, limit],
@@ -966,7 +972,76 @@ def accumulate(
     for r in rows:
         r["name"] = display_name(r["name_filed"], r["name_mixed"])
         r["ticker"] = ticker_text(r["ticker"])
+        r["priced"] = priced_in(r["vs_market_pts"])
     return rows
+
+
+def priced_in(vs_market_pts: float | None) -> str | None:
+    """Where a pick's price stands against the market since the quarter funds bought in:
+    "lagging" (PRICE_LAG_PTS or more behind: the flow may not be priced in yet), "in line",
+    or "ahead"; None without prices."""
+    if vs_market_pts is None:
+        return None
+    if vs_market_pts <= -PRICE_LAG_PTS:
+        return "lagging"
+    return "ahead" if vs_market_pts >= PRICE_LAG_PTS else "in line"
+
+
+_PRICE_COLUMNS = (
+    "pr.since_start_pct, pr.quarter_pct, pr.latest_close, pr.latest_day, pr.vs_market_pts, "
+    "pr.market_since_start_pct, pr.price_source, sp.net_flow / NULLIF(pr.dollar_volume, 0) AS flow_share"
+)
+
+
+def _price_join(con) -> tuple[str, str]:
+    """The stock_prices columns and join for a query on stock_periods as `sp`, or NULLs in a
+    database built before daily prices were added."""
+    if not has_prices(con):
+        return (
+            "NULL AS since_start_pct, NULL AS quarter_pct, NULL AS latest_close, NULL AS latest_day, "
+            "NULL AS vs_market_pts, NULL AS market_since_start_pct, NULL AS price_source, NULL AS flow_share",
+            "",
+        )
+    return _PRICE_COLUMNS, "LEFT JOIN stock_prices pr ON pr.cusip = sp.cusip AND pr.period = sp.period"
+
+
+def stock_prices(con, cusip: str, period: date) -> dict | None:
+    """A stock's price since the quarter's start against the market, for one period, or None."""
+    if not has_prices(con):
+        return None
+    rows = _rows(
+        con,
+        """
+        SELECT pr.since_start_pct, pr.quarter_pct, pr.latest_close, pr.latest_day, pr.vs_market_pts,
+               pr.market_since_start_pct, pr.price_source, pr.start_close, pr.dollar_volume,
+               p.prev_period AS quarter_start
+        FROM stock_prices pr JOIN periods p USING (period)
+        WHERE pr.cusip = ? AND pr.period = ? AND pr.since_start_pct IS NOT NULL
+        """,
+        [cusip, period],
+    )
+    if not rows:
+        return None
+    return rows[0] | {"priced": priced_in(rows[0]["vs_market_pts"])}
+
+
+def prices_status(con) -> dict | None:
+    """The day the daily prices run through and the sources they came from, or None without prices."""
+    if not has_prices(con):
+        return None
+    row = con.execute(
+        "SELECT max(latest_day), list(DISTINCT price_source ORDER BY price_source) FROM stock_prices WHERE price_source IS NOT NULL"
+    ).fetchone()
+    if row is None or row[0] is None:
+        return None
+    return {"through": row[0], "sources": row[1]}
+
+
+def has_prices(con) -> bool:
+    """Whether the model has daily prices: the table exists and holds a row."""
+    if not scalar(con, "SELECT count(*) FROM information_schema.tables WHERE table_name = 'stock_prices'"):
+        return False
+    return bool(scalar(con, "SELECT count(*) FROM stock_prices"))
 
 
 def accumulate_coverage(con, period: date, minimum: int) -> dict:
@@ -986,6 +1061,7 @@ def accumulate_coverage(con, period: date, minimum: int) -> dict:
                count(*) FILTER (WHERE cf.financial),
                count(*) FILTER (WHERE {_COMPARABLE} AND NOT ({_SHARES_AGREE}))
         {_ACCUMULATE_FROM}
+        WHERE {_ACCUMULATE_WHERE}
         """,
         [period, minimum, minimum],
     ).fetchone() or (0, 0, 0)

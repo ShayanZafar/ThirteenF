@@ -57,6 +57,25 @@ _TICKER_FALLBACKS = {
 }
 
 
+# How a pick's price has moved against the market since the quarter funds bought in
+# (thirteenf.web.data.priced_in), as the pages say it.
+_PRICED = {
+    "lagging": "Lagging the market",
+    "in line": "In line with the market",
+    "ahead": "Ahead of the market",
+}
+PRICE_SOURCES = {"stooq": "Stooq", "tiingo": "Tiingo"}
+
+
+def priced(state: str | None) -> str:
+    return _PRICED.get(state or "", "")
+
+
+def price_sources(names: list[str]) -> str:
+    """Stooq, or "Stooq and Tiingo": the sources the prices shown came from."""
+    return " and ".join(PRICE_SOURCES.get(n, n) for n in sorted(names, key=lambda n: n != "stooq"))
+
+
 def ticker_fallback(source: str | None, as_of: date | None = None) -> TickerFallback | None:
     """How a ticker from a fallback is marked, or None for OpenFIGI's (verified) or no source."""
     if source not in _TICKER_FALLBACKS:

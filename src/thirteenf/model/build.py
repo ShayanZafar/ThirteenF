@@ -28,6 +28,8 @@ rebuilds them from raw_* exactly.
   fundamentals   per company (CIK): its latest fiscal year's operating cash flow,
                  capital spending, free cash flow and share counts, from the XBRL frames
   stock_cash_flows per stock: its company's fundamentals, matched by ticker
+  stock_prices   per stock and period: the price since the quarter funds bought in, against
+                 the market, and the value traded in the quarter, from daily prices
 
 A stock is identified by its current CUSIP. When a company changes its CUSIP
 (a reverse split, a new holding company, a move abroad), the old CUSIP's
@@ -44,7 +46,7 @@ from datetime import date, datetime
 import duckdb
 
 from thirteenf.db import connect, scalar
-from thirteenf.ingest import xbrl
+from thirteenf.ingest import prices, xbrl
 from thirteenf.ingest.openfigi import CACHE_DDL as OPENFIGI_DDL
 from thirteenf.model import periods as P
 
@@ -794,6 +796,66 @@ JOIN tickers t USING (key)
 JOIN fundamentals f USING (cik)
 """
 
+# Daily prices meet the 13F periods. For each stock with a verified ticker and each
+# period with one before it: the last close on or before the quarter's start (the
+# period before's end) and its end, the latest close, the change from the quarter's
+# start to the latest close (what the market has done since funds were buying), the
+# same for the market (prices.MARKET, an S&P 500 ETF) and the difference in points,
+# and the value traded over the quarter, to set funds' net 13F flow against. A close
+# counts for a date when it falls within PRICE_LOOKBACK_DAYS before it (a holiday or a
+# weekend at the quarter's end), never later.
+PRICE_LOOKBACK_DAYS = 7
+SQL_STOCK_PRICES = f"""
+{prices.RAW_DDL};
+CREATE OR REPLACE TABLE stock_prices AS
+WITH keyed AS (
+    SELECT cusip, trim(regexp_replace(upper(ticker), '[^A-Z0-9]', '-', 'g'), '-') AS symbol
+    FROM stocks WHERE ticker IS NOT NULL AND ticker_source <> 'issuer-name'
+),
+daily AS (
+    SELECT r.symbol, r.day, r.close, r.close * r.volume AS traded
+    FROM raw_prices r WHERE r.close > 0 AND r.day IS NOT NULL
+),
+latest AS (
+    SELECT symbol, arg_max(close, day) AS latest_close, max(day) AS latest_day FROM daily GROUP BY symbol
+),
+dated AS (
+    SELECT DISTINCT period FROM periods UNION SELECT DISTINCT prev_period FROM periods WHERE prev_period IS NOT NULL
+),
+at_date AS (
+    -- the last close on or before each period end, within the lookback
+    SELECT dt.period, d.symbol, arg_max(d.close, d.day) AS close
+    FROM dated dt JOIN daily d ON d.day <= dt.period AND d.day > dt.period - INTERVAL {PRICE_LOOKBACK_DAYS} DAY
+    GROUP BY dt.period, d.symbol
+),
+traded AS (
+    SELECT p.period, d.symbol, sum(d.traded) AS dollar_volume, count(*) AS days_traded
+    FROM periods p JOIN daily d ON d.day > p.prev_period AND d.day <= p.period
+    GROUP BY p.period, d.symbol
+),
+by_symbol AS (
+    SELECT p.period, l.symbol, s.close AS start_close, e.close AS end_close, l.latest_close, l.latest_day,
+           l.latest_close / s.close - 1 AS since_start_pct,
+           e.close / s.close - 1 AS quarter_pct,
+           t.dollar_volume, t.days_traded
+    FROM periods p
+    CROSS JOIN latest l
+    JOIN at_date s ON s.period = p.prev_period AND s.symbol = l.symbol
+    LEFT JOIN at_date e ON e.period = p.period AND e.symbol = l.symbol
+    LEFT JOIN traded t ON t.period = p.period AND t.symbol = l.symbol
+    WHERE p.prev_period IS NOT NULL
+)
+SELECT k.cusip, b.period, b.start_close, b.end_close, b.latest_close, b.latest_day,
+       b.since_start_pct, b.quarter_pct, b.dollar_volume, b.days_traded,
+       m.since_start_pct AS market_since_start_pct,
+       (b.since_start_pct - m.since_start_pct) * 100 AS vs_market_pts,
+       f.source AS price_source
+FROM by_symbol b
+JOIN keyed k USING (symbol)
+LEFT JOIN by_symbol m ON m.period = b.period AND m.symbol = '{prices.MARKET}'
+LEFT JOIN price_fetches f ON f.symbol = b.symbol
+"""
+
 STEPS: list[tuple[str, str | Callable[[duckdb.DuckDBPyConnection], None]]] = [
     ("submissions", SQL_SUBMISSIONS),
     ("periods", build_periods),
@@ -814,6 +876,7 @@ STEPS: list[tuple[str, str | Callable[[duckdb.DuckDBPyConnection], None]]] = [
     ("stock_periods", SQL_STOCK_PERIODS),
     ("fundamentals", SQL_FUNDAMENTALS),
     ("stock_cash_flows", SQL_STOCK_CASH_FLOWS),
+    ("stock_prices", SQL_STOCK_PRICES),
 ]
 
 
@@ -825,6 +888,7 @@ def rebuild_after_tickers(con: duckdb.DuckDBPyConnection) -> None:
     con.execute(SQL_STOCK_PERIODS)
     con.execute(SQL_FUNDAMENTALS)
     con.execute(SQL_STOCK_CASH_FLOWS)
+    con.execute(SQL_STOCK_PRICES)
 
 
 def build_all(log=print) -> None:

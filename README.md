@@ -22,7 +22,7 @@ You need Python 3.12 or newer and about 4 GB of disk.
 2. **Identify yourself to the SEC**, once. The SEC asks every client for a name and contact email:
    - Windows: `setx SEC_USER_AGENT "ThirteenF you@example.com"`, then open a new terminal.
    - macOS and Linux: add `export SEC_USER_AGENT="ThirteenF you@example.com"` to `~/.zshrc` or `~/.bashrc`.
-3. **Load the data** (about 15 minutes the first time): double-click `scripts\update-data.cmd` or `scripts/update-data.command`, or run `scripts/update-data.sh`. Optional, for tickers: get a free key at [openfigi.com](https://www.openfigi.com/user/signup) and paste it into `data/settings.toml` first (setup creates the file); without a key the first ticker run takes about 2.5 hours instead of a few minutes.
+3. **Load the data** (about 15 minutes the first time): double-click `scripts\update-data.cmd` or `scripts/update-data.command`, or run `scripts/update-data.sh`. Optional, for tickers: get a free key at [openfigi.com](https://www.openfigi.com/user/signup) and paste it into `data/settings.toml` first (setup creates the file); without a key the first ticker run takes about 2.5 hours instead of a few minutes. Optional, for daily prices (whether an Accumulate pick is already priced in): a free key from [stooq.com](https://stooq.com), in the same file.
 
 Press Ctrl+C in the app's window to stop it. Every script also runs from a terminal and passes options through: `scripts\start.cmd --port 8001`, `scripts/update-data.sh --no-download`.
 
@@ -31,11 +31,12 @@ Press Ctrl+C in the app's window to stop it. Every script also runs from a termi
 | Script (Windows / macOS, Linux) | Command it runs | What it does |
 | --- | --- | --- |
 | `scripts\setup.cmd` / `scripts/setup.sh` (`setup.command` on macOS) | | Creates `.venv`, installs the app, the test tools and Chromium for the browser tests, creates `data/settings.toml` |
-| `scripts\update-data.cmd` / `scripts/update-data.sh` (`update-data.command` on macOS) | `python -m thirteenf.ingest` | Downloads new SEC data sets and company cash flow data, loads them, rebuilds the model, maps new tickers |
+| `scripts\update-data.cmd` / `scripts/update-data.sh` (`update-data.command` on macOS) | `python -m thirteenf.ingest` | Downloads new SEC data sets and company cash flow data, loads them, rebuilds the model, maps new tickers, fetches daily prices |
 | `scripts\start.cmd` / `scripts/start.sh` (`start.command` on macOS) | `python -m thirteenf.web --open` | Serves the app at <http://127.0.0.1:8000> and opens it |
 | `scripts\test.cmd` / `scripts/test.sh` | `python -m pytest` | Runs the tests |
 | `scripts\verify.cmd` / `scripts/verify.sh` | | Checks formatting, lint and types, then runs the tests; CI runs the same |
 | | `python -m thirteenf.model` | Rebuilds the model tables from the loaded data (a few minutes) |
+| | `python -m thirteenf.prices` | Fetches daily prices and volume (Stooq, then Tiingo, each with a free key) for the market, your watchlist and the Accumulate list's candidates, and rebuilds the price tables |
 | | `python -m thirteenf.tickers` | Maps new CUSIPs to tickers with OpenFIGI, or, where it cannot answer, the SEC's fails-to-deliver data and the issuer's name until the next run (for a CUSIP OpenFIGI does not know, the fails-to-deliver data alone) |
 
 `start` and `update-data` run `setup` for you when `.venv` is missing. The `.command` files run the matching `.sh` from Finder on macOS, and `scripts\keep-window.cmd` keeps a double-clicked window open to read the result. Scripts pass options through: `scripts\start.cmd --port 8001`, `scripts\update-data.cmd --no-download`, `scripts\test.cmd -k tickers`.

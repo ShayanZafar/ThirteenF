@@ -49,6 +49,10 @@ OpenFIGI could not answer for that stock on the last ticker run, or does not kno
 A fails-to-deliver file from the SEC did not read as documented (its header, its line count or its trailer's record count), so it is left out; the other files still answer, and the file stays in `data/raw/ftd/` as downloaded. If every file says so, the SEC has changed the format and the app needs a fix.
 
 **The ticker step is very slow**
+## The Accumulate list has no "Price since" numbers, or says "Quarter, from 13F prices"
+
+Daily prices need a free Stooq key (or a Tiingo key) in `data/settings.toml`, then `update-data` or `python -m thirteenf.prices` ([getting-started.md](getting-started.md)). Only the market, your watchlist and the list's candidates are fetched, so a stock you add to the watchlist gets prices on the next run. When Stooq's daily limit stops a run, the run says so and the next one continues; `data/source-health.json` shows the sources' answers.
+
 Without an OpenFIGI key, OpenFIGI allows about 250 lookups a minute. Add a key (see [getting-started.md](getting-started.md)); the cache keeps what was already found.
 
 **A page looks unstyled or out of date**

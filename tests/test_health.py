@@ -25,7 +25,7 @@ def test_the_file_has_the_agreed_shape():
     assert set(report) == {"updatedAt", "unreliable", "summary", "sources"}
     assert report["updatedAt"] == "2026-10-11T12:00:05+00:00" and report["unreliable"] is False
     assert isinstance(report["summary"], str) and report["summary"].endswith(".")
-    assert set(report["sources"]) == {"sec", "sec-xbrl", "openfigi", "sec-ftd"}
+    assert set(report["sources"]) == {"sec", "sec-xbrl", "openfigi", "sec-ftd", "stooq", "tiingo"}
     assert report["sources"]["sec"] == {
         "role": "primary",
         "for": "13F data",

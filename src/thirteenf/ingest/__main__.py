@@ -1,5 +1,6 @@
 """python -m thirteenf.ingest downloads the Form 13F data sets and the companies'
-cash flow data from the SEC, and loads them."""
+cash flow data from the SEC, loads them, and then maps tickers and fetches daily
+prices, each when its key is set."""
 
 import argparse
 import sys
@@ -41,6 +42,9 @@ def load_and_build() -> None:
             f"Tickers: paste a free OpenFIGI key (openfigi.com) into {ensure_settings_file()}, "
             "then run python -m thirteenf.tickers"
         )
+    from thirteenf.prices import update_prices
+
+    update_prices()
 
 
 def run(args: argparse.Namespace) -> int:

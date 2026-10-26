@@ -38,6 +38,8 @@ input::placeholder { color: var(--ink-muted); }
 .app-eyebrow { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: var(--space-2) var(--space-4); }
 .app-title { margin: 0; }
 .app-stamps { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+/* The source health warning is a sentence, so its stamp wraps at every width. */
+.app-sources .tf-stamp { max-width: 100%; height: auto; min-height: 22px; padding-top: 3px; padding-bottom: 3px; line-height: 16px; white-space: normal; }
 .app-answer { margin: var(--space-1) 0 0; max-width: 900px; font-size: 20px; line-height: 30px; }
 .app-answer-more { margin: 0; max-width: 900px; font-size: 17px; line-height: 26px; color: var(--ink-muted); }
 .app-small { margin: 0; font-size: 14px; line-height: 20px; }

@@ -40,7 +40,7 @@ Every request to an outside source is recorded as ok, failed or throttled in `da
                           "lastOk": "2026-10-11T15:59:58+00:00", "lastError": null}}}
 ```
 
-A source is unreliable when it had at least 5 requests in the last 24 hours and under half of them were answered. `unreliable` is true when, for some data need, the primary and every fallback are unreliable, or the primary is and has no fallback. `update-data` and `python -m thirteenf.tickers` then end with a line starting "Sources:" and the summary. A session-start hook on the owner's PC reads this file, so its path and shape stay as they are.
+A source is unreliable when it had at least 5 requests in the last 24 hours and under half of them were answered. `unreliable` is true when, for some data need, the primary and every fallback are unreliable, or the primary is and has no fallback. `update-data` and `python -m thirteenf.tickers` then end with a line starting "Sources:" and the summary, and every page shows the summary as a dashed "Sources" stamp above its title until the sources answer again; the pages compute it on each request from the events, so it ages out without a run, and never write the files. The pages with a Source stamp also have a "Fetched" stamp: the day the SEC's 13F data sets last answered (`lastOk` of `sec`), and how many days ago that was; it is missing until an update has reached the SEC (decision #25). A session-start hook on the owner's PC reads this file, so its path and shape stay as they are.
 
 ## Considered and turned down
 

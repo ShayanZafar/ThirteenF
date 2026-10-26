@@ -211,6 +211,22 @@ def refresh(now: datetime | None = None) -> dict:
     return _save(prune(load_events(), now), now)
 
 
+@dataclass(frozen=True)
+class PageStatus:
+    warning: str | None  # the summary while some data need has no reliable source
+    fetched: datetime | None  # when the SEC's 13F data sets last answered
+
+
+def page_status(now: datetime | None = None) -> PageStatus:
+    """What every page says about the sources: computed for now from the events (they age
+    out between runs) and the file before, writing nothing, so a page view is a small read."""
+    now = now or datetime.now(UTC)
+    report = summarize(prune(load_events(), now), now, load())
+    last_ok = report["sources"]["sec"]["lastOk"]
+    fetched = _when({"at": last_ok}) if last_ok else None
+    return PageStatus(report["summary"] if report["unreliable"] else None, fetched)
+
+
 def warning(now: datetime | None = None) -> str | None:
     """The summary sentence when some data need has no reliable source, else None.
     Printed at the end of an ingest or tickers run."""

@@ -10,7 +10,7 @@
 <span class="tf-stamp"><b>13F-HR</b><i>·</i>As of {{ fmt.day(book.period) }}<i>·</i>{{ age_days }}d</span>
 {% if book.filed %}<span class="tf-stamp"><b>Filed</b><i>·</i>{{ fmt.day(book.filed) }}</span>{% endif %}
 <span class="tf-stamp"><b>Source</b><i>·</i>SEC Form 13F data sets</span>
-{% if sec_url %}<a class="app-small" href="{{ sec_url }}" rel="noopener">View the filing on sec.gov</a>{% endif %}
+{% include "_fetched.html" %}{% if sec_url %}<a class="app-small" href="{{ sec_url }}" rel="noopener">View the filing on sec.gov</a>{% endif %}
 </div>
 <p class="app-answer">{{ answer }}</p>
 {% if not book.complete %}<p class="app-answer-more">The SEC’s data set holds {{ fmt.count(book.lines) }} of the {{ fmt.count(book.declared) }} holdings this report declares, so the positions below are incomplete and its changes are not shown.</p>

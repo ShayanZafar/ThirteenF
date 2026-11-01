@@ -28,8 +28,12 @@ openfigi_api_key = ""
 # Daily prices and volume, for the Accumulate list's "priced in" column and the stock pages.
 # A free key from https://stooq.com (open any stock's historical data page and follow the API key link).
 stooq_api_key = ""
-# Optional fallback for stocks Stooq lacks or once its daily limit is reached: a free key from
-# https://www.tiingo.com (sign up, then API > Token). Its free plan allows 50 symbols an hour.
+# Optional fallbacks for stocks Stooq lacks or once its daily limit is reached, asked in this order.
+# Polygon: a free key from https://polygon.io (sign up, then Dashboard > API Keys). Its free plan
+# allows 5 requests a minute, which the app paces itself to.
+polygon_api_key = ""
+# Tiingo: a free key from https://www.tiingo.com (sign up, then API > Token). Its free plan allows
+# 50 symbols an hour.
 tiingo_api_key = ""
 """
 
@@ -111,6 +115,11 @@ def stooq_api_key() -> str:
     return _api_key("STOOQ_API_KEY", "stooq_api_key")
 
 
+def polygon_api_key() -> str:
+    """Your free Polygon key, the first fallback for daily prices (POLYGON_API_KEY, else polygon_api_key)."""
+    return _api_key("POLYGON_API_KEY", "polygon_api_key")
+
+
 def tiingo_api_key() -> str:
-    """Your free Tiingo key, the fallback for daily prices (TIINGO_API_KEY, else tiingo_api_key)."""
+    """Your free Tiingo key, the last fallback for daily prices (TIINGO_API_KEY, else tiingo_api_key)."""
     return _api_key("TIINGO_API_KEY", "tiingo_api_key")

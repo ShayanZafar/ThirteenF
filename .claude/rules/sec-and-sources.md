@@ -33,7 +33,7 @@ paths:
 
 ## Daily prices (`ingest/prices.py`, `prices.py`)
 
-- Stooq first, Tiingo for what it lacks or once it says its limit is reached; a refusal or failure drops that source for the rest of the run, nothing waits, and what was fetched stays. Only the market (SPY), the watchlist and the Accumulate candidates are fetched (decision of Oct 26, 2026).
+- Stooq first, then Polygon (paced to 5 requests a minute), then Tiingo, for what the one before lacks or once it says its limit is reached; a refusal or failure drops that source for the rest of the run, nothing waits, and what was fetched stays. Only the market (SPY), the watchlist and the Accumulate candidates are fetched (decision of Oct 26, 2026).
 - Answers are kept as downloaded in `data/raw/prices/` and loaded as they are; Stooq's CSV header is checked.
 
 ## Tickers (`tickers.py`, `ingest/openfigi.py`, `ingest/ftd.py`, `ingest/issuer_names.py`)

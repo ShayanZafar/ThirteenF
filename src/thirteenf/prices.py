@@ -3,8 +3,8 @@
 Which stocks: the market (prices.MARKET), the stocks on your watchlist, and the
 Accumulate list's candidates for the period it opens on, with every rule but the
 yield and the streak, so the page has prices however you set those two. Stooq is
-asked first, Tiingo for what Stooq lacks or once Stooq's daily limit is reached
-(docs/sources.md); with no key for either, nothing is fetched and the pages leave
+asked first, then Polygon and Tiingo for what Stooq lacks or once Stooq's daily
+limit is reached (docs/sources.md); with no key for any, nothing is fetched and the pages leave
 the price columns out. A symbol fetched within the last REFRESH_AFTER is not asked
 for again, so a second run the same day picks up where the first stopped. The
 model's stock_prices table is rebuilt at the end.
@@ -18,7 +18,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 
 from thirteenf import health
-from thirteenf.config import ensure_settings_file, stooq_api_key, tiingo_api_key
+from thirteenf.config import ensure_settings_file, polygon_api_key, stooq_api_key, tiingo_api_key
 from thirteenf.db import connect, scalar
 from thirteenf.ingest import prices
 from thirteenf.ingest.prices import Provider
@@ -32,6 +32,8 @@ def providers() -> list[Provider]:
     chain: list[Provider] = []
     if stooq_api_key():
         chain.append(prices.Stooq(stooq_api_key()))
+    if polygon_api_key():
+        chain.append(prices.Polygon(polygon_api_key()))
     if tiingo_api_key():
         chain.append(prices.Tiingo(tiingo_api_key()))
     return chain

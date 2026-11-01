@@ -51,7 +51,7 @@ A fails-to-deliver file from the SEC did not read as documented (its header, its
 **The ticker step is very slow**
 ## The Accumulate list has no "Price since" numbers, or says "Quarter, from 13F prices"
 
-Daily prices need a free Stooq key (or a Tiingo key) in `data/settings.toml`, then `update-data` or `python -m thirteenf.prices` ([getting-started.md](getting-started.md)). Only the market, your watchlist and the list's candidates are fetched, so a stock you add to the watchlist gets prices on the next run. When Stooq's daily limit stops a run, the run says so and the next one continues; `data/source-health.json` shows the sources' answers.
+Daily prices need a free Stooq key (or a Polygon or Tiingo key) in `data/settings.toml`, then `update-data` or `python -m thirteenf.prices` ([getting-started.md](getting-started.md)). Only the market, your watchlist and the list's candidates are fetched, so a stock you add to the watchlist gets prices on the next run. When Stooq's daily limit stops a run, the run says so and the next one continues; `data/source-health.json` shows the sources' answers.
 
 Without an OpenFIGI key, OpenFIGI allows about 250 lookups a minute. Add a key (see [getting-started.md](getting-started.md)); the cache keeps what was already found.
 

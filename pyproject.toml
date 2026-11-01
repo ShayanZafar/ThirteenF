@@ -20,8 +20,8 @@ dependencies = [
 dev = [
     "pytest>=8",
     "pytest-cov>=6",
-    "ruff==0.17.0",
-    "mypy==2.4.0",
+    "ruff==0.17.3",
+    "mypy==2.4.1",
     "mutmut>=3",
     "pip-licenses>=5",
     "playwright>=1.56",  # the browser tests (marked ui); Chromium comes from python -m playwright install chromium

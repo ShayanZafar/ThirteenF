@@ -56,7 +56,7 @@ With a key, the first ticker run takes a few minutes; without one, OpenFIGI's lo
 
 ## 3b. Add a Stooq key (optional, for daily prices)
 
-The Accumulate page says whether each pick's price has already moved since funds bought in. That needs daily prices, which the app fetches from [Stooq](https://stooq.com) with a free key: open any stock's historical data page there, follow its API key link, and paste the key into `data/settings.toml` as `stooq_api_key`. Optionally add a free [Tiingo](https://www.tiingo.com) key as `tiingo_api_key`: it answers for stocks Stooq lacks, and for the rest of a run once Stooq's daily limit is reached (its free plan allows 50 symbols an hour). `STOOQ_API_KEY` and `TIINGO_API_KEY` environment variables override the file. Without either key the app works as before, with no price column.
+The Accumulate page says whether each pick's price has already moved since funds bought in. That needs daily prices, which the app fetches from [Stooq](https://stooq.com) with a free key: open any stock's historical data page there, follow its API key link, and paste the key into `data/settings.toml` as `stooq_api_key`. Optionally add a free [Polygon](https://polygon.io) key as `polygon_api_key` (sign up, then Dashboard > API Keys; its free plan allows 5 requests a minute, which the app paces itself to) and a free [Tiingo](https://www.tiingo.com) key as `tiingo_api_key` (50 symbols an hour): they answer, in that order, for stocks Stooq lacks and for the rest of a run once Stooq's daily limit is reached. `STOOQ_API_KEY`, `POLYGON_API_KEY` and `TIINGO_API_KEY` environment variables override the file. Without any key the app works as before, with no price column.
 
 ## 4. Load the data
 
@@ -69,7 +69,7 @@ The first run:
 3. Builds the model: one current filing per manager, positions, funds holding, changes, net 13F flow, and the data checks.
 4. Downloads the companies' cash flow data from the SEC (about 60 files), for the Accumulate page.
 5. Maps CUSIPs to tickers, if you added an OpenFIGI key.
-6. Fetches daily prices and volume, if you added a Stooq or Tiingo key: for the market (SPY), the stocks on your watchlist and the Accumulate list's candidates, about three years back, into `data/raw/prices/`. A symbol fetched in the last 20 hours is not asked for again, so a run stopped by a source's limit picks up where it left off next time. The Accumulate page needs tickers to match companies to their stocks. Where OpenFIGI cannot answer, the SEC's fails-to-deliver data and the issuer's name stand in until the next run; for a CUSIP OpenFIGI does not know, the fails-to-deliver data alone ([sources.md](sources.md)).
+6. Fetches daily prices and volume, if you added a Stooq, Polygon or Tiingo key: for the market (SPY), the stocks on your watchlist and the Accumulate list's candidates, about three years back, into `data/raw/prices/`. A symbol fetched in the last 20 hours is not asked for again, so a run stopped by a source's limit picks up where it left off next time. The Accumulate page needs tickers to match companies to their stocks. Where OpenFIGI cannot answer, the SEC's fails-to-deliver data and the issuer's name stand in until the next run; for a CUSIP OpenFIGI does not know, the fails-to-deliver data alone ([sources.md](sources.md)).
 
 Allow about 15 minutes. Later runs skip zips already downloaded and loaded.
 

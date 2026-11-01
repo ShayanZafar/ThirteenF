@@ -3,10 +3,12 @@
 13F says where funds' money moved a quarter ago; daily prices say whether the
 market has priced that in since. Stooq is the primary source (docs/sources.md):
 one CSV per symbol, Date,Open,High,Low,Close,Volume, adjusted for splits, with a
-free key. Tiingo is the fallback for a symbol Stooq lacks, or for the rest of a
-run once Stooq says its daily limit is reached; its free plan allows 50 symbols
-an hour, so a run asks it about at most that many and leaves the rest for the
-next run. Neither source is waited for: a refusal or a failure moves on at once.
+free key. Polygon is the first fallback, for a symbol Stooq lacks or for the rest
+of a run once Stooq says its daily limit is reached: one JSON answer per symbol,
+paced to its free plan's 5 requests a minute. Tiingo is the last; its free plan
+allows 50 symbols an hour, so a run asks it about at most that many and leaves the
+rest for the next run. No source is waited for beyond its pacing: a refusal or a
+failure moves on at once.
 
 Each answer is kept as downloaded in data/raw/prices/<source>/<symbol>.<ext> and
 loaded as it is into raw_prices, replacing the symbol's earlier rows; which
@@ -34,6 +36,7 @@ from thirteenf.db import scalar
 
 PRICES_DIR = RAW_DIR / "prices"
 STOOQ = "stooq"
+POLYGON = "polygon"
 TIINGO = "tiingo"
 MARKET = "SPY"  # the market, for "has the price moved more than the market": an S&P 500 ETF
 HISTORY_YEARS = 3  # how far back the first fetch of a symbol reaches
@@ -115,6 +118,68 @@ class Stooq:
         self._client.close()
 
 
+class Polygon:
+    """Polygon's daily aggregates (polygon.io, called Massive since 2025), one JSON answer per
+    symbol with split-adjusted bars, two years back on the free plan. The free plan allows
+    REQUESTS_PER_MINUTE requests a minute: the client paces itself to that, sleeping until the
+    oldest request in the window is a minute old, and never longer. A class share is spelled
+    with a dot (BRK.B). An answer with no bars means the symbol is unknown or has no data."""
+
+    name = POLYGON
+    URL = "https://api.polygon.io/v2/aggs/ticker/{symbol}/range/1/day/{start}/{end}"
+    REQUESTS_PER_MINUTE = 5
+    extension = "json"
+
+    def __init__(
+        self,
+        api_key: str,
+        transport: httpx.BaseTransport | None = None,
+        clock: Callable[[], float] = time.monotonic,
+        sleep: Callable[[float], None] = time.sleep,
+    ) -> None:
+        self._client = httpx.Client(
+            headers={"Authorization": f"Bearer {api_key}"}, timeout=TIMEOUT, transport=transport
+        )
+        self._clock = clock
+        self._sleep = sleep
+        self._sent: deque[float] = deque()
+
+    def _pace(self) -> None:
+        now = self._clock()
+        while self._sent and now - self._sent[0] >= 60:
+            self._sent.popleft()
+        if len(self._sent) >= self.REQUESTS_PER_MINUTE:
+            self._sleep(60 - (now - self._sent[0]))
+            self._sent.popleft()
+        self._sent.append(self._clock())
+
+    def fetch(self, symbol: str, today: date) -> str | None:
+        self._pace()
+        url = self.URL.format(
+            symbol=symbol.upper().replace("-", "."), start=_since(today).isoformat(), end=today.isoformat()
+        )
+        try:
+            response = self._client.get(url, params={"adjusted": "true", "sort": "asc", "limit": 50000})
+        except httpx.TransportError as err:
+            health.record(self.name, "failed", type(err).__name__)
+            raise PriceSourceDown(f"Polygon: {type(err).__name__}") from err
+        if response.status_code == 429:
+            health.record(self.name, "throttled", "429")
+            raise PriceLimitReached("Polygon refused (429)")
+        if response.status_code == 404:
+            health.record(self.name, "ok")
+            return None
+        body = response.json() if response.text.lstrip().startswith("{") else {}
+        if response.status_code != 200 or body.get("status") not in ("OK", "DELAYED"):
+            health.record(self.name, "failed", f"HTTP {response.status_code}")
+            raise PriceSourceDown(f"Polygon answered HTTP {response.status_code}: {str(body.get('error', ''))[:80]}")
+        health.record(self.name, "ok")
+        return response.text if body.get("resultsCount") else None
+
+    def close(self) -> None:
+        self._client.close()
+
+
 class Tiingo:
     """Tiingo's end-of-day prices, one JSON array per symbol, adjusted for splits and
     dividends (adjClose, adjVolume). The free plan allows SYMBOLS_PER_HOUR symbols an hour;
@@ -164,7 +229,7 @@ class Tiingo:
         self._client.close()
 
 
-Provider = Stooq | Tiingo
+Provider = Stooq | Polygon | Tiingo
 
 
 @dataclass
@@ -218,6 +283,16 @@ def load_file(con: duckdb.DuckDBPyConnection, fetched: Fetched, fetched_at: date
                 FROM read_csv('{_quoted(fetched.path)}', header=true, columns={{
                     'Date': 'DATE', 'Open': 'DOUBLE', 'High': 'DOUBLE', 'Low': 'DOUBLE',
                     'Close': 'DOUBLE', 'Volume': 'DOUBLE'}}, auto_detect=false)
+                """,
+                [fetched.symbol, fetched.source, fetched.path.name],
+            )
+        elif fetched.path is not None and fetched.source == POLYGON:
+            con.execute(
+                f"""
+                INSERT INTO raw_prices
+                SELECT ?, CAST(epoch_ms(bar.t) AS DATE), bar.o, bar.h, bar.l, bar.c, bar.v, ?, ?
+                FROM (SELECT unnest(results) AS bar FROM read_json('{_quoted(fetched.path)}', columns={{
+                    'results': 'STRUCT(t BIGINT, o DOUBLE, h DOUBLE, l DOUBLE, c DOUBLE, v DOUBLE)[]'}}))
                 """,
                 [fetched.symbol, fetched.source, fetched.path.name],
             )

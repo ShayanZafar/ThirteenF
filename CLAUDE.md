@@ -28,7 +28,7 @@ Python 3.12 in `.venv`; DuckDB in `data/thirteenf.duckdb`; FastAPI with Jinja2 t
 
 - `python -m thirteenf.ingest`: download and load the 13F data sets and XBRL frames, build the model, then tickers and prices when their keys are set. `--no-download` loads the zips in `data/raw/`; `--download-only` only downloads.
 - `python -m thirteenf.model`: rebuild the model from the raw tables (about a minute).
-- `python -m thirteenf.prices`: daily prices (Stooq, then Tiingo, free keys) for the market, the watchlist and the Accumulate candidates.
+- `python -m thirteenf.prices`: daily prices (Stooq, Polygon, Tiingo; free keys) for the market, the watchlist and the Accumulate candidates.
 - `python -m thirteenf.tickers`: map new CUSIPs to tickers (OpenFIGI, then fallbacks: `docs/sources.md`); `--retry-missing` retries the unknown ones.
 - `python -m thirteenf.web`: serve at http://127.0.0.1:8000; `--open` opens the browser, `--reload` restarts on code changes.
 - `pytest`: the tests, with the reference-number checks.

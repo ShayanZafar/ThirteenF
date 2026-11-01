@@ -64,7 +64,7 @@ _PRICED = {
     "in line": "In line with the market",
     "ahead": "Ahead of the market",
 }
-PRICE_SOURCES = {"stooq": "Stooq", "tiingo": "Tiingo"}
+PRICE_SOURCES = {"stooq": "Stooq", "polygon": "Polygon", "tiingo": "Tiingo"}
 
 
 def priced(state: str | None) -> str:

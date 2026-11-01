@@ -1,5 +1,5 @@
-"""Daily prices and volume: the Stooq and Tiingo clients against fakes, the chain when one
-refuses, the "priced in" reading on rows written by hand, the Accumulate page on the made-up
+"""Daily prices and volume: the Stooq, Polygon and Tiingo clients against fakes, the chain when one
+refuses, Polygon's pacing against a fake clock, the "priced in" reading on rows written by hand, the Accumulate page on the made-up
 data with made-up prices, and in a browser. No test touches a live source or really waits."""
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ import thirteenf.prices
 from thirteenf import health
 from thirteenf.db import connect
 from thirteenf.ingest import prices as ingest
-from thirteenf.ingest.prices import Stooq, Tiingo
+from thirteenf.ingest.prices import Polygon, Stooq, Tiingo
 from thirteenf.web import data
 from thirteenf.web.app import app
 
@@ -71,14 +71,43 @@ def tiingo_json(price: Callable[[date], float]) -> str:
     )
 
 
+def polygon_json(symbol: str, price: Callable[[date], float]) -> str:
+    """Polygon's shape: bars under `results`, each day as milliseconds since the epoch at 05:00 UTC
+    (midnight in New York), with keys the app does not read (vw, n) alongside those it does."""
+    bars = [
+        {
+            "v": 3000000,
+            "vw": price(d),
+            "o": price(d),
+            "c": price(d),
+            "h": price(d),
+            "l": price(d),
+            "t": int(datetime(d.year, d.month, d.day, 5, tzinfo=UTC).timestamp() * 1000),
+            "n": 1,
+        }
+        for d in weekdays()
+    ]
+    return json.dumps(
+        {
+            "ticker": symbol,
+            "queryCount": len(bars),
+            "resultsCount": len(bars),
+            "adjusted": True,
+            "results": bars,
+            "status": "OK",
+        }
+    )
+
+
 class FakeSources:
-    """Stooq and Tiingo behind mock transports. `series` maps a symbol to its price; a symbol
-    not in it gets "No data" from Stooq and a 404 from Tiingo. Stooq answers its limit message
-    after `stooq_limit` requests, if given."""
+    """Stooq, Polygon and Tiingo behind mock transports. `series` maps a symbol to its price; a
+    symbol not in it gets "No data" from Stooq, no bars from Polygon and a 404 from Tiingo. Stooq
+    answers its limit message after `stooq_limit` requests, if given."""
 
     def __init__(self, series: dict[str, Callable[[date], float]], stooq_limit: int | None = None):
         self.series, self.stooq_limit = series, stooq_limit
         self.stooq_asked: list[str] = []
+        self.polygon_asked: list[str] = []
         self.tiingo_asked: list[str] = []
 
     def _stooq(self, request: httpx.Request) -> httpx.Response:
@@ -98,8 +127,20 @@ class FakeSources:
             return httpx.Response(404, text="Not found.")
         return httpx.Response(200, text=tiingo_json(self.series[symbol]))
 
+    def _polygon(self, request: httpx.Request) -> httpx.Response:
+        symbol = request.url.path.split("/")[4]
+        self.polygon_asked.append(symbol)
+        if symbol not in self.series:
+            return httpx.Response(
+                200, json={"ticker": symbol, "queryCount": 0, "resultsCount": 0, "adjusted": True, "status": "OK"}
+            )
+        return httpx.Response(200, text=polygon_json(symbol, self.series[symbol]))
+
     def stooq(self, key: str = "stooq-key") -> Stooq:
         return Stooq(key, transport=httpx.MockTransport(self._stooq))
+
+    def polygon(self, key: str = "polygon-key", clock=lambda: 1000.0, sleep=lambda s: None) -> Polygon:
+        return Polygon(key, transport=httpx.MockTransport(self._polygon), clock=clock, sleep=sleep)
 
     def tiingo(self, key: str = "tiingo-key", clock=lambda: 1000.0) -> Tiingo:
         return Tiingo(key, transport=httpx.MockTransport(self._tiingo), clock=clock)
@@ -123,21 +164,33 @@ def test_symbols_are_spelled_the_way_each_source_wants():
         "k1", transport=httpx.MockTransport(lambda r: (seen.append(r), httpx.Response(200, text="No data"))[1])
     )
     tiingo = Tiingo("k2", transport=httpx.MockTransport(lambda r: (seen.append(r), httpx.Response(404))[1]))
+    polygon = Polygon(
+        "k3",
+        transport=httpx.MockTransport(
+            lambda r: (seen.append(r), httpx.Response(200, json={"resultsCount": 0, "status": "OK"}))[1]
+        ),
+    )
     assert stooq.fetch("BRK-B", date(2026, 10, 26)) is None
     assert tiingo.fetch("BRK-B", date(2026, 10, 26)) is None
+    assert polygon.fetch("BRK-B", date(2026, 10, 26)) is None
     assert seen[0].url.params["s"] == "brk-b.us" and seen[0].url.params["d1"] == "20231026"
     assert seen[0].url.params["apikey"] == "k1"
     assert seen[1].url.path == "/tiingo/daily/BRK-B/prices" and seen[1].url.params["startDate"] == "2023-10-26"
     assert seen[1].headers["Authorization"] == "Token k2"
-    assert _events() == [("stooq", "ok"), ("tiingo", "ok")]  # "no data" is an answer
+    assert seen[2].url.path == "/v2/aggs/ticker/BRK.B/range/1/day/2023-10-26/2026-10-26"
+    assert seen[2].url.params["adjusted"] == "true" and seen[2].headers["Authorization"] == "Bearer k3"
+    assert _events() == [("stooq", "ok"), ("tiingo", "ok"), ("polygon", "ok")]  # "no data" is an answer
 
 
-def test_stooqs_limit_message_moves_the_rest_of_the_run_to_tiingo(tmp_path):
+def test_stooqs_limit_message_moves_the_rest_of_the_run_to_polygon_then_tiingo(tmp_path):
+    """Stooq refuses after one symbol; Polygon knows the next but not the last, which Tiingo answers."""
     fakes = FakeSources({"AAA": ramp(10, 20), "BBB": ramp(10, 10), "CCC": ramp(10, 30)}, stooq_limit=1)
+    polygon_series = {k: v for k, v in fakes.series.items() if k != "CCC"}
+    polygon_fakes = FakeSources(polygon_series)
     db = duckdb.connect()
     counts = ingest.update(
         lambda: _keep_open(db),
-        [fakes.stooq(), fakes.tiingo()],
+        [fakes.stooq(), polygon_fakes.polygon(), fakes.tiingo()],
         ["AAA", "BBB", "CCC"],
         log=QUIET,
         now=NOW,
@@ -145,14 +198,61 @@ def test_stooqs_limit_message_moves_the_rest_of_the_run_to_tiingo(tmp_path):
     )
     assert counts == {"wanted": 3, "due": 3, "fetched": 3, "no_data": 0, "left": 0}
     assert fakes.stooq_asked == ["aaa.us", "bbb.us"]  # the second was refused: Stooq is not asked again
-    assert fakes.tiingo_asked == ["BBB", "CCC"]
+    assert polygon_fakes.polygon_asked == ["BBB", "CCC"]  # no bars for CCC leaves it to Tiingo
+    assert fakes.tiingo_asked == ["CCC"]
     assert (tmp_path / "stooq" / "AAA.csv").read_text().startswith(Stooq.HEADER)
-    assert (tmp_path / "tiingo" / "BBB.json").exists() and not (tmp_path / "stooq" / "BBB.csv").exists()
+    assert (tmp_path / "polygon" / "BBB.json").exists() and not (tmp_path / "stooq" / "BBB.csv").exists()
+    assert (tmp_path / "tiingo" / "CCC.json").exists() and not (tmp_path / "polygon" / "CCC.json").exists()
     sources = dict(db.execute("SELECT symbol, source FROM price_fetches ORDER BY symbol").fetchall())
-    assert sources == {"AAA": "stooq", "BBB": "tiingo", "CCC": "tiingo"}
-    rows = db.execute("SELECT symbol, count(*), max(close) FROM raw_prices GROUP BY symbol ORDER BY symbol").fetchall()
-    assert rows == [("AAA", len(weekdays()), 20.0), ("BBB", len(weekdays()), 10.0), ("CCC", len(weekdays()), 30.0)]
-    assert _events() == [("stooq", "ok"), ("stooq", "throttled"), ("tiingo", "ok"), ("tiingo", "ok")]
+    assert sources == {"AAA": "stooq", "BBB": "polygon", "CCC": "tiingo"}
+    rows = db.execute(
+        "SELECT symbol, count(*), max(close), min(day), max(volume) FROM raw_prices GROUP BY symbol ORDER BY symbol"
+    ).fetchall()
+    assert rows == [
+        ("AAA", len(weekdays()), 20.0, FIRST_DAY, 1000000.0),
+        ("BBB", len(weekdays()), 10.0, FIRST_DAY, 3000000.0),  # Polygon's epoch milliseconds read as the day
+        ("CCC", len(weekdays()), 30.0, FIRST_DAY, 2000000.0),
+    ]
+    assert _events() == [
+        ("stooq", "ok"),
+        ("stooq", "throttled"),
+        ("polygon", "ok"),
+        ("polygon", "ok"),
+        ("tiingo", "ok"),
+    ]
+
+
+def test_polygon_is_paced_to_five_requests_a_minute_and_a_refusal_drops_it(tmp_path):
+    fakes = FakeSources({f"P{n:02d}": ramp(1, 2) for n in range(7)})
+    clock = {"now": 1000.0}
+    slept: list[float] = []
+
+    def sleep(seconds: float) -> None:
+        slept.append(round(seconds, 3))
+        clock["now"] += seconds
+
+    def tick() -> float:
+        clock["now"] += 0.5  # each request takes half a second
+        return clock["now"]
+
+    db = duckdb.connect()
+    polygon = fakes.polygon(clock=tick, sleep=sleep)
+    counts = ingest.update(lambda: _keep_open(db), [polygon], sorted(fakes.series), log=QUIET, now=NOW, folder=tmp_path)
+    assert counts["fetched"] == 7 and counts["left"] == 0
+    assert len(slept) == 1 and 55 < slept[0] <= 60  # the sixth request waited for the first to be a minute old
+    assert len(fakes.polygon_asked) == 7
+    refused = Polygon("k", transport=httpx.MockTransport(lambda r: httpx.Response(429, json={"status": "ERROR"})))
+    with pytest.raises(ingest.PriceLimitReached):
+        refused.fetch("AAA", NOW.date())
+    denied = Polygon(
+        "k",
+        transport=httpx.MockTransport(
+            lambda r: httpx.Response(403, json={"status": "ERROR", "error": "Unknown API Key"})
+        ),
+    )
+    with pytest.raises(ingest.PriceSourceDown, match="Unknown API Key"):
+        denied.fetch("AAA", NOW.date())
+    assert _events()[-2:] == [("polygon", "throttled"), ("polygon", "failed")]
 
 
 def test_a_source_with_no_data_leaves_the_symbol_to_the_next_and_a_symbol_fetched_today_is_not_asked_again(tmp_path):
@@ -312,7 +412,7 @@ def test_the_page_says_whether_each_pick_has_priced_the_flow_in(priced_db):
 
 def test_without_a_key_nothing_is_fetched_and_the_pages_still_work(accumulate_db, monkeypatch):  # noqa: F811
     accumulate_db()
-    for name in ("stooq_api_key", "tiingo_api_key"):
+    for name in ("stooq_api_key", "polygon_api_key", "tiingo_api_key"):
         monkeypatch.setattr(thirteenf.prices, name, lambda: "")
     said: list[str] = []
     assert thirteenf.prices.update_prices(log=said.append) is None

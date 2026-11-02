@@ -72,6 +72,7 @@ STOCK_PRICES = {
     "market_since_start_pct": "DOUBLE",
     "vs_market_pts": "DOUBLE",
     "price_source": "VARCHAR",
+    "stale": "BOOLEAN",
 }
 
 PERIOD = date(2024, 12, 31)
@@ -148,6 +149,7 @@ def prices(cusip: str, since_start_pct: float, market_pct: float = 0.0, **overri
         "market_since_start_pct": market_pct,
         "vs_market_pts": (since_start_pct - market_pct) * 100,
         "price_source": "stooq",
+        "stale": False,
     }
     return row | overrides
 

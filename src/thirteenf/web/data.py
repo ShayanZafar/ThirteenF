@@ -10,7 +10,7 @@ from datetime import date
 from thirteenf.config import DB_PATH
 from thirteenf.db import connect
 from thirteenf.model.read import has_cash_flows as has_cash_flows
-from thirteenf.model.read import has_prices
+from thirteenf.model.read import has_column, has_prices
 from thirteenf.model.read import rows as _rows
 from thirteenf.model.read import ticker_source_columns as _ticker_source_columns
 from thirteenf.signals import accumulate as accumulate_rule
@@ -922,11 +922,13 @@ def stock_prices(con, cusip: str, period: date) -> dict | None:
     """A stock's price since the quarter's start against the market, for one period, or None."""
     if not has_prices(con):
         return None
+    stale = "coalesce(pr.stale, false)" if has_column(con, "stock_prices", "stale") else "false"
     rows = _rows(
         con,
-        """
+        f"""
         SELECT pr.since_start_pct, pr.quarter_pct, pr.latest_close, pr.latest_day, pr.vs_market_pts,
                pr.market_since_start_pct, pr.price_source, pr.start_close, pr.dollar_volume,
+               {stale} AS stale,
                p.prev_period AS quarter_start
         FROM stock_prices pr JOIN periods p USING (period)
         WHERE pr.cusip = ? AND pr.period = ? AND pr.since_start_pct IS NOT NULL
@@ -935,7 +937,7 @@ def stock_prices(con, cusip: str, period: date) -> dict | None:
     )
     if not rows:
         return None
-    return rows[0] | {"priced": priced_in(rows[0]["vs_market_pts"])}
+    return rows[0] | {"priced": priced_in(rows[0]["vs_market_pts"], rows[0]["stale"])}
 
 
 def prices_status(con) -> dict | None:

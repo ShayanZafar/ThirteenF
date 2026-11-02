@@ -23,6 +23,7 @@ from thirteenf import health
 from thirteenf.db import connect
 from thirteenf.ingest import prices as ingest
 from thirteenf.ingest.prices import Polygon, Stooq, Tiingo
+from thirteenf.model import build
 from thirteenf.web import data
 from thirteenf.web.app import app
 
@@ -346,6 +347,51 @@ def test_a_pick_is_lagging_in_line_or_ahead_of_the_market():
     assert data.priced_in(0.0) == "in line"
     assert data.priced_in(data.PRICE_LAG_PTS) == "ahead"
     assert data.priced_in(None) is None
+    assert data.priced_in(-20.0, stale=True) == "stale"  # prices that stopped updating get no verdict
+
+
+def test_a_stale_price_is_measured_against_the_market_on_its_own_last_day():
+    """A stock whose prices stopped on Jul 15 while SPY's ran to Oct 30 used to be set against
+    SPY's Oct 30 close: the same price path read 3.6 points behind. Both now end on Jul 15."""
+    con = duckdb.connect()
+    con.execute(ingest.RAW_DDL)
+    con.execute("CREATE TABLE stocks (cusip VARCHAR, ticker VARCHAR, ticker_source VARCHAR)")
+    con.execute("INSERT INTO stocks VALUES ('A00000001', 'AAA', 'openfigi'), ('B00000001', 'BBB', 'openfigi')")
+    con.execute("CREATE TABLE periods (period DATE, prev_period DATE)")
+    con.execute("INSERT INTO periods VALUES ('2026-06-30', '2026-03-31')")
+    path = ramp(100, 110)
+    for day in weekdays(date(2026, 3, 2), date(2026, 10, 30)):
+        con.execute("INSERT INTO raw_prices VALUES ('SPY', ?, 0, 0, 0, ?, 1e6, 'stooq', 'f')", [day, path(day)])
+        con.execute("INSERT INTO raw_prices VALUES ('BBB', ?, 0, 0, 0, ?, 1e6, 'stooq', 'f')", [day, path(day)])
+        if day <= date(2026, 7, 15):
+            con.execute("INSERT INTO raw_prices VALUES ('AAA', ?, 0, 0, 0, ?, 1e6, 'stooq', 'f')", [day, path(day)])
+    con.execute(build.SQL_STOCK_PRICES)
+    found = {r[0]: r[1:] for r in con.execute("SELECT cusip, vs_market_pts, stale FROM stock_prices").fetchall()}
+    assert found["A00000001"][0] == pytest.approx(0.0) and found["A00000001"][1] is True
+    assert found["B00000001"][0] == pytest.approx(0.0) and found["B00000001"][1] is False
+
+
+def test_a_stale_pick_ranks_with_the_unpriced_when_ranked_by_price():
+    stocks, rows, flows = [], [], []
+    for cusip in (LAGGING, AHEAD):
+        stocks.append(stock(cusip, f"Company {cusip[0]}"))
+        rows.append(stock_period(cusip, 150, 140, filers_pct=0.02, streak=2, net_flow=2e7, value=1e9))
+        flows.append(cash_flow(cusip, 6e9, 7e9, diluted_shares=1e9))
+    stale = prices(LAGGING, -0.20, 0.10, stale=True)  # far behind, but its prices stopped updating
+    con = model(stocks, rows, flows, [stale, prices(AHEAD, 0.30, 0.10)])
+    ranked = data.accumulate(con, PERIOD, 100, 0.05, 2, by="price")
+    assert [r["cusip"] for r in ranked] == [AHEAD, LAGGING]
+    assert ranked[1]["priced"] == "stale"
+
+
+def test_an_answer_with_no_data_keeps_the_symbols_earlier_prices(tmp_path):
+    fakes = FakeSources({"AAA": ramp(10, 20)})
+    db = duckdb.connect()
+    ingest.update(lambda: _keep_open(db), [fakes.stooq()], ["AAA"], log=QUIET, now=NOW, folder=tmp_path)
+    before = db.execute("SELECT count(*) FROM raw_prices WHERE symbol = 'AAA'").fetchone()[0]
+    assert before > 0
+    ingest.load_file(db, ingest.Fetched("AAA", "stooq", None), NOW + ingest.REFRESH_AFTER)
+    assert db.execute("SELECT count(*) FROM raw_prices WHERE symbol = 'AAA'").fetchone()[0] == before
 
 
 LAGGING, AHEAD, UNPRICED = "L00000001", "A00000001", "U00000001"

@@ -809,11 +809,15 @@ CREATE OR REPLACE TABLE stock_cash_flows AS SELECT * EXCLUDE (n, known_from) FRO
 # period with one before it: the last close on or before the quarter's start (the
 # period before's end) and its end, the latest close, the change from the quarter's
 # start to the latest close (what the market has done since funds were buying), the
-# same for the market (prices.MARKET, an S&P 500 ETF) and the difference in points,
-# and the value traded over the quarter, to set funds' net 13F flow against. A close
-# counts for a date when it falls within PRICE_LOOKBACK_DAYS before it (a holiday or a
-# weekend at the quarter's end), never later.
+# same for the market (prices.MARKET, an S&P 500 ETF) over the same days, to the
+# stock's own latest close, and the difference in points, and the value traded over
+# the quarter, to set funds' net 13F flow against. A close counts for a date when it
+# falls within PRICE_LOOKBACK_DAYS before it (a holiday or a weekend at the quarter's
+# end), never later. A stock whose latest close is more than PRICE_STALE_DAYS older
+# than the market's is stale: its prices stopped updating, so the pages say so rather
+# than call it lagging or ahead.
 PRICE_LOOKBACK_DAYS = 7
+PRICE_STALE_DAYS = 7
 SQL_STOCK_PRICES = f"""
 {prices.RAW_DDL};
 CREATE OR REPLACE TABLE stock_prices AS
@@ -853,15 +857,28 @@ by_symbol AS (
     LEFT JOIN at_date e ON e.period = p.period AND e.symbol = l.symbol
     LEFT JOIN traded t ON t.period = p.period AND t.symbol = l.symbol
     WHERE p.prev_period IS NOT NULL
+),
+market_on AS (
+    -- the market's close on or before each stock's latest day, within the lookback
+    SELECT l.symbol, arg_max(d.close, d.day) AS close
+    FROM latest l JOIN daily d ON d.symbol = '{prices.MARKET}'
+         AND d.day <= l.latest_day AND d.day > l.latest_day - INTERVAL {PRICE_LOOKBACK_DAYS} DAY
+    GROUP BY l.symbol
+),
+compared AS (
+    SELECT b.*, mo.close / m.start_close - 1 AS market_since_start_pct, m.latest_day AS market_latest_day
+    FROM by_symbol b
+    LEFT JOIN by_symbol m ON m.period = b.period AND m.symbol = '{prices.MARKET}'
+    LEFT JOIN market_on mo ON mo.symbol = b.symbol
 )
 SELECT k.cusip, b.period, b.start_close, b.end_close, b.latest_close, b.latest_day,
        b.since_start_pct, b.quarter_pct, b.dollar_volume, b.days_traded,
-       m.since_start_pct AS market_since_start_pct,
-       (b.since_start_pct - m.since_start_pct) * 100 AS vs_market_pts,
-       f.source AS price_source
-FROM by_symbol b
+       b.market_since_start_pct,
+       (b.since_start_pct - b.market_since_start_pct) * 100 AS vs_market_pts,
+       f.source AS price_source,
+       coalesce(b.latest_day < b.market_latest_day - INTERVAL {PRICE_STALE_DAYS} DAY, false) AS stale
+FROM compared b
 JOIN keyed k USING (symbol)
-LEFT JOIN by_symbol m ON m.period = b.period AND m.symbol = '{prices.MARKET}'
 LEFT JOIN price_fetches f ON f.symbol = b.symbol
 """
 

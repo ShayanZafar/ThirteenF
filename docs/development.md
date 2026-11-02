@@ -86,6 +86,7 @@ The workflows are in `.github/workflows/`. The two that use Claude run on the `C
 | Workflow | Runs | What it does |
 | --- | --- | --- |
 | `verify.yml` | Every push to `main` and every pull request | `scripts/verify.sh` on Ubuntu with Python 3.12, then a second test run that puts test coverage in the job summary (it never fails the build) |
+| `windows-check.yml` | Only when asked: from the Actions tab (Run workflow), or the label `windows-check` on a pull request | `scripts\setup.cmd` and `scripts\verify.cmd` on Windows, for what differs there (the update lock uses msvcrt, the `.cmd` scripts) |
 | `codeql.yml` | Pushes and pull requests to `main`, and weekly | CodeQL's Python security and quality queries; findings appear under Security > Code scanning |
 | `claude-code-review.yml` | A pull request opened, reopened or marked ready | Claude reviews it once and posts inline comments. Drafts, forks and Dependabot's pull requests are skipped |
 | `claude-refactor.yml` | The 1st of each month, or from the Actions tab | Claude runs the `/refactor` skill and opens a pull request with at most three behavior-preserving cleanups |

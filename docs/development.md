@@ -93,6 +93,14 @@ The workflows are in `.github/workflows/`. The two that use Claude run on the `C
 | `claude-backlog.yml` | When you comment on a `decision` or `debt` issue, or from the Actions tab | Claude records your answer in `docs/decisions.md`, does the work it calls for and opens a pull request (the `backlog` skill) |
 | `mutation.yml` | The 1st of each month, or from the Actions tab | Mutation testing with mutmut (Linux only): lists the mutants no test noticed, in the job summary and the `mutmut-results` artifact. It never fails the build |
 
+### Optional checks
+
+Checks that cost too much, or matter too rarely, to run on every pull request are kept as a set of optional workflows, run case by case when the work calls for them (the owner's choice, Nov 2, 2026). Each runs from the Actions tab (Run workflow, pick the branch) and, on a pull request, when it gets the label named after the check; none runs on its own. A new check of this kind joins this table instead of widening `verify.yml`.
+
+| Workflow | Label | Run it when |
+| --- | --- | --- |
+| `windows-check.yml` | `windows-check` | A change touches what differs on Windows: the update lock (`runlock.py`, msvcrt), the `.cmd` scripts, paths or file handling. Runs `scripts\setup.cmd` and `scripts\verify.cmd` on Windows |
+
 Dependabot (`.github/dependabot.yml`) opens monthly pull requests for the Python dependencies and the GitHub Actions versions.
 
 ## Instructions for Claude

@@ -5,7 +5,10 @@ on the command line, in data/refresh-summary.txt and on the Accumulate page."""
 from __future__ import annotations
 
 import argparse
+import os
 import re
+import subprocess
+import sys
 from datetime import UTC, datetime
 
 import pytest
@@ -58,6 +61,29 @@ def test_only_one_update_holds_the_lock_and_it_is_free_again_after():
     with runlock.held("first"), pytest.raises(runlock.UpdateRunning, match="first"), runlock.held("second"):
         pass
     with runlock.held("third"):
+        pass
+
+
+def test_a_second_process_is_refused_while_the_first_holds_the_lock():
+    """The lock is the operating system's (fcntl, or msvcrt on Windows), across processes."""
+    holder = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            "from thirteenf import runlock\nwith runlock.held('update-data'):\n    print('held', flush=True)\n    input()",
+        ],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        text=True,
+        env=os.environ | {"THIRTEENF_DATA": str(config.DATA_DIR)},
+    )
+    try:
+        assert holder.stdout is not None and holder.stdout.readline().strip() == "held"
+        with pytest.raises(runlock.UpdateRunning), runlock.held("refresh"):
+            pass
+    finally:
+        holder.communicate("\n", timeout=30)
+    with runlock.held("refresh"):  # free again once the other process ends
         pass
 
 

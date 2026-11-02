@@ -892,13 +892,21 @@ def rebuild_after_tickers(con: duckdb.DuckDBPyConnection) -> None:
 
 
 def build_all(log=print) -> None:
+    """Every step in one transaction: a build that stops part way (an error, Ctrl+C, a full
+    disk) leaves the model as it was before, never half old and half new."""
     with connect() as con:
         log("Building the holdings model")
-        for name, step in STEPS:
-            started = time.monotonic()
-            if callable(step):
-                step(con)
-            else:
-                con.execute(step)
-            rows = scalar(con, f"SELECT count(*) FROM {name}")
-            log(f"  {name}: {rows:,} rows ({time.monotonic() - started:.1f}s)")
+        con.execute("BEGIN TRANSACTION")
+        try:
+            for name, step in STEPS:
+                started = time.monotonic()
+                if callable(step):
+                    step(con)
+                else:
+                    con.execute(step)
+                rows = scalar(con, f"SELECT count(*) FROM {name}")
+                log(f"  {name}: {rows:,} rows ({time.monotonic() - started:.1f}s)")
+            con.execute("COMMIT")
+        except BaseException:
+            con.execute("ROLLBACK")
+            raise

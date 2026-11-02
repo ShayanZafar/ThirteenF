@@ -251,3 +251,54 @@ def saved_runs(con) -> list[datetime]:
     if not has_table(con, "accumulate_runs"):
         return []
     return [r[0] for r in con.execute("SELECT DISTINCT run_at FROM accumulate_runs ORDER BY run_at").fetchall()]
+
+
+def latest_count(con) -> int:
+    """How many picks the latest saved run holds; 0 with no run."""
+    runs = saved_runs(con)
+    if not runs:
+        return 0
+    return int(scalar(con, "SELECT count(*) FROM accumulate_runs WHERE run_at = ? AND rank > 0", [runs[-1]]))
+
+
+@dataclass
+class RunChange:
+    """What changed between the two latest saved runs."""
+
+    run_at: datetime
+    previous_at: datetime
+    period: date
+    previous_period: date
+    entered: list[dict]  # picks of the latest run that the run before did not have, by rank
+    left: list[dict]  # picks of the run before that the latest run does not have, by their old rank
+    stayed: int
+    rules_changed: bool  # the thresholds differ, so some moves come from the rule, not the data
+
+    @property
+    def new_period(self) -> bool:
+        return self.period != self.previous_period
+
+
+def last_change(con) -> RunChange | None:
+    """The change from the run before the latest to the latest, or None with fewer than two runs."""
+    runs = saved_runs(con)
+    if len(runs) < 2:
+        return None
+    previous_at, run_at = runs[-2], runs[-1]
+
+    def picks_of(when: datetime) -> tuple[date, str, dict[str, dict]]:
+        found = rows(con, "SELECT * FROM accumulate_runs WHERE run_at = ? ORDER BY rank", [when])
+        return found[0]["period"], found[0]["rules"], {r["cusip"]: r for r in found if r["rank"] > 0}
+
+    period, rules, latest = picks_of(run_at)
+    previous_period, previous_rules, before = picks_of(previous_at)
+    return RunChange(
+        run_at=run_at,
+        previous_at=previous_at,
+        period=period,
+        previous_period=previous_period,
+        entered=[r for c, r in latest.items() if c not in before],
+        left=[r for c, r in before.items() if c not in latest],
+        stayed=sum(1 for c in latest if c in before),
+        rules_changed=rules != previous_rules,
+    )

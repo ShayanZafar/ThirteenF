@@ -16,6 +16,7 @@ from thirteenf.web.format import (
     compact,
     count,
     day,
+    display_name,
     money,
     money_signed,
     month_name,
@@ -30,6 +31,9 @@ from thirteenf.web.format import (
 )
 from thirteenf.web.format import (
     flow as flow_of,
+)
+from thirteenf.web.format import (
+    ticker as ticker_of,
 )
 
 
@@ -345,6 +349,38 @@ def accumulate_summary(rows: list[dict], period, min_yield: float, min_streak: i
     top = max(rows, key=lambda r: r["fcf_yield"])
     text += f" {top['name']} has the highest free cash flow yield, {pct(top['fcf_yield'], signed=False)}."
     return text
+
+
+def _pick_name(r: dict) -> str:
+    name = display_name(r["name_filed"], r["name_mixed"]) or r["cusip"]
+    return f"{name} ({ticker_of(r['ticker'])})" if r["ticker"] else name
+
+
+def run_change(change) -> str:
+    """What entered and left the Accumulate list, with the default settings, between the
+    two latest updates (thirteenf.signals.accumulate.RunChange)."""
+    since = f"Since the update of {day(change.previous_at.date())}"
+    parts = []
+    if change.new_period:
+        parts.append(f"The list moved to new 13F data, positions at {day(change.period)}.")
+    if not change.entered and not change.left:
+        parts.append(f"{since}, no stock entered or left the list.")
+    else:
+        moves = []
+        if change.entered:
+            n = len(change.entered)
+            moves.append(
+                f"{n:,} {'stock' if n == 1 else 'stocks'} entered: {join_names([_pick_name(r) for r in change.entered])}"
+            )
+        if change.left:
+            n = len(change.left)
+            moves.append(f"{n:,} left: {join_names([_pick_name(r) for r in change.left])}")
+        parts.append(f"{since}, {'; '.join(moves)}.")
+    if change.stayed:
+        parts.append(f"{change.stayed:,} stayed on it.")
+    if change.rules_changed:
+        parts.append("The list's thresholds changed between the two updates, so some of this comes from that change.")
+    return " ".join(parts)
 
 
 def price_figure(prices: dict) -> Figure:

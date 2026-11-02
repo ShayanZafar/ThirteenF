@@ -29,6 +29,7 @@ or `.venv\Scripts\python -m pytest`. About 340 tests, three kinds:
 | `tests/test_biggest_changes.py` | Biggest changes without the download: the ranking against the tide on hand-written rows, the page on the made-up data, and in a browser |
 | `tests/test_watchlist.py` | The watchlist file (started from the example, added once, a failed write leaving it whole), adding and removing through the routes, and in a browser |
 | `tests/test_signals.py` | The Accumulate rule used without the web app, and each update's list saved in `accumulate_runs` and kept through a rebuild |
+| `tests/test_refresh.py` | The recurring refresh: one update at a time, a build that stops part way changes nothing, what entered and left the list on the command line, in the summary file, on the page and in a browser |
 | `tests/test_managers.py` | What a manager did with each position, the answer sentence, the manager page, the CSV and the managers list on the made-up data, and the CSV downloaded in a browser |
 | `tests/test_lookup.py` | Looking up a stock in a browser: suggestions as you type, its periods, who added and who left |
 | `tests/test_freshness.py` | The freshness stamps and fallback-ticker marks on every page, in a browser |

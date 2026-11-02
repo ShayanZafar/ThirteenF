@@ -32,6 +32,7 @@ Press Ctrl+C in the app's window to stop it. Every script also runs from a termi
 | --- | --- | --- |
 | `scripts\setup.cmd` / `scripts/setup.sh` (`setup.command` on macOS) | | Creates `.venv`, installs the app, the test tools and Chromium for the browser tests, creates `data/settings.toml` |
 | `scripts\update-data.cmd` / `scripts/update-data.sh` (`update-data.command` on macOS) | `python -m thirteenf.ingest` | Downloads new SEC data sets and company cash flow data, loads them, rebuilds the model, maps new tickers, fetches daily prices |
+| `scripts\refresh.cmd` / `scripts/refresh.sh` | `python -m thirteenf.refresh` | `update-data`, then what entered and left the Accumulate list since the run before (also in `data/refresh-summary.txt`). `scripts\schedule-refresh.cmd` runs it every day with Task Scheduler; on macOS and Linux, `scripts/refresh.sh` says how to add it to cron |
 | `scripts\start.cmd` / `scripts/start.sh` (`start.command` on macOS) | `python -m thirteenf.web --open` | Serves the app at <http://127.0.0.1:8000> and opens it |
 | `scripts\test.cmd` / `scripts/test.sh` | `python -m pytest` | Runs the tests |
 | `scripts\verify.cmd` / `scripts/verify.sh` | | Checks formatting, lint and types, then runs the tests; CI runs the same |
@@ -41,7 +42,7 @@ Press Ctrl+C in the app's window to stop it. Every script also runs from a termi
 
 `start` and `update-data` run `setup` for you when `.venv` is missing. The `.command` files run the matching `.sh` from Finder on macOS, and `scripts\keep-window.cmd` keeps a double-clicked window open to read the result. Scripts pass options through: `scripts\start.cmd --port 8001`, `scripts\update-data.cmd --no-download`, `scripts\test.cmd -k tickers`.
 
-New 13F data arrives in three-month batches (December to February, March to May, June to August, September to November). Run `update-data` after each to pick up the new quarter.
+New 13F data arrives in three-month batches (December to February, March to May, June to August, September to November). Run `update-data` after each to pick up the new quarter, or let the daily refresh (`scripts\schedule-refresh.cmd`) do it: it picks up a new quarter the day the SEC publishes it, refreshes prices and financials every day, and says what entered and left the Accumulate list.
 
 ## Documentation
 

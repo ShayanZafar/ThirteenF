@@ -169,7 +169,10 @@ class Polygon:
         if response.status_code == 404:
             health.record(self.name, "ok")
             return None
-        body = response.json() if response.text.lstrip().startswith("{") else {}
+        try:
+            body = response.json() if response.text.lstrip().startswith("{") else {}
+        except ValueError:  # a body that starts like JSON and is not: a failure, not price data
+            body = {}
         if response.status_code != 200 or body.get("status") not in ("OK", "DELAYED"):
             health.record(self.name, "failed", f"HTTP {response.status_code}")
             raise PriceSourceDown(f"Polygon answered HTTP {response.status_code}: {str(body.get('error', ''))[:80]}")
@@ -320,6 +323,19 @@ def load_file(con: duckdb.DuckDBPyConnection, fetched: Fetched, fetched_at: date
     return rows
 
 
+def unreadable(con: duckdb.DuckDBPyConnection, fetched: Fetched, fetched_at: datetime, err: Exception) -> None:
+    """An answer that could not be loaded: recorded as a failure of its source, and noted as a
+    fetch with no rows, so the symbol waits REFRESH_AFTER like any other. The symbol's earlier
+    rows in raw_prices stay: the app keeps working on its last good data."""
+    health.record(fetched.source, "failed", f"unreadable answer for {fetched.symbol}: {str(err).splitlines()[0][:60]}")
+    con.execute(RAW_DDL)
+    con.execute("DELETE FROM price_fetches WHERE symbol = ?", [fetched.symbol])
+    con.execute(
+        "INSERT INTO price_fetches VALUES (?, ?, ?, 0)",
+        [fetched.symbol, fetched.source, fetched_at.replace(tzinfo=None)],
+    )
+
+
 def due(con: duckdb.DuckDBPyConnection, symbols: list[str], now: datetime) -> list[str]:
     """The symbols to fetch this run: never fetched first, then the oldest fetches, leaving
     out those fetched within REFRESH_AFTER."""
@@ -343,15 +359,24 @@ def update(
     folder = folder or PRICES_DIR
     with open_db() as con:
         todo = due(con, symbols, now)
-    counts = {"wanted": len(symbols), "due": len(todo), "fetched": 0, "no_data": 0, "left": 0}
+    counts = {"wanted": len(symbols), "due": len(todo), "fetched": 0, "no_data": 0, "unreadable": 0, "left": 0}
     chain = list(providers)
     for i, symbol in enumerate(todo):
         fetched = fetch_symbol(chain, symbol, now.date(), folder, log)
         if fetched is None:
             counts["left"] = len(todo) - i
             break
-        with open_db() as con:
-            rows = load_file(con, fetched, now)
+        try:
+            with open_db() as con:
+                rows = load_file(con, fetched, now)
+        except (duckdb.Error, ValueError) as err:
+            # One answer that is not price data (a "N/A" close, a cut-off file) must not stop
+            # the run, or every later run would stop at the same symbol.
+            with open_db() as con:
+                unreadable(con, fetched, now, err)
+            counts["unreadable"] += 1
+            log(f"    {symbol}: {fetched.source}'s answer could not be read; its earlier prices are kept")
+            continue
         counts["fetched" if fetched.path else "no_data"] += 1
         if fetched.path is None:
             log(f"    {symbol}: no price data at {fetched.source}")

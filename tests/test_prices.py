@@ -196,7 +196,7 @@ def test_stooqs_limit_message_moves_the_rest_of_the_run_to_polygon_then_tiingo(t
         now=NOW,
         folder=tmp_path,
     )
-    assert counts == {"wanted": 3, "due": 3, "fetched": 3, "no_data": 0, "left": 0}
+    assert counts == {"wanted": 3, "due": 3, "fetched": 3, "no_data": 0, "unreadable": 0, "left": 0}
     assert fakes.stooq_asked == ["aaa.us", "bbb.us"]  # the second was refused: Stooq is not asked again
     assert polygon_fakes.polygon_asked == ["BBB", "CCC"]  # no bars for CCC leaves it to Tiingo
     assert fakes.tiingo_asked == ["CCC"]
@@ -263,7 +263,7 @@ def test_a_source_with_no_data_leaves_the_symbol_to_the_next_and_a_symbol_fetche
     assert counts["fetched"] == 1 and counts["no_data"] == 1
     assert fakes.stooq_asked == ["aaa.us", "zzz.us"] and fakes.tiingo_asked == ["ZZZ"]  # both asked, neither knew
     again = ingest.update(lambda: _keep_open(db), chain, ["AAA", "ZZZ"], log=QUIET, now=NOW, folder=tmp_path)
-    assert again == {"wanted": 2, "due": 0, "fetched": 0, "no_data": 0, "left": 0}
+    assert again == {"wanted": 2, "due": 0, "fetched": 0, "no_data": 0, "unreadable": 0, "left": 0}
     later = ingest.update(
         lambda: _keep_open(db), chain, ["AAA", "ZZZ"], log=QUIET, now=NOW + ingest.REFRESH_AFTER, folder=tmp_path
     )
@@ -289,11 +289,39 @@ def test_a_failing_source_is_left_at_once_and_what_was_fetched_stays(tmp_path):
     db = duckdb.connect()
     stooq = Stooq("k", transport=httpx.MockTransport(down))
     counts = ingest.update(lambda: _keep_open(db), [stooq], ["AAA", "BBB"], log=QUIET, now=NOW, folder=tmp_path)
-    assert counts == {"wanted": 2, "due": 2, "fetched": 0, "no_data": 0, "left": 2}
+    assert counts == {"wanted": 2, "due": 2, "fetched": 0, "no_data": 0, "unreadable": 0, "left": 2}
     assert _events() == [("stooq", "failed")]
     html = Stooq("k", transport=httpx.MockTransport(lambda r: httpx.Response(200, text="<html>Sign in</html>")))
     with pytest.raises(ingest.PriceSourceDown):
         html.fetch("AAA", NOW.date())
+
+
+def test_an_answer_that_cannot_be_read_never_stops_the_run_and_waits_like_any_other(tmp_path):
+    """One bad row (a "N/A" close) used to stop every later run at the same symbol."""
+    good = stooq_csv(ramp(10, 12))
+    bad = "Date,Open,High,Low,Close,Volume\n2026-10-01,1,1,1,N/A,100\n"
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text=bad if request.url.params["s"] == "aaa.us" else good)
+
+    db = duckdb.connect()
+    db.execute(ingest.RAW_DDL)
+    db.execute("INSERT INTO raw_prices VALUES ('AAA', DATE '2026-09-30', 1, 1, 1, 9, 100, 'stooq', 'AAA.csv')")
+    stooq = Stooq("k", transport=httpx.MockTransport(answer))
+    counts = ingest.update(lambda: _keep_open(db), [stooq], ["AAA", "BBB"], log=QUIET, now=NOW, folder=tmp_path)
+    assert counts == {"wanted": 2, "due": 2, "fetched": 1, "no_data": 0, "unreadable": 1, "left": 0}
+    assert db.execute("SELECT close FROM raw_prices WHERE symbol = 'AAA'").fetchall() == [(9.0,)]  # kept
+    assert ("stooq", "failed") in _events()
+    again = ingest.update(lambda: _keep_open(db), [stooq], ["AAA", "BBB"], log=QUIET, now=NOW, folder=tmp_path)
+    assert again["due"] == 0  # the bad answer waits REFRESH_AFTER, like a good one
+
+
+def test_polygon_text_that_only_looks_like_json_is_a_failure_not_a_crash():
+    broken = Polygon(
+        "k", transport=httpx.MockTransport(lambda r: httpx.Response(200, text="{not json")), sleep=lambda s: None
+    )
+    with pytest.raises(ingest.PriceSourceDown):
+        broken.fetch("AAA", NOW.date())
 
 
 class _keep_open:

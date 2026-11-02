@@ -901,10 +901,17 @@ accumulate_change = accumulate_rule.last_change
 
 
 def accumulate(
-    con, period: date, minimum: int, min_yield: float, min_streak: int, by: str = "yield", limit: int = 50
+    con,
+    period: date,
+    minimum: int,
+    min_yield: float,
+    min_streak: int,
+    by: str = "yield",
+    limit: int = 50,
+    known_by: date | None = None,
 ) -> list[dict]:
     """The rule's picks (thirteenf.signals.accumulate.picks), named and with tickers as people write them."""
-    rows = accumulate_rule.picks(con, period, minimum, min_yield, min_streak, by, limit)
+    rows = accumulate_rule.picks(con, period, minimum, min_yield, min_streak, by, limit, known_by)
     for r in rows:
         r["name"] = display_name(r["name_filed"], r["name_mixed"])
         r["ticker"] = ticker_text(r["ticker"])

@@ -24,7 +24,7 @@ from thirteenf.ingest import prices
 from thirteenf.ingest.prices import Provider
 from thirteenf.model.build import SQL_STOCK_PRICES
 from thirteenf.model.read import has_cash_flows
-from thirteenf.signals import accumulate
+from thirteenf.signals import accumulate, backtest
 
 
 def providers() -> list[Provider]:
@@ -53,6 +53,7 @@ def wanted_symbols(con) -> list[str]:
         list(watchlist.cusips()),
     ).fetchall()
     tickers += [r[0] for r in rows]
+    symbols += backtest.wanted_symbols(con)  # past lists' picks, for the backtest
     symbols += [prices.symbol_key(t) for t in tickers]
     return list(dict.fromkeys(s for s in symbols if s))
 

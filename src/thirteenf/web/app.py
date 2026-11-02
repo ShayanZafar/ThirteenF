@@ -17,6 +17,9 @@ from markupsafe import Markup, escape
 from thirteenf import health, watchlist
 from thirteenf.config import DESIGN_SYSTEM_DIR, WATCHLIST_CSV
 from thirteenf.db import Busy
+from thirteenf.model.build import TEN_K_DAYS
+from thirteenf.signals import accumulate as accumulate_rule
+from thirteenf.signals import backtest
 from thirteenf.web import charts, data, story
 from thirteenf.web import format as fmt
 
@@ -322,8 +325,15 @@ def accumulate_page(
         default = data.accumulate_period(periods)
         selected = next((p for p in choices if p.period.isoformat() == period), default)
         ready = data.has_cash_flows(con)
-        rows = data.accumulate(con, selected.period, minimum, min_yield / 100, streak, by) if ready else []
-        coverage = data.accumulate_coverage(con, selected.period, minimum) if ready else None
+        # An earlier period's list uses the financials known when it came out, as the backtest
+        # does; the period the list opens on uses the latest there are.
+        known_by = None if selected.period == default.period else accumulate_rule.list_date(selected.deadline)
+        rows = (
+            data.accumulate(con, selected.period, minimum, min_yield / 100, streak, by, known_by=known_by)
+            if ready
+            else []
+        )
+        coverage = data.accumulate_coverage(con, selected.period, minimum, known_by) if ready else None
         prices = data.prices_status(con)
         change = data.accumulate_change(con)
     if change is not None and change.period != selected.period:
@@ -348,8 +358,33 @@ def accumulate_page(
         lag_pts=f"{data.PRICE_LAG_PTS:g}",
         change=change,
         change_text=story.run_change(change) if change else "",
+        known_by=known_by,
         summary_text=story.accumulate_summary(rows, selected, min_yield / 100, streak) if ready else "",
         **freshness(selected),
+    )
+
+
+@app.get("/accumulate/backtest", response_class=HTMLResponse)
+def backtest_page(request: Request):
+    with data.connection() as con:
+        periods = data.periods(con)
+        result = backtest.run(con)
+        prices = data.prices_status(con)
+    for q in result.quarters:
+        for p in q.picks:
+            p["name"] = fmt.display_name(p["name_filed"], p["name_mixed"])
+            p["ticker"] = fmt.ticker(p["ticker"])
+    return render(
+        request,
+        "backtest.html",
+        nav="accumulate",
+        result=result,
+        prices=prices,
+        answer=story.backtest_answer(result),
+        compounded=result.compounded(),
+        publish_lag=accumulate_rule.PUBLISH_LAG_DAYS,
+        ten_k_days=TEN_K_DAYS,
+        **freshness(periods[-1]),
     )
 
 

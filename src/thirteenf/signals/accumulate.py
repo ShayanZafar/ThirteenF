@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Protocol
 
 from thirteenf.db import scalar
@@ -52,11 +52,35 @@ def choose_period[P: PeriodLike](all_periods: list[P]) -> P:
     return (on_time or choices)[-1]
 
 
-_FROM = """
+# The SEC publishes a three-month data set some days after the window ends, and a period's
+# filing deadline falls in the window's last month, so a period's list could first be read
+# about this long after the end of its deadline's month. An assumption, stated on the backtest
+# page: the SEC gives no publication date.
+PUBLISH_LAG_DAYS = 14
+
+
+def list_date(deadline: date) -> date:
+    """The first day a period's list could be read: PUBLISH_LAG_DAYS after the end of the
+    month its filing deadline falls in (the end of its data set's window)."""
+    next_month = date(deadline.year + deadline.month // 12, deadline.month % 12 + 1, 1)
+    return next_month - timedelta(days=1) + timedelta(days=PUBLISH_LAG_DAYS)
+
+
+def _from(con, known_by: date | None) -> str:
+    """The tables the rule reads. With known_by, each company's financials are the latest
+    fiscal year known by that day (fundamentals_history.known_from), as a person reading
+    the list then would have had them; without it, the latest there are."""
+    cash_flows = "stock_cash_flows"
+    if known_by is not None and has_table(con, "stock_cash_flows_history"):
+        cash_flows = f"""(SELECT DISTINCT ON (cusip) * FROM stock_cash_flows_history
+                 WHERE known_from <= DATE '{known_by.isoformat()}' ORDER BY cusip, fiscal_end DESC)"""
+    return f"""
     FROM stock_periods sp
     JOIN stocks s ON s.cusip = sp.cusip
-    JOIN stock_cash_flows cf ON cf.cusip = sp.cusip
+    JOIN {cash_flows} cf ON cf.cusip = sp.cusip
 """
+
+
 _WHERE = f"""sp.period = ? AND sp.funds_holding >= ? AND sp.funds_prev >= ?
       AND cf.fiscal_end > sp.period - INTERVAL {FISCAL_MAX_AGE_MONTHS} MONTH"""
 _COMPARABLE = "cf.prior_free_cash_flow IS NOT NULL AND NOT cf.financial AND sp.median_price > 0"
@@ -67,11 +91,19 @@ _SHARES_AGREE = (
 
 
 def picks(
-    con, period: date, minimum: int, min_yield: float, min_streak: int, by: str = "yield", limit: int = 50
+    con,
+    period: date,
+    minimum: int,
+    min_yield: float,
+    min_streak: int,
+    by: str = "yield",
+    limit: int = 50,
+    known_by: date | None = None,
 ) -> list[dict]:
     """Stocks with more funds against the tide for `min_streak` periods running, a
     positive net 13F flow, positive free cash flow in each of their last two fiscal
-    years, and the lower of the two at least `min_yield` of market value."""
+    years, and the lower of the two at least `min_yield` of market value. With known_by,
+    only financials known by that day count (_from)."""
     order = RANKINGS[by]
     price_columns, price_join = _price_join(con)
     found = rows(
@@ -86,7 +118,7 @@ def picks(
                    cf.fiscal_end, cf.prior_fiscal_end, cf.entity_name,
                    sp.median_price * cf.diluted_shares AS market_value,
                    cf.lower_free_cash_flow / (sp.median_price * cf.diluted_shares) AS fcf_yield
-            {_FROM}
+            {_from(con, known_by)}
             {price_join}
             WHERE {_WHERE}
               AND {_COMPARABLE} AND {_SHARES_AGREE}
@@ -133,7 +165,7 @@ def _price_join(con) -> tuple[str, str]:
     return _PRICE_COLUMNS, "LEFT JOIN stock_prices pr ON pr.cusip = sp.cusip AND pr.period = sp.period"
 
 
-def coverage(con, period: date, minimum: int) -> dict:
+def coverage(con, period: date, minimum: int, known_by: date | None = None) -> dict:
     """How many stocks were compared, how many have two comparable years of cash
     flow, how many are banks, insurers or lenders, and how many failed the share checks."""
     compared = scalar(
@@ -149,7 +181,7 @@ def coverage(con, period: date, minimum: int) -> dict:
         SELECT count(*) FILTER (WHERE {_COMPARABLE}),
                count(*) FILTER (WHERE cf.financial),
                count(*) FILTER (WHERE {_COMPARABLE} AND NOT ({_SHARES_AGREE}))
-        {_FROM}
+        {_from(con, known_by)}
         WHERE {_WHERE}
         """,
         [period, minimum, minimum],

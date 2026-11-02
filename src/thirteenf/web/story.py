@@ -383,6 +383,30 @@ def run_change(change) -> str:
     return " ".join(parts)
 
 
+def backtest_answer(result) -> str:
+    """One paragraph on how past Accumulate lists did against the market (signals.backtest)."""
+    if not result.quarters:
+        return (
+            "No past list can be checked yet: the backtest needs daily prices for SPY and the past "
+            "picks, which the next update fetches when a price key is set."
+        )
+    closed = result.closed
+    if not closed:
+        return (
+            f"Only the newest list, {result.quarters[-1].label}, has prices so far, and it is still held: "
+            "a full quarter is needed before the list can be compared with the market."
+        )
+    mine, market = result.compounded()
+    n = len(closed)
+    beat = sum(1 for q in closed if (q.excess or 0) > 0)
+    text = (
+        f"Held from one list to the next, the past {n:,} {'list' if n == 1 else 'lists'} "
+        f"{'returned' if n == 1 else 'returned together'} {pct(mine)} against {pct(market)} for SPY "
+        f"over the same days, beating it in {beat:,} of {n:,} {'quarter' if n == 1 else 'quarters'}."
+    )
+    return text + " Few quarters: a check that the list is not worse than the market, not proof that it is better."
+
+
 def price_figure(prices: dict) -> Figure:
     """The stock's price since the quarter funds bought in, against the market."""
     return Figure(

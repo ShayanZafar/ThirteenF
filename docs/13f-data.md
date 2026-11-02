@@ -111,6 +111,8 @@ The streak, the yield and the minimum funds are settings on the page. It ranks b
 - Companies that report in IFRS (most foreign issuers and ADRs), report no capital spending, or whose latest fiscal year ended more than 18 months before the period.
 - Share-count checks, each within 1.5 times: the diluted count must agree with the latest cover-page count (`dei:EntityCommonStockSharesOutstanding`), which a split since the fiscal year end breaks; and funds' 13F holdings must not be worth more than the market value. Multi-class companies often have no cover-page count in the frames; they pass on the second check alone.
 
+**Why the rest have no comparable cash flow.** Under the key figures the page counts the compared stocks with no comparable cash flow by reason, each under the first that applies: its financials are over 18 months old, or it has one fiscal year only (or two that do not follow each other); else it has no ticker, a ticker matched by issuer name only, a ticker the SEC's company list does not have (often a foreign company filing 20-F), or no fiscal year with operating cash flow, capital spending and a share count in XBRL (often a capital-spending tag the app does not read). Missing data shows as a count, never as a zero (`accumulate.gaps`, added Nov 2, 2026). Without a prior year, `lower_free_cash_flow` is empty, not the one year.
+
 As of Oct 2026, for Q2 2026: 3,143 stocks compared, about 2,000 with two comparable years of cash flow, 283 banks, insurers and lenders left out (Enova, World Acceptance, Rocket and loanDepot among the lenders), about 100 left out by the share checks.
 
 ## Daily prices and whether a pick is priced in

@@ -18,6 +18,7 @@
 <div class="tf-kf"><span class="tf-kf__label">With two years of cash flow</span><span class="tf-kf__value">{{ fmt.count(coverage.with_cash_flow) }}<span class="tf-kf__unit"> of {{ fmt.count(coverage.compared) }}</span></span><span class="tf-kf__delta">Leaves out {{ fmt.count(coverage.financial) }} {{ "bank, insurer or lender" if coverage.financial == 1 else "banks, insurers and lenders" }}</span></div>
 <div class="tf-kf"><span class="tf-kf__label">Left out by the share checks</span><span class="tf-kf__value">{{ fmt.count(coverage.shares_differ) }}</span><span class="tf-kf__delta">Share counts disagree, often a split</span></div>
 </div>
+{% if coverage.gap_list %}<p class="type-note" id="coverage-gaps">Not compared on cash flow, of the {{ fmt.count(coverage.compared) }}: {% for n, why in coverage.gap_list %}{{ fmt.count(n) }} with {{ why }}{{ "; " if not loop.last else "." }}{% endfor %}</p>{% endif %}
 
 {% if change %}
 <section class="app-section" id="since-last-update" aria-labelledby="since-last-update-title">

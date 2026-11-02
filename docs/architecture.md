@@ -53,6 +53,7 @@ web/app.py (FastAPI)  ->  Jinja2 templates + inline SVG  ->  your browser
 | `runlock.py` | One update at a time: an operating-system lock on `data/update.lock`, held by `update-data` and the refresh, gone when the process ends |
 | `model/read.py` | Read helpers shared by the pages, the commands and the signals: rows as dicts, checks for tables an older database lacks |
 | `signals/accumulate.py` | The Accumulate list's rule, thresholds and the period it opens on, used by the page, the price command and the update alike; saves each update's list in `accumulate_runs` |
+| `signals/backtest.py` | Each past Accumulate list as it could have been read then (financials known by that day), held until the next list, against SPY; the `/accumulate/backtest` page |
 | `web/data.py` | Read-only queries for the pages; one connection per request. The Accumulate rule comes from `signals/`, never the reverse: nothing outside `web/` imports the web app |
 | `web/story.py` | The sentences and key figures, written from rules |
 | `web/charts.py` | The bar charts, net flow chart and sparklines as SVG |
@@ -85,7 +86,9 @@ Built by `model/build.py` in this order. Definitions are in [13f-data.md](13f-da
 | `changes` | stock and quarter | Managers that opened, added, held, trimmed, sold out or have not filed; shares bought and sold |
 | `stock_periods` | stock and quarter | Every comparison the pages show: against last quarter, the tide and the typical stock or ETF, the share check, the streak, the net 13F flow |
 | `fundamentals` | company (CIK) | Its last two fiscal years of operating cash flow, capital spending and free cash flow, share counts, and whether it is a bank, insurer or lender |
+| `fundamentals_history` | company and fiscal year | Every fiscal year, with the year before it and `known_from`: 90 days after the year ends, the longest any company has to file its 10-K. `fundamentals` is its latest year |
 | `stock_cash_flows` | stock | Its company's `fundamentals`, matched by ticker; rebuilt after a ticker run |
+| `stock_cash_flows_history` | stock and fiscal year | `fundamentals_history`, matched by ticker: an earlier period's list and the backtest read the latest year known by the list's date |
 | `openfigi` | CUSIP | OpenFIGI's answer, as returned |
 | `ticker_fallbacks` | CUSIP | A provisional ticker for a CUSIP OpenFIGI did not answer, or (fails-to-deliver only) does not know: its source (`sec-ftd` or `issuer-name`), date and details. OpenFIGI's later answer replaces it |
 | `raw_ftd` | line of a fails-to-deliver file | The SEC's fails-to-deliver files as text, tagged with their zip |

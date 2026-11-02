@@ -67,7 +67,7 @@ The first run:
 1. Reads the download links from the SEC's [Form 13F data sets](https://www.sec.gov/data-research/sec-markets-data/form-13f-data-sets) page and downloads every three-month filing window from June 2024 on (about 800 MB).
 2. Loads each zip into DuckDB exactly as filed, checking every table's row count against its file.
 3. Builds the model: one current filing per manager, positions, funds holding, changes, net 13F flow, and the data checks.
-4. Downloads the companies' cash flow data from the SEC (about 60 files), for the Accumulate page.
+4. Downloads the companies' cash flow data from the SEC (about 70 files), for the Accumulate page.
 5. Maps CUSIPs to tickers, if you added an OpenFIGI key.
 6. Fetches daily prices and volume, if you added a Stooq, Polygon or Tiingo key: for the market (SPY), the stocks on your watchlist and the Accumulate list's candidates, about three years back, into `data/raw/prices/`. A symbol fetched in the last 20 hours is not asked for again, so a run stopped by a source's limit picks up where it left off next time. The Accumulate page needs tickers to match companies to their stocks. Where OpenFIGI cannot answer, the SEC's fails-to-deliver data and the issuer's name stand in until the next run; for a CUSIP OpenFIGI does not know, the fails-to-deliver data alone ([sources.md](sources.md)).
 

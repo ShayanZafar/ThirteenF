@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Accumulate list backtest · ThirteenF{% endblock %}
+{% block main %}
+<section class="app-section app-section--tight">
+<div class="app-eyebrow"><span class="type-caption app-caption-muted"><a href="/accumulate">Accumulate list</a> · Past lists against the market</span></div>
+<h1 class="type-display app-title">How past Accumulate lists did</h1>
+{% include "_stamps.html" %}
+<p class="app-answer">{{ answer }}</p>
+</section>
+
+{% if compounded %}
+<div class="tf-kfrow">
+<div class="tf-kf"><span class="tf-kf__label">Past lists, held in turn</span><span class="tf-kf__value">{{ fmt.pct(compounded[0])|signed }}</span><span class="tf-kf__delta">{{ fmt.count(result.closed|length) }} closed {{ "quarter" if result.closed|length == 1 else "quarters" }}</span></div>
+<div class="tf-kf"><span class="tf-kf__label">SPY, same days</span><span class="tf-kf__value">{{ fmt.pct(compounded[1])|signed }}</span><span class="tf-kf__delta">The market</span></div>
+<div class="tf-kf"><span class="tf-kf__label">Difference</span><span class="tf-kf__value">{{ fmt.pts((compounded[0] - compounded[1]) * 100)|signed }}</span><span class="tf-kf__delta">Points, list minus market</span></div>
+</div>
+{% endif %}
+
+{% if result.quarters %}
+<section class="app-section">
+<div class="app-section__head"><h2 class="type-headline">Each list, held until the next</h2><span class="type-caption app-caption-muted">Prices through {{ fmt.day(result.through) }}</span></div>
+<div class="tf-tablewrap"><table class="tf-table">
+<thead><tr><th scope="col">List</th><th scope="col">Held</th><th scope="col" class="tf-r">Picks with prices</th><th scope="col" class="tf-r">List</th><th scope="col" class="tf-r">SPY</th><th scope="col" class="tf-r">Difference</th><th scope="col" class="tf-r">Picks beating SPY</th></tr></thead>
+<tbody>
+{% for q in result.quarters|reverse %}
+<tr>
+<td><div class="app-cell"><span><a href="/accumulate?period={{ q.period.isoformat() }}">{{ q.label }}</a></span><span class="app-cell__sub">{{ q.picks|map(attribute="ticker")|select|join(", ") or "No picks" }}</span></div></td>
+<td><div class="app-cell"><span class="tf-num">{{ fmt.short_day(q.list_date) }} to {{ fmt.short_day(q.exit_date) }}</span>{% if q.open %}<span class="app-cell__sub">Still held, to the latest close</span>{% endif %}</div></td>
+<td class="tf-r tf-num">{{ fmt.count(q.priced|length) }} of {{ fmt.count(q.picks|length) }}</td>
+<td class="tf-r tf-num">{{ fmt.pct(q.ret)|signed }}</td>
+<td class="tf-r tf-num">{{ fmt.pct(q.market_ret)|signed }}</td>
+<td class="tf-r tf-num">{% if q.excess is not none %}{{ fmt.pts(q.excess * 100)|signed }}{% else %}{{ fmt.pct(none) }}{% endif %}</td>
+<td class="tf-r tf-num">{{ fmt.count(q.beat) }} of {{ fmt.count(q.priced|length) }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table></div>
+</section>
+{% endif %}
+
+<section id="method" class="app-method">
+<h2 class="type-title">Method</h2>
+<p class="type-note">Each quarter’s list is drawn with the default settings as it could have been read then: from the day the SEC’s data set for that quarter would have been out (assumed {{ publish_lag }} days after the end of the month its filing deadline falls in; the SEC gives no publication date), using only the companies’ fiscal years known by that day ({{ ten_k_days }} days after a fiscal year ends, the longest any company has to file its 10-K). Each pick is bought at the first daily close on or after that day and sold at the last close before the next list came out; the newest list is still held and is measured to the latest close, so it is left out of the totals. A quarter’s return is the plain average of its picks with prices, set against SPY, an S&amp;P 500 fund, over the same two days.</p>
+<p class="type-note">What it cannot see: picks without daily prices (a ticker that changed, or a stock delisted since, so losers can be missing and the list can look better than it was), late 13F filings and amendments that arrived after the list date, restated financials, and trading costs and taxes. Returns are price changes adjusted for splits; whether dividends count depends on the source that answered (Tiingo’s include them), so a pick paying a large dividend can look a little worse than it was. With two to three years of daily prices this covers a handful of quarters: a check that the list is not worse than the market, not proof that it is better, and not advice.</p>
+</section>
+{% endblock %}

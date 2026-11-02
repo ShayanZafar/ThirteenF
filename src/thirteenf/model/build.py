@@ -717,13 +717,19 @@ LEFT JOIN provisional p ON p.stock = b.stock
 # company whose loan interest and fees were LENDER_SHARE or more of its revenue
 # in a fiscal year, or that reported loan interest and no revenue line at all.
 LENDER_SHARE = 0.25
+# fundamentals keeps each company's latest fiscal year; fundamentals_history keeps every
+# year, each with the day it counts as known: TEN_K_DAYS after the fiscal year end, the
+# longest the SEC gives any company to file its 10-K (larger filers have 60 or 75 days).
+# The frames carry no filing date, so this errs late: a past period's list never uses a
+# year before it could have been read (the backtest, signals/backtest.py).
+TEN_K_DAYS = 90
 _CONCEPT_ROWS = ", ".join(
     f"('{measure}', '{taxonomy}', '{tag}', '{unit}', {rank})"
     for rank, (measure, taxonomy, tag, unit) in enumerate([*xbrl.ANNUAL_CONCEPTS, *xbrl.INSTANT_CONCEPTS])
 )
 SQL_FUNDAMENTALS = f"""
 {xbrl.RAW_DDL};
-CREATE OR REPLACE TABLE fundamentals AS
+CREATE OR REPLACE TABLE fundamentals_history AS
 WITH concepts(measure, taxonomy, tag, unit, rank) AS (VALUES {_CONCEPT_ROWS}),
 facts AS (
     SELECT f.cik, f.period_end, f.period_start, f.entity_name, f.accn, f.val, c.measure, c.rank
@@ -767,13 +773,14 @@ financial AS (
 SELECT l.cik, l.entity_name, l.accn, l.fiscal_end, l.operating_cash_flow, l.capex, l.free_cash_flow,
        l.diluted_shares, p.fiscal_end AS prior_fiscal_end, p.free_cash_flow AS prior_free_cash_flow,
        least(l.free_cash_flow, p.free_cash_flow) AS lower_free_cash_flow,
-       c.shares_outstanding, c.shares_as_of, fi.cik IS NOT NULL AS financial
+       c.shares_outstanding, c.shares_as_of, fi.cik IS NOT NULL AS financial,
+       l.n, CAST(l.fiscal_end + INTERVAL {TEN_K_DAYS} DAY AS DATE) AS known_from
 FROM ranked l
-LEFT JOIN ranked p ON p.cik = l.cik AND p.n = 2
+LEFT JOIN ranked p ON p.cik = l.cik AND p.n = l.n + 1
      AND p.fiscal_end BETWEEN l.fiscal_end - INTERVAL 380 DAY AND l.fiscal_end - INTERVAL 350 DAY
 LEFT JOIN cover c ON c.cik = l.cik
-LEFT JOIN financial fi ON fi.cik = l.cik
-WHERE l.n = 1
+LEFT JOIN financial fi ON fi.cik = l.cik;
+CREATE OR REPLACE TABLE fundamentals AS SELECT * EXCLUDE (n, known_from) FROM fundamentals_history WHERE n = 1
 """
 
 # A stock meets its company's financials through its ticker: OpenFIGI's (BRK/B)
@@ -781,7 +788,7 @@ WHERE l.n = 1
 # issuer name is unverified, so it never brings a company's figures to the
 # accumulate list; one from the SEC's fails-to-deliver data does.
 SQL_STOCK_CASH_FLOWS = """
-CREATE OR REPLACE TABLE stock_cash_flows AS
+CREATE OR REPLACE TABLE stock_cash_flows_history AS
 WITH tickers AS (
     SELECT DISTINCT ON (key) regexp_replace(upper(ticker), '[^A-Z0-9]', '', 'g') AS key, cik
     FROM raw_sec_tickers ORDER BY key, cik
@@ -793,7 +800,8 @@ listed AS (
 SELECT l.cusip, f.*
 FROM listed l
 JOIN tickers t USING (key)
-JOIN fundamentals f USING (cik)
+JOIN fundamentals_history f USING (cik);
+CREATE OR REPLACE TABLE stock_cash_flows AS SELECT * EXCLUDE (n, known_from) FROM stock_cash_flows_history WHERE n = 1
 """
 
 # Daily prices meet the 13F periods. For each stock with a verified ticker and each

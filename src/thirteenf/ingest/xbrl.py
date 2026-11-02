@@ -2,7 +2,7 @@
 
 Each frame is one financial-statement line for every company in one calendar
 period, as reported in 10-K and 10-Q filings: https://www.sec.gov/search-filings/edgar-application-programming-interfaces.
-A few frames cover every company, so a full refresh is about 60 requests.
+A few frames cover every company, so a full refresh is about 70 requests.
 The files are kept in data/raw/xbrl/ as downloaded and loaded as they are;
 the model (thirteenf.model.build) derives free cash flow from them.
 
@@ -32,8 +32,10 @@ TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
 TICKERS_FILE = "company_tickers.json"
 # The first fiscal year read. Frames name a fiscal year by the calendar year it
 # mostly falls in, so CY2025 holds Apple's year to September 2025 and
-# Microsoft's to June 2025. Starting in 2023 gives every company two full years.
-FIRST_YEAR = 2023
+# Microsoft's to June 2025. Starting in 2022 gives every company two full years
+# as known at the first 13F period loaded (Q2 2024), which the backtest needs
+# (Nov 2, 2026; it was 2023, enough for the latest list only).
+FIRST_YEAR = 2022
 
 # Annual lines: (measure, taxonomy, tag, unit). Within a measure the first tag a
 # company reports wins: most report capital spending as purchases of property,

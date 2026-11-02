@@ -51,7 +51,7 @@ def held(what: str) -> Iterator[None]:
     process holds it. `what` is written into the file, so a person can see who has it."""
     path = lock_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o644)
+    fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o600)
     try:
         if not _try_lock(fd):
             try:  # Windows refuses to read the locked byte; the note after it can still be read

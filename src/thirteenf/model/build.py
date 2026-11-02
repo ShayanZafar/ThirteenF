@@ -772,7 +772,8 @@ financial AS (
 )
 SELECT l.cik, l.entity_name, l.accn, l.fiscal_end, l.operating_cash_flow, l.capex, l.free_cash_flow,
        l.diluted_shares, p.fiscal_end AS prior_fiscal_end, p.free_cash_flow AS prior_free_cash_flow,
-       least(l.free_cash_flow, p.free_cash_flow) AS lower_free_cash_flow,
+       -- NULL without a prior year: DuckDB's least() skips NULLs, which would pass one year off as two.
+       CASE WHEN p.free_cash_flow IS NOT NULL THEN least(l.free_cash_flow, p.free_cash_flow) END AS lower_free_cash_flow,
        c.shares_outstanding, c.shares_as_of, fi.cik IS NOT NULL AS financial,
        l.n, CAST(l.fiscal_end + INTERVAL {TEN_K_DAYS} DAY AS DATE) AS known_from
 FROM ranked l

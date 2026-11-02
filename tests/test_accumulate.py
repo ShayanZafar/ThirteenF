@@ -6,6 +6,7 @@ import json
 import re
 from datetime import date
 
+import duckdb
 import pytest
 from conftest import QUIET, FakeFtdSec, ftd_zip_bytes, map_mini_tickers, openfigi_down
 from fastapi.testclient import TestClient
@@ -14,6 +15,7 @@ from playwright.sync_api import Page, expect
 
 from thirteenf.db import connect
 from thirteenf.ingest import ftd, xbrl
+from thirteenf.model import build
 from thirteenf.tickers import TickerFallback, update_tickers
 from thirteenf.web import data
 from thirteenf.web.app import app
@@ -96,7 +98,54 @@ def test_a_stock_is_listed_only_when_every_rule_holds():
     assert rows[0]["fcf_yield"] == pytest.approx(0.06)  # the lower year over the market value
     assert rows[0]["market_value"] == pytest.approx(1e11)
     coverage = data.accumulate_coverage(con, PERIOD, minimum=100)
-    assert coverage == {"compared": 10, "with_cash_flow": 8, "financial": 1, "shares_differ": 2}
+    assert {k: coverage[k] for k in ("compared", "with_cash_flow", "financial", "shares_differ")} == {
+        "compared": 10,
+        "with_cash_flow": 8,
+        "financial": 1,
+        "shares_differ": 2,
+    }
+    # The one stock without comparable cash flow is O's: its fiscal year is too old.
+    assert coverage["gap_list"] == [(1, "a latest fiscal year over 18 months before the period")]
+
+
+def test_the_list_says_why_compared_stocks_have_no_comparable_cash_flow():
+    """Missing data shows up as a count with its reason, never as a silent zero."""
+    tickers = {
+        "A00000001": None,  # no ticker
+        "U00000001": "UNV",  # matched by issuer name only
+        "X00000001": "FRGN",  # a ticker the SEC's company list does not have
+        "Z00000001": "NOCF",  # in the SEC's list, but no full XBRL year
+        "S00000001": "OLD",  # financials too old
+        "W00000001": "ONE",  # one fiscal year only
+        "M00000001": "GOOD",  # comparable
+    }
+    stocks = [
+        stock(c, f"Company {c[0]}", ticker=t, ticker_source="issuer-name" if c[0] == "U" else "openfigi")
+        for c, t in tickers.items()
+    ]
+    periods = [stock_period(c, 150, 140) for c in tickers]
+    flows = [
+        cash_flow("S00000001", 6e9, 7e9, 1e9, fiscal_end=date(2023, 3, 31)),
+        cash_flow("W00000001", 6e9, 0.0, 1e9, prior_free_cash_flow=None, lower_free_cash_flow=None),
+        cash_flow("M00000001", 6e9, 7e9, 1e9),
+    ]
+    con = model(stocks, periods, flows)
+    con.execute("CREATE TABLE raw_sec_tickers (cik BIGINT, ticker VARCHAR, title VARCHAR)")
+    con.execute("INSERT INTO raw_sec_tickers VALUES (1, 'NOCF', 'No Cash Flow'), (2, 'GOOD', 'Good')")
+    coverage = data.accumulate_coverage(con, PERIOD, minimum=100)
+    assert coverage["compared"] == 7 and coverage["with_cash_flow"] == 1
+    assert coverage["gaps"] == {
+        "no_ticker": 1,
+        "unverified_ticker": 1,
+        "not_in_sec_list": 1,
+        "no_full_year": 1,
+        "stale": 1,
+        "one_year": 1,
+    }
+    # Without the SEC's list (rows written by hand, an older database), a stock with no
+    # financials counts as having no full year rather than failing.
+    con.execute("DROP TABLE raw_sec_tickers")
+    assert data.accumulate_coverage(con, PERIOD, minimum=100)["gaps"]["no_full_year"] == 2
 
 
 def test_the_settings_on_the_page_widen_or_narrow_the_list():
@@ -351,3 +400,28 @@ def test_a_person_reads_the_list_and_changes_its_settings(accumulate_db, page: P
 
     table.get_by_role("link").filter(has_text=re.compile("Amazon", re.I)).first.click()
     expect(page).to_have_url(re.compile(f"/stock/{AMZN}$"))
+
+
+def test_the_page_counts_stocks_without_comparable_cash_flow(accumulate_db):
+    accumulate_db()
+    html = TestClient(app).get("/accumulate").text
+    note = html.split('id="coverage-gaps">', 1)[1].split("</p>", 1)[0]
+    assert "a ticker not in the SEC’s company list" in note  # NVDA: no SEC ticker match
+
+
+def test_one_fiscal_year_has_no_lower_of_two():
+    """DuckDB's least() skips NULLs: without a prior year the lower of two is unknown, not the one year."""
+    con = duckdb.connect()
+    con.execute(xbrl.RAW_DDL)
+    facts = [
+        ("NetCashProvidedByUsedInOperatingActivities", "USD", 100.0),
+        ("PaymentsToAcquirePropertyPlantAndEquipment", "USD", 20.0),
+        ("WeightedAverageNumberOfDilutedSharesOutstanding", "shares", 10.0),
+    ]
+    for tag, unit, val in facts:
+        con.execute(
+            "INSERT INTO raw_xbrl_frames VALUES ('f', 'us-gaap', ?, ?, 'CY2025', 'a', 1, 'One', '', NULL, ?, ?)",
+            [tag, unit, date(2025, 12, 31), val],
+        )
+    con.execute(build.SQL_FUNDAMENTALS)
+    assert con.execute("SELECT free_cash_flow, lower_free_cash_flow FROM fundamentals").fetchall() == [(80.0, None)]

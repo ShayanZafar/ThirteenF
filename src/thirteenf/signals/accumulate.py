@@ -66,18 +66,22 @@ def list_date(deadline: date) -> date:
     return next_month - timedelta(days=1) + timedelta(days=PUBLISH_LAG_DAYS)
 
 
-def _from(con, known_by: date | None) -> str:
-    """The tables the rule reads. With known_by, each company's financials are the latest
+def _cash_flows(con, known_by: date | None) -> str:
+    """The financials the rule reads. With known_by, each company's financials are the latest
     fiscal year known by that day (fundamentals_history.known_from), as a person reading
     the list then would have had them; without it, the latest there are."""
-    cash_flows = "stock_cash_flows"
     if known_by is not None and has_table(con, "stock_cash_flows_history"):
-        cash_flows = f"""(SELECT DISTINCT ON (cusip) * FROM stock_cash_flows_history
+        return f"""(SELECT DISTINCT ON (cusip) * FROM stock_cash_flows_history
                  WHERE known_from <= DATE '{known_by.isoformat()}' ORDER BY cusip, fiscal_end DESC)"""
+    return "stock_cash_flows"
+
+
+def _from(con, known_by: date | None) -> str:
+    """The tables the rule reads (_cash_flows)."""
     return f"""
     FROM stock_periods sp
     JOIN stocks s ON s.cusip = sp.cusip
-    JOIN {cash_flows} cf ON cf.cusip = sp.cusip
+    JOIN {_cash_flows(con, known_by)} cf ON cf.cusip = sp.cusip
 """
 
 
@@ -167,7 +171,8 @@ def _price_join(con) -> tuple[str, str]:
 
 def coverage(con, period: date, minimum: int, known_by: date | None = None) -> dict:
     """How many stocks were compared, how many have two comparable years of cash
-    flow, how many are banks, insurers or lenders, and how many failed the share checks."""
+    flow, how many are banks, insurers or lenders, how many failed the share checks, and
+    why the rest have no comparable cash flow (gaps)."""
     compared = scalar(
         con,
         """
@@ -186,12 +191,66 @@ def coverage(con, period: date, minimum: int, known_by: date | None = None) -> d
         """,
         [period, minimum, minimum],
     ).fetchone() or (0, 0, 0)
+    missing = gaps(con, period, minimum, known_by)
     return {
         "compared": compared,
         "with_cash_flow": with_cash_flow,
         "financial": financial,
         "shares_differ": shares_differ,
+        "gaps": missing,
+        # The reasons that apply, as the page words them: [(how many, why)].
+        "gap_list": [(missing[key], label) for key, label in GAPS if missing[key]],
     }
+
+
+# Why a compared stock has no comparable cash flow: financials too old or one year only, else
+# why it has none (each stock counts under the first that applies). Missing data stays visible as a count, never a zero.
+GAPS = (
+    ("no_ticker", "no ticker"),
+    ("unverified_ticker", "a ticker matched by issuer name only (unverified)"),
+    ("not_in_sec_list", "a ticker not in the SEC’s company list (often a foreign company filing 20-F)"),
+    ("no_full_year", "no fiscal year with operating cash flow, capital spending and a share count in XBRL"),
+    ("stale", f"a latest fiscal year over {FISCAL_MAX_AGE_MONTHS} months before the period"),
+    ("one_year", "one fiscal year only, or two that do not follow each other"),
+)
+
+
+def gaps(con, period: date, minimum: int, known_by: date | None = None) -> dict[str, int]:
+    """How many compared stocks (held by `minimum`+ funds at both dates) have no comparable
+    cash flow, by reason (GAPS). Banks, insurers and lenders and the share checks are counted
+    in coverage(), not here."""
+    has_source = "s.ticker_source" if ticker_source_columns(con, "s").startswith("s.") else "NULL"
+    sec_list = has_table(con, "raw_sec_tickers")
+    in_sec = (
+        "EXISTS (SELECT 1 FROM raw_sec_tickers t WHERE regexp_replace(upper(t.ticker), '[^A-Z0-9]', '', 'g')"
+        " = regexp_replace(upper(s.ticker), '[^A-Z0-9]', '', 'g'))"
+        if sec_list
+        else "true"
+    )
+    reason = f"""CASE
+        WHEN cf.cusip IS NOT NULL AND cf.fiscal_end <= sp.period - INTERVAL {FISCAL_MAX_AGE_MONTHS} MONTH THEN 'stale'
+        WHEN cf.cusip IS NOT NULL AND cf.prior_free_cash_flow IS NULL AND NOT cf.financial THEN 'one_year'
+        WHEN cf.cusip IS NOT NULL THEN NULL
+        WHEN s.ticker IS NULL THEN 'no_ticker'
+        WHEN coalesce({has_source}, '') = 'issuer-name' THEN 'unverified_ticker'
+        WHEN NOT {in_sec} THEN 'not_in_sec_list'
+        ELSE 'no_full_year'
+    END"""
+    found = dict(
+        con.execute(
+            f"""
+            SELECT reason, count(*) FROM (
+                SELECT {reason} AS reason
+                FROM stock_periods sp
+                JOIN stocks s ON s.cusip = sp.cusip
+                LEFT JOIN {_cash_flows(con, known_by)} cf ON cf.cusip = sp.cusip
+                WHERE sp.period = ? AND sp.funds_holding >= ? AND sp.funds_prev >= ? AND s.kind = 'stock'
+            ) WHERE reason IS NOT NULL GROUP BY reason
+            """,
+            [period, minimum, minimum],
+        ).fetchall()
+    )
+    return {key: int(found.get(key, 0)) for key, _ in GAPS}
 
 
 @dataclass

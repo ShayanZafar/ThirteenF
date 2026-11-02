@@ -87,12 +87,19 @@ The workflows are in `.github/workflows/`. The two that use Claude run on the `C
 | Workflow | Runs | What it does |
 | --- | --- | --- |
 | `verify.yml` | Every push to `main` and every pull request | `scripts/verify.sh` on Ubuntu with Python 3.12, then a second test run that puts test coverage in the job summary (it never fails the build) |
-| `windows-check.yml` | Only when asked: from the Actions tab (Run workflow), or the label `windows-check` on a pull request | `scripts\setup.cmd` and `scripts\verify.cmd` on Windows, for what differs there (the update lock uses msvcrt, the `.cmd` scripts) |
 | `codeql.yml` | Pushes and pull requests to `main`, and weekly | CodeQL's Python security and quality queries; findings appear under Security > Code scanning |
 | `claude-code-review.yml` | A pull request opened, reopened or marked ready | Claude reviews it once and posts inline comments. Drafts, forks and Dependabot's pull requests are skipped |
 | `claude-refactor.yml` | The 1st of each month, or from the Actions tab | Claude runs the `/refactor` skill and opens a pull request with at most three behavior-preserving cleanups |
 | `claude-backlog.yml` | When you comment on a `decision` or `debt` issue, or from the Actions tab | Claude records your answer in `docs/decisions.md`, does the work it calls for and opens a pull request (the `backlog` skill) |
 | `mutation.yml` | The 1st of each month, or from the Actions tab | Mutation testing with mutmut (Linux only): lists the mutants no test noticed, in the job summary and the `mutmut-results` artifact. It never fails the build |
+
+### Optional checks
+
+Checks that cost too much, or matter too rarely, to run on every pull request are kept as a set of optional workflows, run case by case when the work calls for them (the owner's choice, Nov 2, 2026). Each runs from the Actions tab (Run workflow, pick the branch) and, on a pull request, when it gets the label named after the check; none runs on its own. A new check of this kind joins this table instead of widening `verify.yml`.
+
+| Workflow | Label | Run it when |
+| --- | --- | --- |
+| `windows-check.yml` | `windows-check` | A change touches what differs on Windows: the update lock (`runlock.py`, msvcrt), the `.cmd` scripts, paths or file handling. Runs `scripts\setup.cmd` and `scripts\verify.cmd` on Windows |
 
 Dependabot (`.github/dependabot.yml`) opens monthly pull requests for the Python dependencies and the GitHub Actions versions.
 

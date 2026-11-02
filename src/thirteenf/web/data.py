@@ -8,7 +8,12 @@ from dataclasses import dataclass, field
 from datetime import date
 
 from thirteenf.config import DB_PATH
-from thirteenf.db import connect, scalar
+from thirteenf.db import connect
+from thirteenf.model.read import has_cash_flows as has_cash_flows
+from thirteenf.model.read import has_prices
+from thirteenf.model.read import rows as _rows
+from thirteenf.model.read import ticker_source_columns as _ticker_source_columns
+from thirteenf.signals import accumulate as accumulate_rule
 from thirteenf.web.format import display_name
 from thirteenf.web.format import ticker as ticker_text
 
@@ -31,12 +36,6 @@ def connection():
         yield con
     finally:
         con.close()
-
-
-def _rows(con, sql: str, params=None) -> list[dict]:
-    cursor = con.execute(sql, params or [])
-    names = [d[0] for d in cursor.description]
-    return [dict(zip(names, row, strict=True)) for row in cursor.fetchall()]
 
 
 @dataclass
@@ -96,16 +95,6 @@ class Security:
     kind: str = "stock"  # stock, etf or other
     ticker_source: str | None = None  # openfigi, or a fallback's: sec-ftd, issuer-name
     ticker_as_of: date | None = None  # sec-ftd: the settlement date the symbol was reported on
-
-
-def _ticker_source_columns(con, alias: str = "st") -> str:
-    """The stock's ticker source and date (from the stocks table as `alias`), or NULLs
-    in a database built before tickers had fallbacks."""
-    present = scalar(
-        con,
-        "SELECT count(*) FROM information_schema.columns WHERE table_name = 'stocks' AND column_name = 'ticker_source'",
-    )
-    return f"{alias}.ticker_source, {alias}.ticker_as_of" if present else "NULL AS ticker_source, NULL AS ticker_as_of"
 
 
 def security(con, cusip: str) -> Security | None:
@@ -898,111 +887,27 @@ def managers_list(con, period: date, query: str = "", limit: int = 100) -> list[
     )
 
 
-# The accumulate list: stocks funds keep moving into, whose free cash flow is
-# high for their market value. See docs/13f-data.md, "Accumulate list".
-ACCUMULATE_RANKINGS = {"yield": "fcf_yield DESC", "tide": "vs_tide_pts DESC", "price": "vs_market_pts ASC NULLS LAST"}
-# How far a pick's price may have moved against the market since the quarter funds bought
-# in, in points, and still count as lagging (not priced in yet) or ahead.
-PRICE_LAG_PTS = 5.0
-ACCUMULATE_MIN_YIELD = 0.05  # free cash flow at least 5% of market value
-ACCUMULATE_MIN_STREAK = 2  # more funds two periods running, or longer
-# Market value is the 13F price times the diluted share count, so two checks
-# guard the share count, each within this factor: it must agree with the latest
-# cover-page count (a split since the fiscal year end moves one and not the
-# other), and funds' 13F holdings must not be worth more than the whole company.
-SHARES_AGREE = 1.5
-# Financials older than this, counted from the period, are too stale to compare.
-FISCAL_MAX_AGE_MONTHS = 18
-
-
-def accumulate_period(all_periods: list[Period]) -> Period:
-    """The latest period whose on-time filings are all in, else the latest one."""
-    choices = [p for p in all_periods if p.prev_period is not None]
-    on_time = [p for p in choices if p.deadline <= p.data_through]
-    return (on_time or choices)[-1]
-
-
-_ACCUMULATE_FROM = """
-    FROM stock_periods sp
-    JOIN stocks s ON s.cusip = sp.cusip
-    JOIN stock_cash_flows cf ON cf.cusip = sp.cusip
-"""
-_ACCUMULATE_WHERE = f"""sp.period = ? AND sp.funds_holding >= ? AND sp.funds_prev >= ?
-      AND cf.fiscal_end > sp.period - INTERVAL {FISCAL_MAX_AGE_MONTHS} MONTH"""
-_COMPARABLE = "cf.prior_free_cash_flow IS NOT NULL AND NOT cf.financial AND sp.median_price > 0"
-_SHARES_AGREE = (
-    f"(cf.shares_outstanding IS NULL OR cf.shares_outstanding / cf.diluted_shares BETWEEN {1 / SHARES_AGREE} AND {SHARES_AGREE})"
-    f" AND sp.value <= {SHARES_AGREE} * sp.median_price * cf.diluted_shares"
-)
+# The accumulate list's rule lives in thirteenf.signals.accumulate, shared with the
+# commands and the recurring refresh; these names stay for the pages and the tests.
+ACCUMULATE_RANKINGS = accumulate_rule.RANKINGS
+PRICE_LAG_PTS = accumulate_rule.PRICE_LAG_PTS
+ACCUMULATE_MIN_FUNDS = accumulate_rule.MIN_FUNDS
+ACCUMULATE_MIN_YIELD = accumulate_rule.MIN_YIELD
+ACCUMULATE_MIN_STREAK = accumulate_rule.MIN_STREAK
+accumulate_period = accumulate_rule.choose_period
+priced_in = accumulate_rule.priced_in
+accumulate_coverage = accumulate_rule.coverage
 
 
 def accumulate(
     con, period: date, minimum: int, min_yield: float, min_streak: int, by: str = "yield", limit: int = 50
 ) -> list[dict]:
-    """Stocks with more funds against the tide for `min_streak` periods running, a
-    positive net 13F flow, positive free cash flow in each of their last two fiscal
-    years, and the lower of the two at least `min_yield` of market value."""
-    order = ACCUMULATE_RANKINGS[by]
-    price_columns, price_join = _price_join(con)
-    rows = _rows(
-        con,
-        f"""
-        SELECT * FROM (
-            SELECT sp.cusip, s.name_filed, s.name_mixed, s.title_of_class, s.ticker,
-                   {_ticker_source_columns(con, "s")}, {price_columns},
-                   sp.funds_holding AS funds, sp.funds_prev, sp.funds_pct, sp.filers_pct, sp.vs_tide_pts,
-                   sp.streak, sp.direction, sp.net_flow, sp.price_pct, sp.median_price,
-                   cf.free_cash_flow, cf.prior_free_cash_flow, cf.lower_free_cash_flow,
-                   cf.fiscal_end, cf.prior_fiscal_end, cf.entity_name,
-                   sp.median_price * cf.diluted_shares AS market_value,
-                   cf.lower_free_cash_flow / (sp.median_price * cf.diluted_shares) AS fcf_yield
-            {_ACCUMULATE_FROM}
-            {price_join}
-            WHERE {_ACCUMULATE_WHERE}
-              AND {_COMPARABLE} AND {_SHARES_AGREE}
-              AND sp.vs_tide_pts > 0 AND sp.direction > 0 AND sp.streak >= ? AND sp.net_flow > 0
-              AND cf.free_cash_flow > 0 AND cf.prior_free_cash_flow > 0
-        )
-        WHERE fcf_yield >= ?
-        ORDER BY {order}, cusip
-        LIMIT ?
-        """,
-        [period, minimum, minimum, min_streak, min_yield, limit],
-    )
+    """The rule's picks (thirteenf.signals.accumulate.picks), named and with tickers as people write them."""
+    rows = accumulate_rule.picks(con, period, minimum, min_yield, min_streak, by, limit)
     for r in rows:
         r["name"] = display_name(r["name_filed"], r["name_mixed"])
         r["ticker"] = ticker_text(r["ticker"])
-        r["priced"] = priced_in(r["vs_market_pts"])
     return rows
-
-
-def priced_in(vs_market_pts: float | None) -> str | None:
-    """Where a pick's price stands against the market since the quarter funds bought in:
-    "lagging" (PRICE_LAG_PTS or more behind: the flow may not be priced in yet), "in line",
-    or "ahead"; None without prices."""
-    if vs_market_pts is None:
-        return None
-    if vs_market_pts <= -PRICE_LAG_PTS:
-        return "lagging"
-    return "ahead" if vs_market_pts >= PRICE_LAG_PTS else "in line"
-
-
-_PRICE_COLUMNS = (
-    "pr.since_start_pct, pr.quarter_pct, pr.latest_close, pr.latest_day, pr.vs_market_pts, "
-    "pr.market_since_start_pct, pr.price_source, sp.net_flow / NULLIF(pr.dollar_volume, 0) AS flow_share"
-)
-
-
-def _price_join(con) -> tuple[str, str]:
-    """The stock_prices columns and join for a query on stock_periods as `sp`, or NULLs in a
-    database built before daily prices were added."""
-    if not has_prices(con):
-        return (
-            "NULL AS since_start_pct, NULL AS quarter_pct, NULL AS latest_close, NULL AS latest_day, "
-            "NULL AS vs_market_pts, NULL AS market_since_start_pct, NULL AS price_source, NULL AS flow_share",
-            "",
-        )
-    return _PRICE_COLUMNS, "LEFT JOIN stock_prices pr ON pr.cusip = sp.cusip AND pr.period = sp.period"
 
 
 def stock_prices(con, cusip: str, period: date) -> dict | None:
@@ -1035,45 +940,3 @@ def prices_status(con) -> dict | None:
     if row is None or row[0] is None:
         return None
     return {"through": row[0], "sources": row[1]}
-
-
-def has_prices(con) -> bool:
-    """Whether the model has daily prices: the table exists and holds a row."""
-    if not scalar(con, "SELECT count(*) FROM information_schema.tables WHERE table_name = 'stock_prices'"):
-        return False
-    return bool(scalar(con, "SELECT count(*) FROM stock_prices"))
-
-
-def accumulate_coverage(con, period: date, minimum: int) -> dict:
-    """How many stocks were compared, how many have two comparable years of cash
-    flow, how many are banks, insurers or lenders, and how many failed the share checks."""
-    compared = scalar(
-        con,
-        """
-        SELECT count(*) FROM stock_periods sp JOIN stocks s ON s.cusip = sp.cusip
-        WHERE sp.period = ? AND sp.funds_holding >= ? AND sp.funds_prev >= ? AND s.kind = 'stock'
-        """,
-        [period, minimum, minimum],
-    )
-    with_cash_flow, financial, shares_differ = con.execute(
-        f"""
-        SELECT count(*) FILTER (WHERE {_COMPARABLE}),
-               count(*) FILTER (WHERE cf.financial),
-               count(*) FILTER (WHERE {_COMPARABLE} AND NOT ({_SHARES_AGREE}))
-        {_ACCUMULATE_FROM}
-        WHERE {_ACCUMULATE_WHERE}
-        """,
-        [period, minimum, minimum],
-    ).fetchone() or (0, 0, 0)
-    return {
-        "compared": compared,
-        "with_cash_flow": with_cash_flow,
-        "financial": financial,
-        "shares_differ": shares_differ,
-    }
-
-
-def has_cash_flows(con) -> bool:
-    """Whether the model has the companies' financials: a database built before
-    they were added has no stock_cash_flows table until update-data runs."""
-    return bool(scalar(con, "SELECT count(*) FROM information_schema.tables WHERE table_name = 'stock_cash_flows'"))

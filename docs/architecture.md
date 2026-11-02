@@ -49,11 +49,13 @@ web/app.py (FastAPI)  ->  Jinja2 templates + inline SVG  ->  your browser
 | `model/build.py` | Builds every model table in SQL, in order (see below) |
 | `tickers.py` | The `python -m thirteenf.tickers` command, and the chain after OpenFIGI (`TickerFallback`); [sources.md](sources.md) |
 | `web/app.py` | Routes: overview, stock, changes, accumulate, managers, search, watchlist, suggestions |
-| `web/data.py` | Read-only queries for the pages; one connection per request |
+| `model/read.py` | Read helpers shared by the pages, the commands and the signals: rows as dicts, checks for tables an older database lacks |
+| `signals/accumulate.py` | The Accumulate list's rule, thresholds and the period it opens on, used by the page, the price command and the update alike; saves each update's list in `accumulate_runs` |
+| `web/data.py` | Read-only queries for the pages; one connection per request. The Accumulate rule comes from `signals/`, never the reverse: nothing outside `web/` imports the web app |
 | `web/story.py` | The sentences and key figures, written from rules |
 | `web/charts.py` | The bar charts, net flow chart and sparklines as SVG |
 | `web/format.py` | Number, date and name formats from the design system |
-| `web/watchlist.py` | Your watchlist in `data/watchlist.csv` |
+| `watchlist.py` | Your watchlist in `data/watchlist.csv`, read by the pages and the price command |
 | `web/templates/` | Jinja2 templates built from `design/screens` and the `tf-` classes |
 | `web/static/` | `app.css` (layout, built only on design tokens) and `suggest.js` (search suggestions) |
 
@@ -85,6 +87,8 @@ Built by `model/build.py` in this order. Definitions are in [13f-data.md](13f-da
 | `openfigi` | CUSIP | OpenFIGI's answer, as returned |
 | `ticker_fallbacks` | CUSIP | A provisional ticker for a CUSIP OpenFIGI did not answer, or (fails-to-deliver only) does not know: its source (`sec-ftd` or `issuer-name`), date and details. OpenFIGI's later answer replaces it |
 | `raw_ftd` | line of a fails-to-deliver file | The SEC's fails-to-deliver files as text, tagged with their zip |
+
+`accumulate_runs` (one row per pick per update: when, the period, rank, the key figures and the thresholds used) is history, not model: the build never drops it, so a later run can say what entered and left the list.
 
 Nothing in the model is edited by hand: drop it and `python -m thirteenf.model` rebuilds it from the raw tables. `openfigi` and `ticker_fallbacks` are caches of answers from outside, not model tables; `python -m thirteenf.tickers` fills them.
 

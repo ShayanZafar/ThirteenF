@@ -17,14 +17,14 @@ import sys
 from collections.abc import Callable
 from datetime import UTC, datetime
 
-from thirteenf import health
+from thirteenf import health, watchlist
 from thirteenf.config import ensure_settings_file, polygon_api_key, stooq_api_key, tiingo_api_key
 from thirteenf.db import connect, scalar
 from thirteenf.ingest import prices
 from thirteenf.ingest.prices import Provider
 from thirteenf.model.build import SQL_STOCK_PRICES
-
-ACCUMULATE_MIN_FUNDS = 100
+from thirteenf.model.read import has_cash_flows
+from thirteenf.signals import accumulate
 
 
 def providers() -> list[Provider]:
@@ -41,14 +41,11 @@ def providers() -> list[Provider]:
 
 def wanted_symbols(con) -> list[str]:
     """The market, the watchlist's stocks and the Accumulate list's candidates, as symbols."""
-    from thirteenf.web import data, watchlist
-
     symbols = [prices.MARKET]
-    if not data.has_cash_flows(con):
+    period = accumulate.default_period(con)
+    if not has_cash_flows(con) or period is None:
         return symbols
-    all_periods = data.periods(con)
-    period = data.accumulate_period(all_periods).period
-    candidates = data.accumulate(con, period, ACCUMULATE_MIN_FUNDS, min_yield=0.0, min_streak=1, limit=10_000)
+    candidates = accumulate.picks(con, period, accumulate.MIN_FUNDS, min_yield=0.0, min_streak=1, limit=10_000)
     tickers = [r["ticker"] for r in candidates if r["ticker"] and r["ticker_source"] != "issuer-name"]
     watched = ", ".join("?" * len(watchlist.cusips())) or "NULL"
     rows = con.execute(

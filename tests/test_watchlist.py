@@ -1,4 +1,4 @@
-"""Your watchlist (thirteenf.web.watchlist): a CSV in data/ that starts from the example list
+"""Your watchlist (thirteenf.watchlist): a CSV in data/ that starts from the example list
 in config/watchlist.csv, and the overview that shows it. The module on its own, the routes on
 the made-up data set, and the overview in a browser; none of them need the SEC download."""
 
@@ -10,8 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 from playwright.sync_api import Page, expect
 
-from thirteenf import config
-from thirteenf.web import watchlist
+from thirteenf import config, watchlist
 from thirteenf.web.app import app
 
 AAPL, MSFT, NVDA, AMZN, QQQ = "037833100", "594918104", "67066G104", "023135106", minidata.QQQ

@@ -6,8 +6,7 @@ from datetime import date
 import pytest
 from fastapi.testclient import TestClient
 
-from thirteenf import config
-from thirteenf.web import watchlist
+from thirteenf import config, watchlist
 from thirteenf.web.app import app
 
 pytestmark = pytest.mark.data

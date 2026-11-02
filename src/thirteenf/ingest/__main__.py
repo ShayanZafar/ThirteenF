@@ -45,6 +45,19 @@ def load_and_build() -> None:
     from thirteenf.prices import update_prices
 
     update_prices()
+    save_accumulate_run()
+
+
+def save_accumulate_run(log=print) -> None:
+    """Save the Accumulate list this update ends with, for the next run to compare against."""
+    from datetime import UTC, datetime
+
+    from thirteenf.db import connect
+    from thirteenf.signals import accumulate
+
+    with connect() as con:
+        saved = accumulate.save_run(con, datetime.now(UTC))
+    log(f"Accumulate list: {saved:,} picks saved for this run")
 
 
 def run(args: argparse.Namespace) -> int:

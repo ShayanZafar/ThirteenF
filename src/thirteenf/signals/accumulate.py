@@ -16,7 +16,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Protocol
 
 from thirteenf.db import scalar
-from thirteenf.model.read import has_cash_flows, has_prices, has_table, rows, ticker_source_columns
+from thirteenf.model.read import has_cash_flows, has_column, has_prices, has_table, rows, ticker_source_columns
 
 
 class PeriodLike(Protocol):
@@ -30,7 +30,12 @@ MIN_FUNDS = 100  # funds holding at both dates, the default the page opens with
 
 # Stocks funds keep moving into, whose free cash flow is
 # high for their market value. See docs/13f-data.md, "Accumulate list".
-RANKINGS = {"yield": "fcf_yield DESC", "tide": "vs_tide_pts DESC", "price": "vs_market_pts ASC NULLS LAST"}
+RANKINGS = {
+    "yield": "fcf_yield DESC",
+    "tide": "vs_tide_pts DESC",
+    # A stale price says nothing about today's market: those go last, with the unpriced.
+    "price": "CASE WHEN stale THEN NULL ELSE vs_market_pts END ASC NULLS LAST",
+}
 # How far a pick's price may have moved against the market since the quarter funds bought
 # in, in points, and still count as lagging (not priced in yet) or ahead.
 PRICE_LAG_PTS = 5.0
@@ -136,16 +141,19 @@ def picks(
         [period, minimum, minimum, min_streak, min_yield, limit],
     )
     for r in found:
-        r["priced"] = priced_in(r["vs_market_pts"])
+        r["priced"] = priced_in(r["vs_market_pts"], r["stale"])
     return found
 
 
-def priced_in(vs_market_pts: float | None) -> str | None:
+def priced_in(vs_market_pts: float | None, stale: bool | None = False) -> str | None:
     """Where a pick's price stands against the market since the quarter funds bought in:
     "lagging" (PRICE_LAG_PTS or more behind: the flow may not be priced in yet), "in line",
-    or "ahead"; None without prices."""
+    or "ahead"; "stale" when its prices stopped updating well before the market's
+    (thirteenf.model.build.PRICE_STALE_DAYS); None without prices."""
     if vs_market_pts is None:
         return None
+    if stale:
+        return "stale"
     if vs_market_pts <= -PRICE_LAG_PTS:
         return "lagging"
     return "ahead" if vs_market_pts >= PRICE_LAG_PTS else "in line"
@@ -163,10 +171,15 @@ def _price_join(con) -> tuple[str, str]:
     if not has_prices(con):
         return (
             "NULL AS since_start_pct, NULL AS quarter_pct, NULL AS latest_close, NULL AS latest_day, "
-            "NULL AS vs_market_pts, NULL AS market_since_start_pct, NULL AS price_source, NULL AS flow_share",
+            "NULL AS vs_market_pts, NULL AS market_since_start_pct, NULL AS price_source, NULL AS flow_share, "
+            "false AS stale",
             "",
         )
-    return _PRICE_COLUMNS, "LEFT JOIN stock_prices pr ON pr.cusip = sp.cusip AND pr.period = sp.period"
+    stale = "coalesce(pr.stale, false)" if has_column(con, "stock_prices", "stale") else "false"
+    return (
+        f"{_PRICE_COLUMNS}, {stale} AS stale",
+        "LEFT JOIN stock_prices pr ON pr.cusip = sp.cusip AND pr.period = sp.period",
+    )
 
 
 def coverage(con, period: date, minimum: int, known_by: date | None = None) -> dict:

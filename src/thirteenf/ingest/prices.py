@@ -273,11 +273,14 @@ def _quoted(path: Path) -> str:
 
 
 def load_file(con: duckdb.DuckDBPyConnection, fetched: Fetched, fetched_at: datetime) -> int:
-    """Replace the symbol's rows in raw_prices with the file's, and note the fetch. Returns the rows."""
+    """Replace the symbol's rows in raw_prices with the file's, and note the fetch. Returns the rows.
+    An answer with no data keeps the symbol's earlier rows, as an unreadable one does: a source
+    that has nothing today must not erase the history the pages compare with."""
     con.execute(RAW_DDL)
     con.execute("BEGIN TRANSACTION")
     try:
-        con.execute("DELETE FROM raw_prices WHERE symbol = ?", [fetched.symbol])
+        if fetched.path is not None:
+            con.execute("DELETE FROM raw_prices WHERE symbol = ?", [fetched.symbol])
         if fetched.path is not None and fetched.source == STOOQ:
             con.execute(
                 f"""

@@ -63,6 +63,7 @@ _PRICED = {
     "lagging": "Lagging the market",
     "in line": "In line with the market",
     "ahead": "Ahead of the market",
+    "stale": "Prices stopped updating",
 }
 PRICE_SOURCES = {"stooq": "Stooq", "polygon": "Polygon", "tiingo": "Tiingo"}
 

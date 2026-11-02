@@ -26,6 +26,17 @@ def has_table(con, name: str) -> bool:
     return bool(scalar(con, "SELECT count(*) FROM information_schema.tables WHERE table_name = ?", [name]))
 
 
+def has_column(con, table: str, column: str) -> bool:
+    """Whether a table has a column: a database built by an older version may not have it yet."""
+    return bool(
+        scalar(
+            con,
+            "SELECT count(*) FROM information_schema.columns WHERE table_name = ? AND column_name = ?",
+            [table, column],
+        )
+    )
+
+
 def has_prices(con) -> bool:
     """Whether the model has daily prices: the table exists and holds a row."""
     return has_table(con, "stock_prices") and bool(scalar(con, "SELECT count(*) FROM stock_prices"))

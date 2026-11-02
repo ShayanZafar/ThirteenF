@@ -88,6 +88,7 @@ def update_prices(
         con.execute(SQL_STOCK_PRICES)
         priced = scalar(con, "SELECT count(DISTINCT cusip) FROM stock_prices")
     left = f", {counts['left']:,} left for the next run" if counts["left"] else ""
+    left += f", {counts['unreadable']:,} answers that could not be read" if counts["unreadable"] else ""
     log(
         f"  {counts['fetched']:,} fetched, {counts['no_data']:,} with no data, "
         f"{counts['wanted'] - counts['due']:,} fetched within the last {prices.REFRESH_AFTER.total_seconds() / 3600:.0f} hours{left}; "

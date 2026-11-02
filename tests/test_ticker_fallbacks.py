@@ -26,11 +26,10 @@ from conftest import (
 from fastapi.testclient import TestClient
 from playwright.sync_api import expect
 
-from thirteenf import config, health, tickers
+from thirteenf import config, health, tickers, watchlist
 from thirteenf.db import connect
 from thirteenf.ingest import ftd, issuer_names, openfigi, xbrl
 from thirteenf.web import format as fmt
-from thirteenf.web import watchlist
 from thirteenf.web.app import app, templates
 
 AAPL, MSFT, NVDA, AMZN, QQQ = "037833100", "594918104", "67066G104", "023135106", minidata.QQQ

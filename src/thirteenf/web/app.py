@@ -14,10 +14,10 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup, escape
 
-from thirteenf import health
+from thirteenf import health, watchlist
 from thirteenf.config import DESIGN_SYSTEM_DIR, WATCHLIST_CSV
 from thirteenf.db import Busy
-from thirteenf.web import charts, data, story, watchlist
+from thirteenf.web import charts, data, story
 from thirteenf.web import format as fmt
 
 HERE = Path(__file__).resolve().parent
@@ -263,7 +263,7 @@ NOUNS = {"all": ("securities", "security"), "stocks": ("stocks", "stock"), "etfs
 def changes_page(
     request: Request,
     period: str = "",
-    minimum: int = Query(100, alias="min", ge=1),
+    minimum: int = Query(data.ACCUMULATE_MIN_FUNDS, alias="min", ge=1),
     by: str = "tide",
     n: int = 25,
     kind: str = "all",
@@ -310,7 +310,7 @@ def changes_page(
 def accumulate_page(
     request: Request,
     period: str = "",
-    minimum: int = Query(100, alias="min", ge=1),
+    minimum: int = Query(data.ACCUMULATE_MIN_FUNDS, alias="min", ge=1),
     min_yield: float = Query(data.ACCUMULATE_MIN_YIELD * 100, alias="yield", ge=0),
     streak: int = Query(data.ACCUMULATE_MIN_STREAK, ge=1),
     by: str = "yield",

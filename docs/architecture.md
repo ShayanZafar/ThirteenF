@@ -30,7 +30,7 @@ openfigi, ticker_fallbacks, stocks
 web/app.py (FastAPI)  ->  Jinja2 templates + inline SVG  ->  your browser
 ```
 
-`python -m thirteenf.ingest` runs the download, the load, the model build and the ticker mapping. `python -m thirteenf.model` and `python -m thirteenf.tickers` run their step alone.
+`python -m thirteenf.ingest` runs the download, the load, the model build (in one transaction, so a build that stops part way changes nothing), the ticker mapping and the prices, under the update lock, and saves the Accumulate list. `python -m thirteenf.refresh` runs the same on a schedule and says what entered and left the list. `python -m thirteenf.model` and `python -m thirteenf.tickers` run their step alone.
 
 ## Modules
 
@@ -49,6 +49,8 @@ web/app.py (FastAPI)  ->  Jinja2 templates + inline SVG  ->  your browser
 | `model/build.py` | Builds every model table in SQL, in order (see below) |
 | `tickers.py` | The `python -m thirteenf.tickers` command, and the chain after OpenFIGI (`TickerFallback`); [sources.md](sources.md) |
 | `web/app.py` | Routes: overview, stock, changes, accumulate, managers, search, watchlist, suggestions |
+| `refresh.py` | `python -m thirteenf.refresh`: the whole update under the update lock, then what entered and left the Accumulate list, printed and in `data/refresh-summary.txt` |
+| `runlock.py` | One update at a time: an operating-system lock on `data/update.lock`, held by `update-data` and the refresh, gone when the process ends |
 | `model/read.py` | Read helpers shared by the pages, the commands and the signals: rows as dicts, checks for tables an older database lacks |
 | `signals/accumulate.py` | The Accumulate list's rule, thresholds and the period it opens on, used by the page, the price command and the update alike; saves each update's list in `accumulate_runs` |
 | `web/data.py` | Read-only queries for the pages; one connection per request. The Accumulate rule comes from `signals/`, never the reverse: nothing outside `web/` imports the web app |

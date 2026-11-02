@@ -79,7 +79,14 @@ def main() -> int:
     parser = argparse.ArgumentParser(prog="python -m thirteenf.ingest")
     parser.add_argument("--download-only", action="store_true", help="download zips, do not load")
     parser.add_argument("--no-download", action="store_true", help="load the zips already in data/raw/")
-    code = run(parser.parse_args())
+    from thirteenf import runlock
+
+    try:
+        with runlock.held("update-data"):
+            code = run(parser.parse_args())
+    except runlock.UpdateRunning as err:
+        print(err, file=sys.stderr)
+        return 3
 
     from thirteenf import health
 

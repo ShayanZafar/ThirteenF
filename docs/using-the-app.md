@@ -35,7 +35,7 @@ Every stock held by at least 100 funds in both periods, ranked by its change in 
 
 ## Accumulate
 
-Stocks funds keep moving into whose free cash flow is high for their market value, rebuilt each time you run `update-data`. By default a stock is on the list when more funds held it against the tide for 2 periods running or longer, its net 13F flow was positive, its free cash flow was positive in each of its last two fiscal years, and the lower of those two years is at least 5% of its market value (its FCF yield).
+Stocks funds keep moving into whose free cash flow is high for their market value, rebuilt each time you run `update-data`. Each update saves the list it ends with (default settings), and once two are saved the page says what entered and left since the update before, under "Since the last update". The daily refresh (`scripts\schedule-refresh.cmd`) keeps it current and writes the same in `data/refresh-summary.txt`. By default a stock is on the list when more funds held it against the tide for 2 periods running or longer, its net 13F flow was positive, its free cash flow was positive in each of its last two fiscal years, and the lower of those two years is at least 5% of its market value (its FCF yield).
 
 - **Rank by**: FCF yield (the default), the change against the tide, or Price lagging (the picks whose price has moved least against the market first).
 - **Minimum FCF yield**, **periods with more funds** and **minimum funds holding** are in the filter bar, with **period**.

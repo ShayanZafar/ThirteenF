@@ -19,6 +19,13 @@
 <div class="tf-kf"><span class="tf-kf__label">Left out by the share checks</span><span class="tf-kf__value">{{ fmt.count(coverage.shares_differ) }}</span><span class="tf-kf__delta">Share counts disagree, often a split</span></div>
 </div>
 
+{% if change %}
+<section class="app-section" id="since-last-update" aria-labelledby="since-last-update-title">
+<div class="app-section__head"><h2 id="since-last-update-title" class="type-headline">Since the last update</h2><span class="type-caption app-caption-muted">Default settings · update of {{ fmt.day(change.run_at.date()) }} against {{ fmt.day(change.previous_at.date()) }}</span></div>
+<p class="app-answer">{{ change_text }}</p>
+</section>
+{% endif %}
+
 <form class="app-form-row" method="get" action="/accumulate" aria-label="Criteria">
 <div class="app-field"><label for="period" class="type-caption app-caption-muted">Period</label><select id="period" name="period" class="app-select" onchange="this.form.submit()">{% for p in choices|reverse %}<option value="{{ p.period.isoformat() }}"{% if p.period == selected.period %} selected{% endif %}>{{ p.label }} · positions {{ fmt.short_day(p.period) }}</option>{% endfor %}</select></div>
 <div class="app-field"><span id="rankby" class="type-caption app-caption-muted">Rank by</span><div role="group" aria-labelledby="rankby" class="app-seg">{% for key, label in [("yield", "Free cash flow yield"), ("tide", "Against the tide"), ("price", "Price lagging")] %}<a class="app-seg__opt" href="/accumulate?period={{ selected.period.isoformat() }}&amp;min={{ minimum }}&amp;yield={{ min_yield }}&amp;streak={{ streak }}&amp;by={{ key }}"{% if by == key %} aria-current="true"{% endif %}>{{ label }}</a>{% endfor %}</div></div>

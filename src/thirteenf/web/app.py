@@ -325,6 +325,9 @@ def accumulate_page(
         rows = data.accumulate(con, selected.period, minimum, min_yield / 100, streak, by) if ready else []
         coverage = data.accumulate_coverage(con, selected.period, minimum) if ready else None
         prices = data.prices_status(con)
+        change = data.accumulate_change(con)
+    if change is not None and change.period != selected.period:
+        change = None  # the saved runs are about the period the list opens on
     widest = max((r["fcf_yield"] for r in rows), default=0) or 1
     for r in rows:
         r["bar"] = round(100 * r["fcf_yield"] / widest, 1)
@@ -343,6 +346,8 @@ def accumulate_page(
         coverage=coverage,
         prices=prices,
         lag_pts=f"{data.PRICE_LAG_PTS:g}",
+        change=change,
+        change_text=story.run_change(change) if change else "",
         summary_text=story.accumulate_summary(rows, selected, min_yield / 100, streak) if ready else "",
         **freshness(selected),
     )

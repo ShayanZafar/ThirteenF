@@ -12,6 +12,7 @@ from datetime import date
 import pytest
 from conftest import QUIET, FakeFtdSec, ftd_zip_bytes, openfigi_down
 from playwright.sync_api import Page, expect
+from test_accumulate import accumulate_db  # noqa: F401  (the fixture: made-up financials and tickers)
 
 from thirteenf import tickers
 from thirteenf.db import connect
@@ -34,7 +35,7 @@ def ftd_tickers(mini_db, monkeypatch, tmp_path):
 @pytest.mark.ui
 def test_every_page_says_how_old_its_numbers_are_and_where_they_came_from(ftd_tickers, page: Page):
     age = (date.today() - LATEST).days
-    for path in ("/", f"/stock/{MSFT}", "/changes", "/accumulate", "/managers"):
+    for path in ("/", "/stock", "/stock?q=Corp", f"/stock/{MSFT}", "/changes", "/accumulate", "/managers"):
         page.goto(path)
         stamps = page.locator(".app-stamps .tf-stamp")
         expect(stamps.filter(has=page.locator("b").get_by_text("13F", exact=True))).to_have_text(
@@ -43,6 +44,15 @@ def test_every_page_says_how_old_its_numbers_are_and_where_they_came_from(ftd_ti
         expect(stamps.filter(has_text="Source")).to_have_text(
             "Source·SEC Form 13F data sets, filed through Feb 28, 2025"
         )
+
+
+@pytest.mark.ui
+def test_the_accumulate_list_says_how_old_the_company_financials_are(accumulate_db, page: Page):  # noqa: F811
+    accumulate_db()
+    page.goto("/accumulate")
+    stamp = page.locator(".app-stamps .tf-stamp").filter(has=page.locator("b").get_by_text("10-K / 10-Q", exact=True))
+    age = (date.today() - date(2024, 9, 30)).days
+    expect(stamp).to_have_text(f"10-K / 10-Q·SEC XBRL frames·Latest fiscal year to Sep 30, 2024·{age}d")
 
 
 @pytest.mark.ui

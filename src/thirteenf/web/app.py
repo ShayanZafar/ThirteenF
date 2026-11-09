@@ -334,6 +334,7 @@ def accumulate_page(
             else []
         )
         coverage = data.accumulate_coverage(con, selected.period, minimum, known_by) if ready else None
+        through = data.accumulate_financials_through(con, known_by) if ready else None
         prices = data.prices_status(con)
         change = data.accumulate_change(con)
     if change is not None and change.period != selected.period:
@@ -354,6 +355,7 @@ def accumulate_page(
         rows=rows,
         ready=ready,
         coverage=coverage,
+        financials={"through": through, "age_days": (date.today() - through).days} if through else None,
         prices=prices,
         lag_pts=f"{data.PRICE_LAG_PTS:g}",
         change=change,

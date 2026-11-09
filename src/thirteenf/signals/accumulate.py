@@ -182,6 +182,14 @@ def _price_join(con) -> tuple[str, str]:
     )
 
 
+def financials_through(con, known_by: date | None = None) -> date | None:
+    """The end of the latest fiscal year among the financials the list reads (_cash_flows),
+    for the page's freshness stamp; None without any."""
+    if not has_cash_flows(con):
+        return None
+    return con.execute(f"SELECT max(fiscal_end) FROM {_cash_flows(con, known_by)}").fetchone()[0]
+
+
 def coverage(con, period: date, minimum: int, known_by: date | None = None) -> dict:
     """How many stocks were compared, how many have two comparable years of cash
     flow, how many are banks, insurers or lenders, how many failed the share checks, and

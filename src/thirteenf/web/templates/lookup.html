@@ -10,6 +10,7 @@
 <div class="app-section__head"><h2 class="type-title">Examples</h2><span class="type-caption app-caption-muted">From the example watchlist</span></div>
 {% endif %}
 {% if results %}
+{% include "_stamps.html" %}
 <div class="tf-tablewrap"><table class="tf-table">
 <thead><tr><th scope="col">Stock</th><th scope="col">Class</th><th scope="col">CUSIP</th><th scope="col" class="tf-r">Funds holding, {{ fmt.day(latest_period.period) }}</th><th scope="col">Watchlist</th></tr></thead>
 <tbody>

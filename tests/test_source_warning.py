@@ -21,8 +21,8 @@ from thirteenf.web import format as fmt
 from thirteenf.web.app import app
 
 MSFT = "594918104"
-STAMPED = ("/", f"/stock/{MSFT}", "/changes", "/accumulate", "/managers", "/manager/135")
-PAGES = ("/stock", *STAMPED)
+STAMPED = ("/", "/stock", f"/stock/{MSFT}", "/changes", "/accumulate", "/managers", "/manager/135")
+PAGES = STAMPED  # the lookup page has had its Source stamp since #26
 BLOCK_PAGE = "<html><h1>Request Rate Threshold Exceeded</h1></html>"
 
 

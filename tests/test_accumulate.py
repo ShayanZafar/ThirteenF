@@ -108,6 +108,17 @@ def test_a_stock_is_listed_only_when_every_rule_holds():
     assert coverage["gap_list"] == [(1, "a latest fiscal year over 18 months before the period")]
 
 
+def test_the_financials_stamp_dates_the_latest_fiscal_year_the_list_reads():
+    """The page stamps the company financials with the end of the newest fiscal year among them."""
+    stocks = [stock(c, f"Company {c[0]}") for c in ("A00000001", "B00000001")]
+    flows = [
+        cash_flow("A00000001", 6e9, 7e9, 1e9),  # to Sep 30, 2024
+        cash_flow("B00000001", 6e9, 7e9, 1e9, fiscal_end=date(2024, 6, 30)),
+    ]
+    assert data.accumulate_financials_through(model(stocks, [], flows)) == date(2024, 9, 30)
+    assert data.accumulate_financials_through(model(stocks, [])) is None  # no financials loaded yet
+
+
 def test_the_list_says_why_compared_stocks_have_no_comparable_cash_flow():
     """Missing data shows up as a count with its reason, never as a silent zero."""
     tickers = {
@@ -407,6 +418,14 @@ def test_the_page_counts_stocks_without_comparable_cash_flow(accumulate_db):
     html = TestClient(app).get("/accumulate").text
     note = html.split('id="coverage-gaps">', 1)[1].split("</p>", 1)[0]
     assert "a ticker not in the SEC’s company list" in note  # NVDA: no SEC ticker match
+
+
+def test_the_page_stamps_the_company_financials_only_once_they_are_loaded(mini_db, accumulate_db):
+    client = TestClient(app)
+    assert "XBRL" not in client.get("/accumulate").text.split('class="app-stamps"', 1)[1].split("</div>", 1)[0]
+    accumulate_db()
+    stamps = client.get("/accumulate").text.split('class="app-stamps"', 1)[1].split("</div>", 1)[0]
+    assert "<b>10-K / 10-Q</b><i>·</i>SEC XBRL frames<i>·</i>Latest fiscal year to Sep 30, 2024" in stamps
 
 
 def test_one_fiscal_year_has_no_lower_of_two():

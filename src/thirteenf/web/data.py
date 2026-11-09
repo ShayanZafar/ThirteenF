@@ -897,6 +897,7 @@ ACCUMULATE_MIN_STREAK = accumulate_rule.MIN_STREAK
 accumulate_period = accumulate_rule.choose_period
 priced_in = accumulate_rule.priced_in
 accumulate_coverage = accumulate_rule.coverage
+accumulate_financials_through = accumulate_rule.financials_through
 accumulate_change = accumulate_rule.last_change
 
 

@@ -1,4 +1,5 @@
-"""Checks the instructions Claude Code loads on its own: CLAUDE.md and the rules files in .claude/rules/.
+"""Checks the instructions Claude Code loads on its own: CLAUDE.md, the rules files in .claude/rules/ and
+the subagent profiles in .claude/agents/.
 
 CLAUDE.md is sent with every request, so it stays short. A rules file loads only when Claude reads or
 edits a file its `paths` globs match, so each must have `paths`, every glob must match a file git tracks
@@ -9,6 +10,9 @@ The globs are read as Claude Code reads them, from the repo root: `**` is any nu
 included), `*` and `?` are any characters and one character except `/`, and `{a,b}` expands to each
 alternative (nesting allowed). `[` is not supported here, so the check rejects it; every other character
 matches itself.
+
+A subagent profile is read whenever Claude decides whether to hand it a task, so each must have a `name`
+equal to its file name and a `description` in its frontmatter, and it stays short too.
 """
 
 from __future__ import annotations
@@ -22,14 +26,18 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 CLAUDE_MD = "CLAUDE.md"
 RULES_DIR = ".claude/rules"
+AGENTS_DIR = ".claude/agents"
 # CLAUDE.md goes with every request, and long rule lists get followed less carefully. Raise this only
 # with the owner's OK; move rules for one area to .claude/rules/ and explanations to docs/ instead.
 MAX_CLAUDE_MD_WORDS = 600
 # A rules file loads whenever one of its files is touched. Raise this only with the owner's OK.
 MAX_RULES_WORDS = 500
+# A subagent's profile is its whole prompt. Raise this only with the owner's OK.
+MAX_AGENT_WORDS = 500
 
 HTML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
 FRONTMATTER = re.compile(r"\A---[ \t]*\r?\n(.*?)^---[ \t]*\r?$", re.DOTALL | re.MULTILINE)
+SCALAR_KEY = re.compile(r"^([A-Za-z_-]+)[ \t]*:[ \t]*(.*?)[ \t]*$")
 PATHS_KEY = re.compile(r"^paths[ \t]*:(.*)$")
 LIST_ITEM = re.compile(r"^[ \t]*-[ \t]+(.*?)[ \t]*$")
 QUOTED = re.compile(r"\"([^\"]*)\"|'([^']*)'")
@@ -186,6 +194,30 @@ def rules_file_problems(name: str, text: str, tracked: Iterable[str]) -> list[st
     return problems
 
 
+def agent_file_problems(name: str, text: str) -> list[str]:
+    """What is wrong with one subagent profile, if anything."""
+    problems = []
+    match = FRONTMATTER.match(text.lstrip("\ufeff"))
+    keys = {}
+    if match:
+        for line in match.group(1).splitlines():
+            key = SCALAR_KEY.match(line)
+            if key:
+                keys[key.group(1)] = key.group(2)
+    stem = Path(name).stem
+    if keys.get("name") != stem:
+        problems.append(f"{name}: its frontmatter needs `name: {stem}`, the file's name, or Claude Code skips it.")
+    description = keys.get("description", "")
+    if not description:
+        problems.append(f"{name}: no `description` in its frontmatter; it says when Claude should use the agent.")
+    elif ": " in description and not description.startswith(("'", '"')):
+        problems.append(f"{name}: the description has ': ', which YAML reads as a new key; quote it or reword it.")
+    count = words(text)
+    if count > MAX_AGENT_WORDS:
+        problems.append(f"{name}: {count} words, over {MAX_AGENT_WORDS}; move what explains to docs/ and link it.")
+    return problems
+
+
 def check(root: Path, tracked: Iterable[str]) -> str:
     """The one-line summary when CLAUDE.md and every rules file hold; otherwise raises CheckFailed listing
     every problem."""
@@ -206,11 +238,15 @@ def check(root: Path, tracked: Iterable[str]) -> str:
         text = path.read_text(encoding="utf-8")
         largest = max(largest, words(text))
         problems += rules_file_problems(path.relative_to(root).as_posix(), text, files)
+    agents = sorted((root / AGENTS_DIR).glob("*.md")) if (root / AGENTS_DIR).is_dir() else []
+    for path in agents:
+        problems += agent_file_problems(path.relative_to(root).as_posix(), path.read_text(encoding="utf-8"))
     if problems:
         raise CheckFailed("\n".join(problems))
     return (
         f"Claude files: {CLAUDE_MD} {claude_words} words (max {MAX_CLAUDE_MD_WORDS}), "
-        f"{len(rules)} rules files scoped, largest {largest} words (max {MAX_RULES_WORDS})"
+        f"{len(rules)} rules files scoped, largest {largest} words (max {MAX_RULES_WORDS}), "
+        f"{len(agents)} agents (max {MAX_AGENT_WORDS} words each)"
     )
 
 

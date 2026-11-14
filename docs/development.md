@@ -105,17 +105,31 @@ Dependabot (`.github/dependabot.yml`) opens monthly pull requests for the Python
 
 ## Instructions for Claude
 
-Claude Code loads two kinds of file on its own; everything else in the repo is documentation, read when a task needs it.
+Claude Code loads three kinds of file on its own; everything else in the repo is documentation, read when a task needs it.
 
 - `CLAUDE.md` goes with every request: what the project is, where things are, the commands, the rules that hold on every task, and the definition of done. At most 600 words.
 - `.claude/rules/*.md` (subfolders too) hold the rules for one area. Each starts with YAML frontmatter whose `paths` globs (from the repo root) name the area's files, and loads only when Claude reads or edits one of them. At most 500 words each.
+- `.claude/agents/*.md` are subagent profiles (below). Each starts with YAML frontmatter with `name` (the file's name), `description` (when to use it), `tools` and `model`; the rest is the subagent's whole prompt. At most 500 words each.
 
-`scripts/check_claude_files.py`, the last step of the verify check, fails when `CLAUDE.md` is over its limit, or a rules file has no `paths`, has a glob that matches no file git tracks (a dead scope never loads), or is over its limit. It counts whitespace-separated words, leaving out HTML comments, and reads the globs as Claude Code does: `**` for any number of folders, `*` and `?` within one folder, and `{a,b}` for alternatives; it refuses `[...]`. The limits are named constants at the top of the script, raised only with the owner's OK; when a file outgrows its limit, move what explains rather than instructs to `docs/`.
+`scripts/check_claude_files.py`, the last step of the verify check, fails when `CLAUDE.md` is over its limit, or a rules file has no `paths`, has a glob that matches no file git tracks (a dead scope never loads), or is over its limit, or a subagent profile lacks its `name` or `description`, has a description YAML would misread, or is over its limit. It counts whitespace-separated words, leaving out HTML comments, and reads the globs as Claude Code does: `**` for any number of folders, `*` and `?` within one folder, and `{a,b}` for alternatives; it refuses `[...]`. The limits are named constants at the top of the script, raised only with the owner's OK; when a file outgrows its limit, move what explains rather than instructs to `docs/`.
 
 ## Claude Code skills
 
 - `/verify` (`.claude/skills/verify/`) runs `scripts/verify.sh` (or `scripts\verify.cmd`) and reports only the failures. Claude runs it before each commit.
 - `/refactor` (`.claude/skills/refactor/`) measures churn, complexity, duplication and dead code, then applies the few cleanups with the best payoff, each with the verify script passing. Type it to run it; the monthly workflow runs it in CI.
+
+## Claude Code subagents
+
+Subagents run in their own context with only the tools their profile lists, and hand back a report. Claude picks one when a task matches its description; you can also ask for one by name ("use the quant-reviewer on this change"). Added Nov 14, 2026.
+
+| Agent | Tools | Model | Use it when |
+| --- | --- | --- | --- |
+| `quant-reviewer` | read-only | opus | A change to the Accumulate rule, its thresholds, the backtest or the model's numbers (`signals/`, `model/`, `docs/13f-data.md`): checks for look-ahead bias, survivorship, the bank, insurer and lender exclusion, thresholds and docs |
+| `data-auditor` | read-only | sonnet | Asking whether the data can be trusted, after an ingest or model change, or when a page shows an odd number: counts missing fields and failed data checks in `data/thirteenf.duckdb` (or the made-up data) and traces each to its cause |
+| `source-integrator` | edits | as the session | Adding or changing an outside source or fallback: free sources only, paced to the published limit, source health, raw answers kept, tests without network, `docs/sources.md` updated |
+| `done-checker` | read-only | sonnet | A change is ready to commit or open as a pull request: runs the verify check and reports what the definition of done still lacks |
+
+A new subagent joins this table. Keep them few and each tied to a job this app does often; a one-off task needs none.
 
 ## Git
 

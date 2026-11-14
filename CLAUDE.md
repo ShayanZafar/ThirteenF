@@ -11,14 +11,14 @@ Instructions for Claude are this file (≤600 words, checked by `scripts/verify.
 - `docs/build-plan.md`: the phases, in order, each with its check.
 - `docs/13f-data.md`: the SEC data sets, how each number is computed, the data checks.
 - `docs/sources.md`: outside sources, fallbacks, source health.
-- `docs/README.md`: the index of the other docs.
+- `docs/README.md`: index of the docs.
 - `docs/decisions.md`: decisions made; pending ones and debt are GitHub issues (`backlog` skill).
 - `docs/core-flows.md`: the core flows and their tests.
 - `config/watchlist.csv`: the example starting watchlist.
 - `.claude/rules/sec-and-sources.md`: SEC access, tickers, source health.
 - `.claude/rules/ui.md`: pages, design system, copy.
 - `.claude/rules/data.md`: raw SEC files, the model, data checks.
-- `.claude/skills/`: `/verify`, `/refactor`, `backlog`.
+- `.claude/skills/`: `/verify`, `/refactor`, `backlog`. `.claude/agents/`: subagents (`docs/development.md`).
 
 ## Stack
 
@@ -37,7 +37,7 @@ Python 3.12 in `.venv`; DuckDB in `data/thirteenf.duckdb`; FastAPI with Jinja2 t
 
 ## Rules
 
-- Nothing is specific to one company. Shopify and the other names in the designs are examples and test fixtures only; every page works for any CUSIP.
+- Nothing is specific to one company. Shopify and other names in the designs are examples and fixtures only; every page works for any CUSIP.
 - Build in the order of `docs/build-plan.md`, finishing a phase's check before the next.
 - Every SEC request goes through `SecClient`: under 10 a second, with `SEC_USER_AGENT` as the User-Agent (for example `ThirteenF you@example.com`; if unset, stop and ask the user for it). Callers add no retries or waits, pass `has_fallback=True` when another source can answer, and every answer is recorded in source health (details: `.claude/rules/sec-and-sources.md`).
 - `data/` and `.venv/` stay out of git.

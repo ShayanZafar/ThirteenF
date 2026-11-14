@@ -164,3 +164,43 @@ def test_no_rules_folder_is_fine(tmp_path):
 def test_a_folder_git_cannot_list_fails_with_one_message(tmp_path, capsys):
     assert claude_check.main([str(_repo(tmp_path))]) == 1
     assert capsys.readouterr().out.startswith("Claude files check failed: could not list the files git tracks")
+
+
+AGENT = (
+    "---\nname: reviewer\ndescription: Reviews a change. Use before committing.\ntools: Read, Grep\n---\n\nReview it.\n"
+)
+
+
+def _agent(repo: Path, name: str, text: str) -> Path:
+    path = repo / ".claude" / "agents" / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    return repo
+
+
+def test_a_good_agent_passes_and_is_counted(tmp_path):
+    assert "1 agents (max 500 words each)" in claude_check.check(_agent(_repo(tmp_path), "reviewer.md", AGENT), TRACKED)
+
+
+def test_an_agent_named_unlike_its_file_or_without_a_description_fails(tmp_path):
+    repo = _agent(_repo(tmp_path), "checker.md", AGENT)
+    _agent(repo, "bare.md", "---\nname: bare\n---\n\nNo description.\n")
+    with pytest.raises(claude_check.CheckFailed) as failed:
+        claude_check.check(repo, TRACKED)
+    message = str(failed.value)
+    assert ".claude/agents/checker.md: its frontmatter needs `name: checker`" in message
+    assert ".claude/agents/bare.md: no `description`" in message
+
+
+def test_an_agent_description_with_an_unquoted_colon_fails(tmp_path):
+    text = AGENT.replace("Reviews a change.", "Reviews: a change.")
+    with pytest.raises(claude_check.CheckFailed, match="which YAML reads as a new key"):
+        claude_check.check(_agent(_repo(tmp_path), "reviewer.md", text), TRACKED)
+    quoted = AGENT.replace("Reviews a change. Use before committing.", '"Reviews: a change."')
+    assert "1 agents" in claude_check.check(_agent(_repo(tmp_path), "reviewer.md", quoted), TRACKED)
+
+
+def test_an_agent_over_the_limit_fails(tmp_path):
+    text = AGENT + "word " * claude_check.MAX_AGENT_WORDS
+    with pytest.raises(claude_check.CheckFailed, match=r"\.claude/agents/reviewer\.md: \d+ words, over 500"):
+        claude_check.check(_agent(_repo(tmp_path), "reviewer.md", text), TRACKED)

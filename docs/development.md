@@ -127,9 +127,9 @@ Subagents run in their own context with only the tools their profile lists, and 
 | `quant-reviewer` | read-only | opus | A change to the Accumulate rule, its thresholds, the backtest or the model's numbers (`signals/`, `model/`, `docs/13f-data.md`): checks for look-ahead bias, survivorship, the bank, insurer and lender exclusion, thresholds and docs |
 | `data-auditor` | read-only | sonnet | Asking whether the data can be trusted, after an ingest or model change, or when a page shows an odd number: counts missing fields and failed data checks in `data/thirteenf.duckdb` (or the made-up data) and traces each to its cause |
 | `source-integrator` | edits | as the session | Adding or changing an outside source or fallback: free sources only, paced to the published limit, source health, raw answers kept, tests without network, `docs/sources.md` updated |
-| `done-checker` | read-only | sonnet | A change is ready to commit or open as a pull request: runs the verify check and reports what the definition of done still lacks |
+| `done-checker` | read-only | sonnet | A change is ready to commit or open as a pull request: checks `main` does not already hold it, runs the verify check and reports what the definition of done still lacks |
 
-A new subagent joins this table. Keep them few and each tied to a job this app does often; a one-off task needs none.
+A new subagent joins this table. Keep them few and each tied to a job this app does often; a one-off task needs none. Nov 15, 2026: the profiles were checked against the project's history (threads, PRs #1 to #41, the Nov 2 reviews) and each new instruction cites the case behind it.
 
 ## Git
 

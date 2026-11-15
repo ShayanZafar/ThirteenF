@@ -9,20 +9,23 @@ You wire outside data into ThirteenF so the app keeps working when a source refu
 
 ## Before writing code
 
-- Read `docs/sources.md` for the data need: is there already a primary and fallbacks? A new source either fills a need or joins a chain; say which.
-- Confirm the source is free. A free API key (sign-up, a form) is fine; anything that needs payment or a paid plan is not, and you stop and say so. Note the published rate limit and where you read it; if the site is unreachable from where you work, write that the limit is unverified.
-- Prefer data the SEC already publishes (EDGAR, XBRL, Form 4, 13D/13G, N-PORT, fails-to-deliver) over third parties.
+- `docs/sources.md`: does the data need already have a primary and fallbacks? A new source fills a need or joins a chain; say which.
+- `docs/decisions.md`: fetch only what the owner decided (prices: SPY, watchlist, Accumulate candidates). A wider fetch, like Polygon's whole-market endpoint, is offered separately, not built.
+- Free only. A free API key is fine; a paid plan is not: stop and say so. Note the published rate limit and its source. SEC, Stooq and Polygon have been unreachable from cloud sessions; then write that the limit is unverified.
+- Prefer SEC data (EDGAR, XBRL, Form 4, 13D/13G, N-PORT) over third parties.
 
 ## How a source is built here
 
 - Every SEC request goes through `SecClient` (`ingest/sec.py`). Callers add no retries or waits; they pass `has_fallback=True` when another source can answer.
-- Other sources pace to their published limit and no further: no cooldowns, queues or concurrency caps of the app's own. A refusal (429, block page) or failure (5xx, dropped connection, an answer that is not the expected format) drops that source for the rest of the run and moves to the next at once. Wait only when nothing else can answer.
-- Every answer is recorded in source health (`thirteenf.health`) under the source's health name.
-- Answers are kept as downloaded under `data/raw/<source>/` and loaded as they are; check the format (a header, a field) so a sign-in page counts as a failure, not data. Cache what does not change.
-- A key is read from an environment variable or `data/settings.toml` (`config.py`), never committed; without it the app works, using a fallback or leaving that data out, and `update-data` says where to get a key.
+- Other sources pace to their published limit, with no cooldowns, queues or caps of the app's own. A refusal (429, block page) or failure (5xx, dropped connection, wrong format) drops that source for the rest of the run and moves on at once.
+- Every answer is recorded in source health (`thirteenf.health`).
+- Answers are kept as downloaded in `data/raw/<source>/`; check the format so a sign-in page counts as a failure.
+- One answer that cannot be loaded fails its source for that symbol and the run carries on (a bad price file once stopped every later run, PR #33). A "no data" answer never deletes saved rows. Record what prices are adjusted for (splits, dividends).
+- A key comes from an environment variable or `data/settings.toml` (`config.py`), never committed; without it the app works on a fallback or without that data, and `update-data` says where to get a key.
+- A price provider touches `config.py` (key, settings template), `health.SOURCES`, `ingest/prices.py` (class, `Provider`, `load_file`) and `prices.providers()`.
 
 ## Done means
 
-- Tests with stand-ins for the source, no network: it answers, it refuses, it fails, it returns the wrong format, no key. A change at this seam needs a test that runs without the SEC download (`tests/minidata.py`).
-- `docs/sources.md` updated: the table row, a paragraph with limits and fallbacks, dated. `docs/13f-data.md` if a number now comes from it. The core flow it serves in `docs/core-flows.md` keeps a test at each level.
-- `scripts/verify.sh` (or `scripts\verify.cmd`) passes. If the change needs a live check, say which command the owner should run (for example `python -m thirteenf.prices`) and what a good answer looks like.
+- Tests with stand-ins, no network: it answers, refuses, fails, returns the wrong format, has no key. A seam change needs a test without the SEC download (`tests/minidata.py`).
+- `docs/sources.md`: table row and a dated paragraph with limits and fallbacks; `docs/13f-data.md` if a number comes from it; `docs/decisions.md` for an owner's choice; the core flow keeps a test at each level.
+- `scripts/verify.sh` passes. Name the live check the owner runs on their PC (for example `python -m thirteenf.prices`) and what a good answer looks like.

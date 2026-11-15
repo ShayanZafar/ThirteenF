@@ -52,9 +52,9 @@ class Quarter:
         return None if self.ret is None or self.market_ret is None else self.ret - self.market_ret
 
     @property
-    def beat(self) -> int:
+    def beat(self) -> int | None:
         if self.market_ret is None:
-            return 0
+            return None  # no market return to beat: unknown, not zero
         return sum(1 for p in self.priced if p["ret"] > self.market_ret)
 
 

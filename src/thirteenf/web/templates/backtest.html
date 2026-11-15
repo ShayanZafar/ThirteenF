@@ -30,7 +30,7 @@
 <td class="tf-r tf-num">{{ fmt.pct(q.ret)|signed }}</td>
 <td class="tf-r tf-num">{{ fmt.pct(q.market_ret)|signed }}</td>
 <td class="tf-r tf-num">{% if q.excess is not none %}{{ fmt.pts(q.excess * 100)|signed }}{% else %}{{ fmt.pct(none) }}{% endif %}</td>
-<td class="tf-r tf-num">{{ fmt.count(q.beat) }} of {{ fmt.count(q.priced|length) }}</td>
+<td class="tf-r tf-num">{% if q.beat is none %}—{% else %}{{ fmt.count(q.beat) }} of {{ fmt.count(q.priced|length) }}{% endif %}</td>
 </tr>
 {% endfor %}
 </tbody>

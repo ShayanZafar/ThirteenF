@@ -45,6 +45,11 @@ def test_a_quarter_averages_its_picks_and_the_closed_ones_compound():
     assert result.compounded() == pytest.approx((0.1, 0.1))
 
 
+def test_without_a_market_return_no_pick_is_counted_as_beating_it_or_not():
+    q = Quarter(Q3, "Q3 2024", date(2024, 12, 14), date(2025, 3, 14), False, picks=[{"ret": 0.2}])
+    assert q.beat is None  # unknown, never "0 of 1"
+
+
 def test_the_answer_says_how_many_quarters_and_that_it_is_no_proof():
     q1 = Quarter(Q3, "Q3 2024", date(2024, 12, 14), date(2025, 3, 14), False, market_ret=0.11)
     q1.picks = [{"ret": 0.2}]

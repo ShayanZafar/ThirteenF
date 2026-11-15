@@ -826,11 +826,15 @@ WITH keyed AS (
     FROM stocks WHERE ticker IS NOT NULL AND ticker_source <> 'issuer-name'
 ),
 daily AS (
-    SELECT r.symbol, r.day, r.close, r.close * r.volume AS traded
+    SELECT r.symbol, r.day, r.close, r.close * r.volume AS traded, r.source
     FROM raw_prices r WHERE r.close > 0 AND r.day IS NOT NULL
 ),
 latest AS (
-    SELECT symbol, arg_max(close, day) AS latest_close, max(day) AS latest_day FROM daily GROUP BY symbol
+    -- the source is the one that supplied the latest close, not the last one asked: a source
+    -- that answered "no data" keeps the earlier rows, and must not be named for them
+    SELECT symbol, arg_max(close, day) AS latest_close, max(day) AS latest_day,
+           arg_max(source, day) AS latest_source
+    FROM daily GROUP BY symbol
 ),
 dated AS (
     SELECT DISTINCT period FROM periods UNION SELECT DISTINCT prev_period FROM periods WHERE prev_period IS NOT NULL
@@ -848,6 +852,7 @@ traded AS (
 ),
 by_symbol AS (
     SELECT p.period, l.symbol, s.close AS start_close, e.close AS end_close, l.latest_close, l.latest_day,
+           l.latest_source,
            l.latest_close / s.close - 1 AS since_start_pct,
            e.close / s.close - 1 AS quarter_pct,
            t.dollar_volume, t.days_traded
@@ -875,11 +880,10 @@ SELECT k.cusip, b.period, b.start_close, b.end_close, b.latest_close, b.latest_d
        b.since_start_pct, b.quarter_pct, b.dollar_volume, b.days_traded,
        b.market_since_start_pct,
        (b.since_start_pct - b.market_since_start_pct) * 100 AS vs_market_pts,
-       f.source AS price_source,
+       b.latest_source AS price_source,
        coalesce(b.latest_day < b.market_latest_day - INTERVAL {PRICE_STALE_DAYS} DAY, false) AS stale
 FROM compared b
 JOIN keyed k USING (symbol)
-LEFT JOIN price_fetches f ON f.symbol = b.symbol
 """
 
 STEPS: list[tuple[str, str | Callable[[duckdb.DuckDBPyConnection], None]]] = [

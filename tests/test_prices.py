@@ -465,6 +465,14 @@ def test_prices_are_fetched_for_the_market_the_watchlist_and_the_candidates(pric
     assert NVDA not in rows  # no prices were fetched for it
 
 
+def test_a_source_that_answers_no_data_is_not_named_for_the_earlier_prices(priced_db):
+    with connect() as con:
+        ingest.load_file(con, ingest.Fetched("T594", "tiingo", None), NOW + ingest.REFRESH_AFTER)
+        con.execute(build.SQL_STOCK_PRICES)
+        source = con.execute("SELECT price_source FROM stock_prices WHERE cusip = ? AND period = ?", [MSFT, PERIOD])
+        assert source.fetchone()[0] == "stooq"  # Stooq supplied the rows kept; Tiingo had none
+
+
 def test_the_page_says_whether_each_pick_has_priced_the_flow_in(priced_db):
     html = TestClient(app).get("/accumulate", params={"streak": 1}).text
     assert "Price since Sep 30" in html

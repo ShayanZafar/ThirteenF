@@ -715,7 +715,10 @@ LEFT JOIN provisional p ON p.stock = b.stock
 # from the latest cover page are kept to check the diluted count, and a company
 # that reports bank or insurance lines is marked financial. So is a lender: a
 # company whose loan interest and fees were LENDER_SHARE or more of its revenue
-# in a fiscal year, or that reported loan interest and no revenue line at all.
+# in either of the two fiscal years the list reads, or that reported loan interest
+# and no revenue line in one of them. Older years do not count, so a past lender
+# that changed its business is compared again, and a past list never reads a year
+# filed after it.
 LENDER_SHARE = 0.25
 # fundamentals keeps each company's latest fiscal year; fundamentals_history keeps every
 # year, each with the day it counts as known: TEN_K_DAYS after the fiscal year end, the
@@ -765,23 +768,33 @@ loans AS (
            max(val) FILTER (WHERE measure = 'revenue') AS revenue
     FROM facts WHERE measure IN ('loan_income', 'revenue') GROUP BY cik, period_end
 ),
-financial AS (
-    SELECT cik FROM facts WHERE measure = 'financial' AND val > 0
-    UNION
-    SELECT cik FROM loans WHERE loan_income > 0 AND loan_income >= {LENDER_SHARE} * coalesce(revenue, 0)
+banks AS (
+    SELECT DISTINCT cik FROM facts WHERE measure = 'financial' AND val > 0
+),
+lender_years AS (
+    SELECT cik, period_end FROM loans WHERE loan_income > 0 AND loan_income >= {LENDER_SHARE} * coalesce(revenue, 0)
 )
 SELECT l.cik, l.entity_name, l.accn, l.fiscal_end, l.operating_cash_flow, l.capex, l.free_cash_flow,
        l.diluted_shares, p.fiscal_end AS prior_fiscal_end, p.free_cash_flow AS prior_free_cash_flow,
        -- NULL without a prior year: DuckDB's least() skips NULLs, which would pass one year off as two.
        CASE WHEN p.free_cash_flow IS NOT NULL THEN least(l.free_cash_flow, p.free_cash_flow) END AS lower_free_cash_flow,
-       c.shares_outstanding, c.shares_as_of, fi.cik IS NOT NULL AS financial,
+       c.shares_outstanding, c.shares_as_of,
+       b.cik IS NOT NULL OR ly.cik IS NOT NULL OR lp.cik IS NOT NULL AS financial,
        l.n, CAST(l.fiscal_end + INTERVAL {TEN_K_DAYS} DAY AS DATE) AS known_from
 FROM ranked l
 LEFT JOIN ranked p ON p.cik = l.cik AND p.n = l.n + 1
      AND p.fiscal_end BETWEEN l.fiscal_end - INTERVAL 380 DAY AND l.fiscal_end - INTERVAL 350 DAY
 LEFT JOIN cover c ON c.cik = l.cik
-LEFT JOIN financial fi ON fi.cik = l.cik;
-CREATE OR REPLACE TABLE fundamentals AS SELECT * EXCLUDE (n, known_from) FROM fundamentals_history WHERE n = 1
+LEFT JOIN banks b ON b.cik = l.cik
+LEFT JOIN lender_years ly ON ly.cik = l.cik AND ly.period_end = l.fiscal_end
+LEFT JOIN lender_years lp ON lp.cik = l.cik AND lp.period_end = p.fiscal_end;
+CREATE OR REPLACE TABLE fundamentals AS SELECT * EXCLUDE (n, known_from) FROM fundamentals_history WHERE n = 1;
+-- every cover-page share count, so an earlier period's list checks the count known by its date
+CREATE OR REPLACE TABLE cover_history AS
+SELECT DISTINCT ON (cik, period_end) cik, val AS shares_outstanding, period_end AS shares_as_of
+FROM raw_xbrl_frames
+WHERE taxonomy = 'dei' AND tag = 'EntityCommonStockSharesOutstanding' AND val > 0
+ORDER BY cik, period_end, val DESC
 """
 
 # A stock meets its company's financials through its ticker: OpenFIGI's (BRK/B)

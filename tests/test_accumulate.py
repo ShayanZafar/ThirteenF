@@ -16,6 +16,7 @@ from playwright.sync_api import Page, expect
 from thirteenf.db import connect
 from thirteenf.ingest import ftd, xbrl
 from thirteenf.model import build
+from thirteenf.signals import accumulate
 from thirteenf.tickers import TickerFallback, update_tickers
 from thirteenf.web import data
 from thirteenf.web.app import app
@@ -211,10 +212,11 @@ def _sec(
     diluted: dict[int, float],
     financial: list[int],
     loans: dict[int, tuple[float, float | None]],
+    loan_years: tuple[int, ...] = (2023, 2024),
 ) -> dict[str, str]:
     """URL -> body for every file the SEC has; anything else is a 404. Each company
     reports the same two fiscal years, to September 2023 and September 2024.
-    `loans` is CIK -> (loan interest and fees, revenue or None) for each year."""
+    `loans` is CIK -> (loan interest and fees, revenue or None) for each of `loan_years`."""
     pages = {
         xbrl.TICKERS_URL: json.dumps(
             {str(n): {"cik_str": cik, "ticker": c[0], "title": f"Company {cik}"} for n, (cik, c) in enumerate(COMPANIES.items())}
@@ -243,13 +245,12 @@ def _sec(
             pages[_url("PremiumsEarnedNet", "USD", period)] = _frame(
                 "us-gaap", "PremiumsEarnedNet", "USD", period, [(k, end, 1e9) for k in financial]
             )
-        if loans:
-            tag = "InterestAndFeeIncomeLoansConsumer"
-            pages[_url(tag, "USD", period)] = _frame(
-                "us-gaap", tag, "USD", period, [(k, end, v[0]) for k, v in loans.items()]
-            )
-            revenue = [(k, end, v[1]) for k, v in loans.items() if v[1] is not None]
-            pages[_url("Revenues", "USD", period)] = _frame("us-gaap", "Revenues", "USD", period, revenue)
+    for year in loan_years if loans else ():
+        end, period = f"{year}-09-30", f"CY{year}"
+        tag = "InterestAndFeeIncomeLoansConsumer"
+        pages[_url(tag, "USD", period)] = _frame("us-gaap", tag, "USD", period, [(k, end, v[0]) for k, v in loans.items()])
+        revenue = [(k, end, v[1]) for k, v in loans.items() if v[1] is not None]
+        pages[_url("Revenues", "USD", period)] = _frame("us-gaap", "Revenues", "USD", period, revenue)
     return pages
 
 
@@ -263,9 +264,14 @@ def accumulate_db(mini_db, tmp_path, monkeypatch):
         diluted: dict[int, float] | None = None,
         financial=(),
         loans: dict[int, tuple[float, float | None]] | None = None,
+        loan_years: tuple[int, ...] = (2023, 2024),
     ) -> list[str]:
         pages = _sec(
-            {789019: 1e9} if cover_shares is None else cover_shares, diluted or {}, list(financial), loans or {}
+            {789019: 1e9} if cover_shares is None else cover_shares,
+            diluted or {},
+            list(financial),
+            loans or {},
+            loan_years,
         )
         asked: list[str] = []
 
@@ -352,6 +358,27 @@ def test_lenders_are_left_out(accumulate_db, loan_income, revenue, listed):
     html = TestClient(app).get("/accumulate").text
     assert _listed(html) == ([MSFT] if listed else [])
     assert f"Leaves out {0 if listed else 1} " in html
+
+
+@pytest.mark.parametrize(
+    ("loan_years", "listed"),
+    [
+        ((2022,), True),  # a lender before the two years the list reads: compared again
+        ((2023,), False),  # a lender in the earlier of the two years: still left out
+    ],
+)
+def test_only_the_two_fiscal_years_the_list_reads_make_a_lender(accumulate_db, loan_years, listed):
+    accumulate_db(loans={789019: (20e9, 60e9)}, loan_years=loan_years)
+    assert _listed(TestClient(app).get("/accumulate").text) == ([MSFT] if listed else [])
+
+
+def test_a_split_after_an_earlier_list_came_out_does_not_drop_a_stock_from_it(accumulate_db):
+    accumulate_db({789019: 4e9})  # the Dec 31, 2024 cover page: four times the diluted count
+    with connect() as con:
+        con.execute("UPDATE stock_cash_flows_history SET known_from = fiscal_end + INTERVAL 30 DAY")
+        assert accumulate.picks(con, date(2024, 9, 30), 100, 0.05, 1) == []  # today's cover page disagrees
+        # On Dec 14, 2024 no cover page that new was out: the split cannot reach back.
+        assert [p["cusip"] for p in accumulate.picks(con, date(2024, 9, 30), 100, 0.05, 1, known_by=date(2024, 12, 14))] == [MSFT]
 
 
 def test_an_unverified_ticker_brings_no_company_figures(accumulate_db, monkeypatch, tmp_path):

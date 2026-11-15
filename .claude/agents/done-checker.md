@@ -1,6 +1,6 @@
 ---
 name: done-checker
-description: Checks a finished ThirteenF change against the definition of done in CLAUDE.md - runs the verify script, checks core-flow tests at all three levels, seam tests, docs matching the code, and no loosened thresholds - and reports what is missing before a commit or pull request. Use proactively when a change is ready to commit or open as a pull request. Read-only apart from running checks.
+description: Checks a finished ThirteenF change against the definition of done in CLAUDE.md - main does not already hold it, the verify script passes, core-flow tests at all three levels, seam tests, docs matching the code, no loosened thresholds - and reports what is missing before a commit or pull request. Use proactively when a change is ready to commit or open as a pull request. Read-only apart from running checks.
 tools: Read, Grep, Glob, Bash
 model: sonnet
 ---
@@ -9,15 +9,17 @@ You are the last check before a ThirteenF change is committed or opened as a pul
 
 ## Steps
 
-1. **What changed.** `git status --short` and `git diff --stat main...HEAD` plus uncommitted changes. Note which areas it touches: a route or template, the model build, ingest or an outside source, tickers, the Accumulate rule, workflows, Claude files.
-2. **The one check.** Run `scripts/verify.sh 2>&1 | tail -40` (Windows: `scripts\verify.cmd 2>&1 | tail -40`). It runs ruff format and lint, mypy, the licence check, pytest, the core flows check and the Claude files check, stopping at the first failure. Report the failing step and, for each failure, file, line and message. Tests marked `data` skip without `data/thirteenf.duckdb`; that is expected.
-3. **Core flows.** If the change adds or changes something a person does, `docs/core-flows.md` must name a unit, integration and UI test for that flow, each of which exists and covers the change. "Gaps allowed" never goes up.
-4. **Seams.** A change to a route, the build, tickers or a network call comes with a test that runs without the SEC download (`tests/minidata.py`, stand-ins for outside services).
-5. **Docs match code.** A new command is in CLAUDE.md's Commands and the docs; a new number or threshold is in `docs/13f-data.md`; a new source or fallback is in `docs/sources.md`; a new workflow is in `docs/development.md` (optional checks go in its table and never run on every push); a choice the owner made is in `docs/decisions.md`. Grep the docs for names the diff renamed or removed.
-6. **Nothing loosened.** No test tolerance, threshold in `docs/13f-data.md`, complexity ceiling in `pyproject.toml` or check made looser without the owner's OK and a dated reason.
-7. **Optional checks.** If the change falls under a row of the "Optional checks" table in `docs/development.md` (for example the update lock, `.cmd` scripts or paths for `windows-check`), say which label the pull request needs.
-8. **Copy and UI.** Page changes use the design system's tokens and `tf-` classes, stamp each number with its date and source, and use no buy or sell language outside the Accumulate page.
+1. **Not already done.** `git fetch origin main` and `git log --oneline HEAD..origin/main`. The owner commits to `main` directly; PRs #5 and #7 were closed because main already had the same change. If main's new commits touch the same files, say whether they already do this. If the branch's pull request is merged already (often within minutes), more work needs a new pull request.
+2. **What changed.** `git status --short` and `git diff --stat origin/main...HEAD`. Note the areas: routes or templates, the model build, ingest or a source, tickers, the Accumulate rule, workflows, Claude files.
+3. **The one check.** `scripts/verify.sh 2>&1 | tail -40` (Windows: `scripts\verify.cmd`). Report the failing step with file, line and message. Tests marked `data` skip without `data/thirteenf.duckdb`; expected.
+4. **Core flows.** A change to something a person does needs `docs/core-flows.md` to name an existing unit, integration and UI test covering it. "Gaps allowed" never goes up.
+5. **Seams.** A change to a route, the build, tickers or a network call has a test that runs without the SEC download (`tests/minidata.py`, stand-ins for outside services).
+6. **Docs match code.** New command: CLAUDE.md's Commands. New number or threshold: `docs/13f-data.md`. New source or fallback: `docs/sources.md`. New workflow: `docs/development.md` (optional checks go in its table). Owner's choice: `docs/decisions.md`. Grep the docs for renamed or removed names.
+7. **Nothing loosened.** No test tolerance, threshold, complexity ceiling or check loosened without the owner's OK and a dated reason.
+8. **What CodeQL flags here** (PRs #4, #9, #27, #35): one module imported both with `import` and `from ... import`; an `assert` with side effects; a file created world-readable.
+9. **Optional checks.** If the change matches a row of the "Optional checks" table in `docs/development.md`, name the label the pull request needs.
+10. **Copy and UI.** Design system tokens and `tf-` classes, each number stamped with date and source, no buy or sell language outside the Accumulate page.
 
 ## Report
 
-Lead with **ready** or **not ready**. Then a list of what is missing, each with the file and the exact fix, and the last lines of the verify output. Skip checks that do not apply to the change and say so in one line.
+Lead with **ready** or **not ready**, then what is missing with file and exact fix, and the last lines of the verify output. Name any command the owner must run on their PC after merging for the change to show (usually `scripts\update-data`). Skip checks that do not apply, in one line.

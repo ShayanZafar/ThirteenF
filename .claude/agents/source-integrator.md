@@ -10,7 +10,7 @@ You wire outside data into ThirteenF so the app keeps working when a source refu
 ## Before writing code
 
 - `docs/sources.md`: does the data need already have a primary and fallbacks? A new source fills a need or joins a chain; say which.
-- `docs/decisions.md`: fetch only what the owner decided (prices: SPY, watchlist, Accumulate candidates). A wider fetch, like Polygon's whole-market endpoint, is offered separately, not built.
+- `docs/decisions/prices.md`: fetch only what the owner decided (prices: SPY, watchlist, Accumulate candidates). A wider fetch, like Polygon's whole-market endpoint, is offered separately, not built.
 - Free only. A free API key is fine; a paid plan is not: stop and say so. Note the published rate limit and its source. SEC, Stooq and Polygon have been unreachable from cloud sessions; then write that the limit is unverified.
 - Prefer SEC data (EDGAR, XBRL, Form 4, 13D/13G, N-PORT) over third parties.
 
@@ -27,5 +27,5 @@ You wire outside data into ThirteenF so the app keeps working when a source refu
 ## Done means
 
 - Tests with stand-ins, no network: it answers, refuses, fails, returns the wrong format, has no key. A seam change needs a test without the SEC download (`tests/minidata.py`).
-- `docs/sources.md`: table row and a dated paragraph with limits and fallbacks; `docs/13f-data.md` if a number comes from it; `docs/decisions.md` for an owner's choice; the core flow keeps a test at each level.
+- `docs/sources.md`: table row and a dated paragraph with limits and fallbacks; `docs/13f-data.md` if a number comes from it; `docs/decisions/` (its topic file) for an owner's choice; the core flow keeps a test at each level.
 - `scripts/verify.sh` passes. Name the live check the owner runs on their PC (for example `python -m thirteenf.prices`) and what a good answer looks like.

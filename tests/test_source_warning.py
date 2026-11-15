@@ -1,6 +1,6 @@
 """The pages say when a data source stops answering, and when the 13F data was last fetched.
 
-Decision #25 (docs/decisions.md): while some data need has no reliable source, every page
+Decision #25 (docs/decisions/pages.md): while some data need has no reliable source, every page
 shows the source health summary as a stale stamp, read from the health file on each
 request; the pages with a Source stamp also say when the SEC's 13F data sets last answered.
 On the made-up data set, with OpenFIGI and the SEC played by stand-ins."""

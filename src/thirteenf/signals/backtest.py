@@ -85,7 +85,9 @@ class Backtest:
 
     @property
     def closed(self) -> list[Quarter]:
-        return [q for q in self.quarters if not q.open and q.complete and q.ret is not None and q.market_ret is not None]
+        return [
+            q for q in self.quarters if not q.open and q.complete and q.ret is not None and q.market_ret is not None
+        ]
 
     @property
     def too_few_prices(self) -> list[Quarter]:

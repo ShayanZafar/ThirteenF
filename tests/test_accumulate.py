@@ -248,7 +248,9 @@ def _sec(
     for year in loan_years if loans else ():
         end, period = f"{year}-09-30", f"CY{year}"
         tag = "InterestAndFeeIncomeLoansConsumer"
-        pages[_url(tag, "USD", period)] = _frame("us-gaap", tag, "USD", period, [(k, end, v[0]) for k, v in loans.items()])
+        pages[_url(tag, "USD", period)] = _frame(
+            "us-gaap", tag, "USD", period, [(k, end, v[0]) for k, v in loans.items()]
+        )
         revenue = [(k, end, v[1]) for k, v in loans.items() if v[1] is not None]
         pages[_url("Revenues", "USD", period)] = _frame("us-gaap", "Revenues", "USD", period, revenue)
     return pages
@@ -378,7 +380,9 @@ def test_a_split_after_an_earlier_list_came_out_does_not_drop_a_stock_from_it(ac
         con.execute("UPDATE stock_cash_flows_history SET known_from = fiscal_end + INTERVAL 30 DAY")
         assert accumulate.picks(con, date(2024, 9, 30), 100, 0.05, 1) == []  # today's cover page disagrees
         # On Dec 14, 2024 no cover page that new was out: the split cannot reach back.
-        assert [p["cusip"] for p in accumulate.picks(con, date(2024, 9, 30), 100, 0.05, 1, known_by=date(2024, 12, 14))] == [MSFT]
+        assert [
+            p["cusip"] for p in accumulate.picks(con, date(2024, 9, 30), 100, 0.05, 1, known_by=date(2024, 12, 14))
+        ] == [MSFT]
 
 
 def test_an_unverified_ticker_brings_no_company_figures(accumulate_db, monkeypatch, tmp_path):

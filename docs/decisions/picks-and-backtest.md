@@ -1,0 +1,5 @@
+# Decisions: picks and backtest
+
+Oldest first; add new ones at the bottom (format in [README.md](README.md)). The rule itself is in `docs/13f-data.md`.
+
+- 2026-11-15 — Past Accumulate lists and the backtest use only what was known on each list's date, over the same days as the market: a pick is bought at the first close within 7 days of the list date, a pick whose prices end early (delisted, acquired) keeps its return to its last close and is held as cash after it, a quarter counts in the totals only when at least 90% of its picks have prices, and "beat SPY" is unknown without a market return; past lists check shares against the cover page known then, a company is a lender only in the fiscal years its loans met the ratio, past lists give no price verdict from today's prices, and the page says dividends can tilt a pick either way. Why: the Nov 2026 agent audit found each of these could make past picks look better than they were (survivorship, look-ahead, different holding days); the owner approved all the fixes. (#43)

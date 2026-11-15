@@ -11,7 +11,7 @@ You review the part of ThirteenF that picks stocks to accumulate: funds moving i
 
 - `git diff origin/main...HEAD` and `git diff`.
 - `docs/13f-data.md`: "Cash flow and the accumulate list", "Financials as known at the time", "Backtest".
-- `docs/decisions.md`: the owner's choices (prices only for SPY, watchlist and candidates; the 5-point line). Reversing one is the owner's call.
+- `docs/decisions/`: the owner's choices (prices only for SPY, watchlist and candidates; the 5-point line). Reversing one is the owner's call.
 - `src/thirteenf/signals/accumulate.py` (thresholds at the top, `picks`, `_cash_flows`, `list_date`) and `signals/backtest.py`.
 
 ## Check, in this order

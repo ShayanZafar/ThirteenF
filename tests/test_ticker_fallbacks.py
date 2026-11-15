@@ -191,6 +191,8 @@ def test_the_files_already_here_answer_when_the_sec_does_not(db, tmp_path):
 
 def test_without_sec_user_agent_the_files_already_here_still_answer(db, tmp_path, monkeypatch):
     monkeypatch.delenv("SEC_USER_AGENT")
+    # On Windows the user variable saved with setx is read too: hide it, or the test asks the real SEC
+    monkeypatch.setattr(config, "user_setting", lambda name: "")
     write_ftd_zip(tmp_path / "ftd", "cnsfails202608b.zip", [("20260828", AAPL, "AAPL", "10", "APPLE INC", "1")])
     logged: list[str] = []
     tickers.TickerFallback(lambda: nullcontext(db), log=logged.append)([AAPL, NVDA])

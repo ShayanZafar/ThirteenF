@@ -76,8 +76,17 @@ def _cash_flows(con, known_by: date | None) -> str:
     fiscal year known by that day (fundamentals_history.known_from), as a person reading
     the list then would have had them; without it, the latest there are."""
     if known_by is not None and has_table(con, "stock_cash_flows_history"):
-        return f"""(SELECT DISTINCT ON (cusip) * FROM stock_cash_flows_history
-                 WHERE known_from <= DATE '{known_by.isoformat()}' ORDER BY cusip, fiscal_end DESC)"""
+        day = f"DATE '{known_by.isoformat()}'"
+        known = f"""(SELECT DISTINCT ON (cusip) * FROM stock_cash_flows_history
+                 WHERE known_from <= {day} ORDER BY cusip, fiscal_end DESC)"""
+        if not has_table(con, "cover_history"):
+            return known
+        # The share-count check reads the latest cover-page count dated by known_by, so a
+        # split after the list came out cannot drop a stock from it (NULL: none that old).
+        return f"""(SELECT h.* REPLACE (c.shares_outstanding AS shares_outstanding, c.shares_as_of AS shares_as_of)
+                 FROM {known} h
+                 LEFT JOIN (SELECT DISTINCT ON (cik) * FROM cover_history WHERE shares_as_of <= {day}
+                            ORDER BY cik, shares_as_of DESC) c ON c.cik = h.cik)"""
     return "stock_cash_flows"
 
 
@@ -141,7 +150,9 @@ def picks(
         [period, minimum, minimum, min_streak, min_yield, limit],
     )
     for r in found:
-        r["priced"] = priced_in(r["vs_market_pts"], r["stale"])
+        # An earlier period's list is measured to today's close, long after it came out:
+        # no verdict on whether its flow was priced in then (the backtest answers that).
+        r["priced"] = None if known_by is not None else priced_in(r["vs_market_pts"], r["stale"])
     return found
 
 

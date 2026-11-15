@@ -328,6 +328,8 @@ def accumulate_page(
         # An earlier period's list uses the financials known when it came out, as the backtest
         # does; the period the list opens on uses the latest there are.
         known_by = None if selected.period == default.period else accumulate_rule.list_date(selected.deadline)
+        if known_by is not None and by == "price":
+            by = "yield"  # today's prices say nothing about whether an old list was priced in
         rows = (
             data.accumulate(con, selected.period, minimum, min_yield / 100, streak, by, known_by=known_by)
             if ready
@@ -386,6 +388,8 @@ def backtest_page(request: Request):
         compounded=result.compounded(),
         publish_lag=accumulate_rule.PUBLISH_LAG_DAYS,
         ten_k_days=TEN_K_DAYS,
+        lookback_days=backtest.PRICE_LOOKBACK_DAYS,
+        min_priced_pct=f"{backtest.MIN_PRICED_SHARE * 100:g}",
         **freshness(periods[-1]),
     )
 

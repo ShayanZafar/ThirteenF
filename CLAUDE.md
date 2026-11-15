@@ -12,7 +12,7 @@ Instructions for Claude are this file (≤600 words, checked by `scripts/verify.
 - `docs/13f-data.md`: the SEC data sets, how each number is computed, the data checks.
 - `docs/sources.md`: outside sources, fallbacks, source health.
 - `docs/README.md`: index of the docs.
-- `docs/decisions.md`: decisions made; pending ones and debt are GitHub issues (`backlog` skill).
+- `docs/decisions/`: decisions made; pending ones and debt are GitHub issues (`backlog` skill).
 - `docs/core-flows.md`: the core flows and their tests.
 - `config/watchlist.csv`: the example starting watchlist.
 - `.claude/rules/sec-and-sources.md`: SEC access, tickers, source health.

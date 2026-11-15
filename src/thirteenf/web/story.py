@@ -391,6 +391,15 @@ def backtest_answer(result) -> str:
             "picks, which the next update fetches when a price key is set."
         )
     closed = result.closed
+    short = result.too_few_prices
+    left_out = (
+        f" {len(short):,} past {'list is' if len(short) == 1 else 'lists are'} left out: too few of "
+        "their picks have prices, and the missing ones are most often the losers."
+        if short
+        else ""
+    )
+    if not closed and short:
+        return "No past list can be counted yet." + left_out
     if not closed:
         return (
             f"Only the newest list, {result.quarters[-1].label}, has prices so far, and it is still held: "
@@ -404,7 +413,11 @@ def backtest_answer(result) -> str:
         f"{'returned' if n == 1 else 'returned together'} {pct(mine)} against {pct(market)} for SPY "
         f"over the same days, beating it in {beat:,} of {n:,} {'quarter' if n == 1 else 'quarters'}."
     )
-    return text + " Few quarters: a check that the list is not worse than the market, not proof that it is better."
+    return (
+        text
+        + left_out
+        + " Few quarters: a check that the list is not worse than the market, not proof that it is better."
+    )
 
 
 def price_figure(prices: dict) -> Figure:

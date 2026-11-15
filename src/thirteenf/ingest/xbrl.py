@@ -67,8 +67,9 @@ INSTANT_CONCEPTS = [
     ("shares_outstanding", "dei", "EntityCommonStockSharesOutstanding", "shares"),
     ("financial", "us-gaap", "Deposits", "USD"),
 ]
-# How many recent quarter ends to read them for.
-INSTANT_QUARTERS = 5
+# How many recent quarter ends to read them for: three years, so the backtest's earliest
+# lists check their share counts against a cover page known by their date.
+INSTANT_QUARTERS = 12
 
 RAW_DDL = """
 CREATE TABLE IF NOT EXISTS raw_xbrl_frames (

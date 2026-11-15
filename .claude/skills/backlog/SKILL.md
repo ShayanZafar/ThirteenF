@@ -1,11 +1,11 @@
 ---
 name: backlog
-description: File, groom and work this repo's backlog of technical debt and the owner's decisions, kept as GitHub issues labelled debt, decision and irreversible, with decisions made recorded in docs/decisions.md. Use when you find debt or a choice that's the owner's, for the weekly triage, for a weekly work run on the top debt item, or when asked about the backlog.
+description: File, groom and work this repo's backlog of technical debt and the owner's decisions, kept as GitHub issues labelled debt, decision and irreversible, with decisions made recorded in the topic files under docs/decisions/. Use when you find debt or a choice that's the owner's, for the weekly triage, for a weekly work run on the top debt item, or when asked about the backlog.
 ---
 
 # Backlog: debt and decisions
 
-The backlog is this repo's GitHub issues. Nothing about it lives only in a chat or a session: if it isn't an issue or a line in `docs/decisions.md`, it will be lost.
+The backlog is this repo's GitHub issues. Nothing about it lives only in a chat or a session: if it isn't an issue or a line in a `docs/decisions/` topic file, it will be lost.
 
 - `debt`: code that costs more to change than it should.
 - `decision`: a choice that's the owner's (ShayanZafar), not yours.
@@ -46,15 +46,15 @@ Leave out the Default line for an irreversible decision and say instead why it w
 
 When the owner answers (a comment by ShayanZafar picking an option or saying what to do), or a reversible decision's default date is today or earlier with no answer:
 
-1. Add one line at the top of the list in `docs/decisions.md` (newest first): `- YYYY-MM-DD — <decision>. Why: <reason>. (#n)`. For a default add "(default applied: no answer in 7 days)" before `(#n)`. Never apply a default to an `irreversible` decision.
+1. Add one line at the bottom of the topic file for its area in `docs/decisions/` (the table in its `README.md`; a new file when none fits): `- YYYY-MM-DD — <decision>. Why: <reason>. (#n)`. For a default add "(default applied: no answer in 7 days)" before `(#n)`. Never apply a default to an `irreversible` decision.
 2. If it's a standing rule (it says how things are to be done from now on), also add one dated line where that subject belongs: CLAUDE.md if it holds on every task, else the `.claude/rules/` file for its area, if the repo has one.
 3. Put all record-keeping changes from one run in one branch and one pull request (`claude/decisions-YYYY-MM-DD`). Never push to the default branch and never merge.
 4. Comment on the issue that it's recorded, linking that pull request, and close it (`state_reason: completed`).
 5. If the decision calls for work: do it in its own pull request when it's small and clear (see Working), otherwise file it as `debt` and link the decision.
 
-Never ask again about anything in `docs/decisions.md`. Decisions made before Oct 12, 2026 are recorded inline with their dates, in CLAUDE.md, `.claude/rules/` and the docs they concern.
+Never ask again about anything in `docs/decisions/`. Decisions made before Oct 12, 2026 are recorded inline with their dates, in CLAUDE.md, `.claude/rules/` and the docs they concern.
 
-**Acting on answers at once.** The Claude Backlog workflow (`.github/workflows/claude-backlog.yml`) runs this section as soon as the owner comments on a `decision` or `debt` issue, and opens the pull request; the weekly triage is the safety net. It also records any decision the owner closed with an answer that has no line in `docs/decisions.md` yet.
+**Acting on answers at once.** The Claude Backlog workflow (`.github/workflows/claude-backlog.yml`) runs this section as soon as the owner comments on a `decision` or `debt` issue, and opens the pull request; the weekly triage is the safety net. It also records any decision the owner closed with an answer that has no line in `docs/decisions/` yet.
 
 ## Weekly triage
 

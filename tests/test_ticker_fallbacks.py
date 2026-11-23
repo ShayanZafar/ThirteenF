@@ -584,7 +584,7 @@ def test_polygon_fills_the_widely_held_stocks_the_other_sources_leave_without_a_
 
     # The next run asks Polygon about neither: Amazon has its ticker, Nvidia's miss waits 30 days.
     fake.asked.clear()
-    counts = run()
+    run()
     assert fake.asked == [] and _stocks()[AMZN] == ("AMZN", "polygon", None)
 
     # Asking OpenFIGI again about its misses clears the fallbacks; Polygon's answer is put back

@@ -829,8 +829,17 @@ CREATE OR REPLACE TABLE stock_cash_flows AS SELECT * EXCLUDE (n, known_from) FRO
 # end), never later. A stock whose latest close is more than PRICE_STALE_DAYS older
 # than the market's is stale: its prices stopped updating, so the pages say so rather
 # than call it lagging or ahead.
+#
+# Volume money flow, over the same days as the price (the day after the quarter's start
+# to the latest close): each day's close position in its range, from -1 at the low to +1
+# at the high, weighted by that day's volume, summed and divided by the volume (Chaikin
+# money flow). Positive means the volume traded mostly on days that closed near their
+# highs: buyers pressing. Only days with a real range count (high above low, the close
+# inside it), so a source that gives the close for all four prices adds nothing, and a
+# stock with fewer than MONEY_FLOW_MIN_DAYS such days gets none.
 PRICE_LOOKBACK_DAYS = 7
 PRICE_STALE_DAYS = 7
+MONEY_FLOW_MIN_DAYS = 20
 SQL_STOCK_PRICES = f"""
 {prices.RAW_DDL};
 CREATE OR REPLACE TABLE stock_prices AS
@@ -839,7 +848,10 @@ WITH keyed AS (
     FROM stocks WHERE ticker IS NOT NULL AND ticker_source <> 'issuer-name'
 ),
 daily AS (
-    SELECT r.symbol, r.day, r.close, r.close * r.volume AS traded, r.source
+    SELECT r.symbol, r.day, r.close, r.close * r.volume AS traded, r.source,
+           CASE WHEN r.high > r.low AND r.close BETWEEN r.low AND r.high AND r.volume > 0
+                THEN ((r.close - r.low) - (r.high - r.close)) / (r.high - r.low) END AS close_position,
+           r.volume
     FROM raw_prices r WHERE r.close > 0 AND r.day IS NOT NULL
 ),
 latest AS (
@@ -863,17 +875,26 @@ traded AS (
     FROM periods p JOIN daily d ON d.day > p.prev_period AND d.day <= p.period
     GROUP BY p.period, d.symbol
 ),
+flow AS (
+    SELECT p.period, d.symbol,
+           sum(d.close_position * d.volume) / sum(d.volume) AS money_flow, count(*) AS flow_days
+    FROM periods p JOIN daily d ON d.day > p.prev_period AND d.close_position IS NOT NULL
+    WHERE p.prev_period IS NOT NULL
+    GROUP BY p.period, d.symbol
+),
 by_symbol AS (
     SELECT p.period, l.symbol, s.close AS start_close, e.close AS end_close, l.latest_close, l.latest_day,
            l.latest_source,
            l.latest_close / s.close - 1 AS since_start_pct,
            e.close / s.close - 1 AS quarter_pct,
-           t.dollar_volume, t.days_traded
+           t.dollar_volume, t.days_traded,
+           CASE WHEN f.flow_days >= {MONEY_FLOW_MIN_DAYS} THEN f.money_flow END AS money_flow, f.flow_days
     FROM periods p
     CROSS JOIN latest l
     JOIN at_date s ON s.period = p.prev_period AND s.symbol = l.symbol
     LEFT JOIN at_date e ON e.period = p.period AND e.symbol = l.symbol
     LEFT JOIN traded t ON t.period = p.period AND t.symbol = l.symbol
+    LEFT JOIN flow f ON f.period = p.period AND f.symbol = l.symbol
     WHERE p.prev_period IS NOT NULL
 ),
 market_on AS (
@@ -893,7 +914,7 @@ SELECT k.cusip, b.period, b.start_close, b.end_close, b.latest_close, b.latest_d
        b.since_start_pct, b.quarter_pct, b.dollar_volume, b.days_traded,
        b.market_since_start_pct,
        (b.since_start_pct - b.market_since_start_pct) * 100 AS vs_market_pts,
-       b.latest_source AS price_source,
+       b.latest_source AS price_source, b.money_flow, b.flow_days,
        coalesce(b.latest_day < b.market_latest_day - INTERVAL {PRICE_STALE_DAYS} DAY, false) AS stale
 FROM compared b
 JOIN keyed k USING (symbol)

@@ -50,8 +50,18 @@ def ramp(start: float, end: float) -> Callable[[date], float]:
     return lambda d: round(start + (end - start) * (d - FIRST_DAY).days / span, 4)
 
 
-def stooq_csv(price: Callable[[date], float]) -> str:
-    rows = [f"{d.isoformat()},{price(d)},{price(d)},{price(d)},{price(d)},1000000" for d in weekdays()]
+def bar(close: float, position: float = 0.0) -> tuple[float, float]:
+    """A day's high and low around its close, 2% wide, with the close at `position` in the range:
+    -1 at the low, +1 at the high. Its Chaikin money flow is `position`."""
+    width = close * 0.02
+    return round(close + width * (1 - position) / 2, 6), round(close - width * (1 + position) / 2, 6)
+
+
+def stooq_csv(price: Callable[[date], float], position: float = 0.0) -> str:
+    rows = []
+    for d in weekdays():
+        high, low = bar(price(d), position)
+        rows.append(f"{d.isoformat()},{price(d)},{high},{low},{price(d)},1000000")
     return "\n".join([Stooq.HEADER, *rows]) + "\n"
 
 
@@ -103,10 +113,16 @@ def polygon_json(symbol: str, price: Callable[[date], float]) -> str:
 class FakeSources:
     """Stooq, Polygon and Tiingo behind mock transports. `series` maps a symbol to its price; a
     symbol not in it gets "No data" from Stooq, no bars from Polygon and a 404 from Tiingo. Stooq
-    answers its limit message after `stooq_limit` requests, if given."""
+    answers its limit message after `stooq_limit` requests, if given. `positions` puts a symbol's
+    Stooq closes at that place in each day's range (bar), for its volume money flow; else mid-range."""
 
-    def __init__(self, series: dict[str, Callable[[date], float]], stooq_limit: int | None = None):
-        self.series, self.stooq_limit = series, stooq_limit
+    def __init__(
+        self,
+        series: dict[str, Callable[[date], float]],
+        stooq_limit: int | None = None,
+        positions: dict[str, float] | None = None,
+    ):
+        self.series, self.stooq_limit, self.positions = series, stooq_limit, positions or {}
         self.stooq_asked: list[str] = []
         self.polygon_asked: list[str] = []
         self.tiingo_asked: list[str] = []
@@ -119,7 +135,7 @@ class FakeSources:
         key = symbol.removesuffix(".us").upper()
         if key not in self.series:
             return httpx.Response(200, text="No data")
-        return httpx.Response(200, text=stooq_csv(self.series[key]))
+        return httpx.Response(200, text=stooq_csv(self.series[key], self.positions.get(key, 0.0)))
 
     def _tiingo(self, request: httpx.Request) -> httpx.Response:
         symbol = request.url.path.split("/")[3]
@@ -350,6 +366,56 @@ def test_a_pick_is_lagging_in_line_or_ahead_of_the_market():
     assert data.priced_in(-20.0, stale=True) == "stale"  # prices that stopped updating get no verdict
 
 
+def test_volume_flow_reads_buying_neutral_or_selling_and_lagging_on_buying_is_quiet_accumulation():
+    assert data.volume_flow(data.FLOW_BUYING) == "buying"
+    assert data.volume_flow(0.04) == "neutral" and data.volume_flow(-0.04) == "neutral"
+    assert data.volume_flow(-data.FLOW_BUYING) == "selling"
+    assert data.volume_flow(None) is None
+    assert data.volume_flow(0.5, stale=True) is None  # prices that stopped updating say nothing
+    assert data.quiet_accumulation("lagging", "buying") == "quiet"
+    assert data.quiet_accumulation("lagging", "selling") == "warning"  # the market may know something
+    assert data.quiet_accumulation("lagging", "neutral") is None
+    assert data.quiet_accumulation("in line", "buying") is None
+    assert data.quiet_accumulation("ahead", "buying") is None
+
+
+def test_the_yield_at_the_latest_close_moves_against_the_price_since_the_quarters_end():
+    pick = {"fcf_yield": 0.06, "end_close": 100.0, "latest_close": 120.0, "stale": False}
+    assert data.yield_at_latest_close(pick) == pytest.approx(0.05)  # up 20%: less cheap
+    assert data.yield_at_latest_close(pick | {"latest_close": 80.0}) == pytest.approx(0.075)
+    assert data.yield_at_latest_close(pick | {"stale": True}) is None
+    assert data.yield_at_latest_close(pick | {"end_close": None}) is None
+
+
+def test_money_flow_weights_each_days_close_in_its_range_by_volume():
+    """Days near the high on heavy volume outweigh days near the low on light volume; a day with
+    no range (a source giving the close for all four prices) adds nothing; under 20 days, none."""
+    con = duckdb.connect()
+    con.execute(ingest.RAW_DDL)
+    con.execute("CREATE TABLE stocks (cusip VARCHAR, ticker VARCHAR, ticker_source VARCHAR)")
+    con.execute("INSERT INTO stocks VALUES ('A00000001', 'AAA', 'openfigi'), ('B00000001', 'BBB', 'openfigi')")
+    con.execute("CREATE TABLE periods (period DATE, prev_period DATE)")
+    con.execute("INSERT INTO periods VALUES ('2026-06-30', '2026-03-31')")
+    days = weekdays(date(2026, 3, 2), date(2026, 5, 29))
+    for i, day in enumerate(days):
+        con.execute("INSERT INTO raw_prices VALUES ('SPY', ?, 100, 101, 99, 100, 1e6, 'stooq', 'f')", [day])
+        heavy_up = i % 2 == 0  # even days close at the high on 3M shares, odd days at the low on 1M
+        close, volume = (101.0, 3e6) if heavy_up else (99.0, 1e6)
+        con.execute("INSERT INTO raw_prices VALUES ('AAA', ?, 100, 101, 99, ?, ?, 'stooq', 'f')", [day, close, volume])
+        if day <= date(2026, 4, 20):  # BBB: a few days with a range, then only flat bars
+            con.execute("INSERT INTO raw_prices VALUES ('BBB', ?, 100, 101, 99, 101, 1e6, 'stooq', 'f')", [day])
+        else:
+            con.execute("INSERT INTO raw_prices VALUES ('BBB', ?, 100, 100, 100, 100, 1e6, 'stooq', 'f')", [day])
+    con.execute(build.SQL_STOCK_PRICES)
+    found = {r[0]: r[1:] for r in con.execute("SELECT cusip, money_flow, flow_days FROM stock_prices").fetchall()}
+    in_quarter = [d for d in days if d > date(2026, 3, 31)]
+    ups = sum(1 for d in in_quarter if days.index(d) % 2 == 0)
+    downs = len(in_quarter) - ups
+    expected = (3e6 * ups - 1e6 * downs) / (3e6 * ups + 1e6 * downs)
+    assert found["A00000001"][0] == pytest.approx(expected) and found["A00000001"][1] == len(in_quarter)
+    assert found["B00000001"][0] is None and found["B00000001"][1] < build.MONEY_FLOW_MIN_DAYS
+
+
 def test_a_stale_price_is_measured_against_the_market_on_its_own_last_day():
     """A stock whose prices stopped on Jul 15 while SPY's ran to Oct 30 used to be set against
     SPY's Oct 30 close: the same price path read 3.6 points behind. Both now end on Jul 15."""
@@ -435,9 +501,13 @@ def test_a_database_built_before_prices_still_lists_stocks():
 @pytest.fixture
 def priced_db(accumulate_db, tmp_path, monkeypatch):  # noqa: F811
     """The made-up data with financials and tickers, plus daily prices from a fake Stooq:
-    MSFT (T594) flat while the market rises, AMZN (T023) up about 25%, SPY the market. Returns the fakes."""
+    MSFT (T594) flat while the market rises, on buying volume (quiet accumulation), AMZN (T023)
+    up about 25% on selling volume, SPY the market. Returns the fakes."""
     accumulate_db()
-    fakes = FakeSources({"SPY": MARKET, "T594": ramp(400, 400), "T023": ramp(150, 260), "T037": ramp(200, 220)})
+    fakes = FakeSources(
+        {"SPY": MARKET, "T594": ramp(400, 400), "T023": ramp(150, 260), "T037": ramp(200, 220)},
+        positions={"T594": 0.4, "T023": -0.3},  # Microsoft closes near its highs, Amazon near its lows
+    )
     monkeypatch.setattr(ingest, "PRICES_DIR", tmp_path / "raw" / "prices")
     thirteenf.prices.update_prices(log=QUIET, chain=[fakes.stooq()], now=NOW)
     return fakes
@@ -492,6 +562,32 @@ def test_the_page_says_whether_each_pick_has_priced_the_flow_in(priced_db):
     assert "Price since Sep 30" in stock_page and "Lagging the market" in stock_page
 
 
+def _table_rows(html: str) -> dict[str, str]:
+    """Each row of the list's table by the CUSIP it links to."""
+    body = html.split("Stocks to accumulate", 1)[1].split("</table>", 1)[0]
+    return {m.group(1): row for row in body.split("<tr>")[1:] if (m := re.search(r'href="/stock/([0-9A-Z]{9})"', row))}
+
+
+def test_the_page_reads_volume_flow_and_flags_quiet_accumulation(priced_db):
+    html = TestClient(app).get("/accumulate", params={"streak": 1}).text
+    assert "Volume flow</th>" in html
+    found = _table_rows(html)
+    assert "Volume buying" in found[MSFT] and "Quiet accumulation" in found[MSFT]  # lagging, bought
+    assert "Volume selling" in found[AMZN] and "Quiet accumulation" not in found[AMZN]  # ahead
+    assert "at the latest close" in found[AMZN]
+    with connect(read_only=True) as con:
+        picks = {r["cusip"]: r for r in data.accumulate(con, PERIOD, 100, 0.05, 1)}
+    assert picks[MSFT]["money_flow"] == pytest.approx(0.4, abs=1e-3)
+    assert picks[MSFT]["fcf_yield_now"] == pytest.approx(picks[MSFT]["fcf_yield"])  # flat since the quarter's end
+    amzn = picks[AMZN]
+    assert amzn["fcf_yield_now"] == pytest.approx(amzn["fcf_yield"] * amzn["end_close"] / amzn["latest_close"])
+    assert amzn["fcf_yield_now"] < amzn["fcf_yield"]  # it rose since: less cheap than the list says
+    by_flow = TestClient(app).get("/accumulate", params={"streak": 1, "by": "flow"}).text
+    assert list(_table_rows(by_flow)) == [MSFT, AMZN]  # quiet accumulation first
+    past = TestClient(app).get("/accumulate", params={"streak": 1, "period": "2024-09-30", "by": "flow"}).text
+    assert "Volume flow</th>" not in past  # today's volume says nothing about an old list
+
+
 def test_without_a_key_nothing_is_fetched_and_the_pages_still_work(accumulate_db, monkeypatch):  # noqa: F811
     accumulate_db()
     for name in ("stooq_api_key", "polygon_api_key", "tiingo_api_key"):
@@ -522,3 +618,16 @@ def test_a_person_sees_whether_a_pick_is_already_priced_in(priced_db, page: Page
     assert hrefs == [f"/stock/{MSFT}", f"/stock/{AMZN}"]
     table.get_by_role("link").filter(has_text=re.compile("Microsoft", re.I)).first.click()
     expect(page.locator(".tf-kf").filter(has_text="Price since Sep 30")).to_contain_text("Lagging the market")
+
+
+@pytest.mark.ui
+def test_a_person_ranks_by_volume_flow_and_sees_quiet_accumulation_first(priced_db, page: Page):
+    page.goto("/accumulate?streak=1")
+    table = page.locator("section").filter(has=page.get_by_role("heading", name=re.compile("^Stocks to accumulate")))
+    expect(table.get_by_role("columnheader", name="Volume flow")).to_be_visible()
+    expect(table.locator("tbody tr").filter(has_text="Amazon")).to_contain_text("Volume selling")
+    page.get_by_role("group", name="Rank by").get_by_role("link", name="Volume flow").click()
+    expect(page).to_have_url(re.compile(r"by=flow"))
+    first = table.locator("tbody tr").first
+    expect(first).to_contain_text("Microsoft")
+    expect(first).to_contain_text("Quiet accumulation")

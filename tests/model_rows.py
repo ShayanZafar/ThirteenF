@@ -72,6 +72,8 @@ STOCK_PRICES = {
     "market_since_start_pct": "DOUBLE",
     "vs_market_pts": "DOUBLE",
     "price_source": "VARCHAR",
+    "money_flow": "DOUBLE",
+    "flow_days": "INTEGER",
     "stale": "BOOLEAN",
 }
 

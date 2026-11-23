@@ -28,6 +28,13 @@ from thirteenf.web.app import app
 QUIET = lambda *_: None
 
 
+@pytest.fixture(autouse=True)
+def no_polygon_ticker_lookups(monkeypatch):
+    """A Polygon key on this computer (settings file, environment or Windows variable) must not
+    send the ticker step to the real Polygon: tests that want it pass a fake client."""
+    monkeypatch.setattr(thirteenf.tickers, "polygon_api_key", lambda: "")
+
+
 def ftd_zip_bytes(
     name: str, rows: list[tuple], header: str = ftd.HEADER, count: int | None = None, member: str | None = None
 ) -> bytes:

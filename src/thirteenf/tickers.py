@@ -4,7 +4,9 @@ The chain, from docs/sources.md: the DuckDB cache, then OpenFIGI (the primary),
 then for a batch OpenFIGI refuses or fails, at once, the SEC's fails-to-deliver
 data, then an exact issuer-name match against the SEC's ticker list (unverified).
 For a CUSIP OpenFIGI answers "not found", the fails-to-deliver symbol alone stands
-in (decision #14, Oct 12, 2026). A fallback's ticker is provisional: the next run
+in (decision #14, Oct 12, 2026). Last, with a free Polygon key, the widely held stocks
+still without a verified ticker are looked up by CUSIP in Polygon's ticker list
+(thirteenf.ingest.polygon_tickers). A fallback's ticker is provisional: the next run
 asks OpenFIGI about it again.
 
 Put a free key from openfigi.com in data/settings.toml first (openfigi_api_key):
@@ -23,10 +25,11 @@ import duckdb
 import httpx
 
 from thirteenf import health
-from thirteenf.config import MissingUserAgent, ensure_settings_file, openfigi_api_key
+from thirteenf.config import MissingUserAgent, ensure_settings_file, openfigi_api_key, polygon_api_key
 from thirteenf.db import connect, scalar
-from thirteenf.ingest import ftd, issuer_names, openfigi
+from thirteenf.ingest import ftd, issuer_names, openfigi, polygon_tickers
 from thirteenf.ingest.sec import SecClient, SecUnavailable
+from thirteenf.model.read import has_table
 
 FTD = "sec-ftd"
 NAMES = "issuer-name"
@@ -148,12 +151,19 @@ def not_found_cusips(con: duckdb.DuckDBPyConnection) -> list[str]:
     return [r[0] for r in rows if openfigi.valid_cusip(r[0])]
 
 
-def update_tickers(log=print, retry_missing: bool = False, fallback: TickerFallback | None = None) -> dict:
+def update_tickers(
+    log=print,
+    retry_missing: bool = False,
+    fallback: TickerFallback | None = None,
+    polygon: polygon_tickers.PolygonTickers | None = None,
+) -> dict:
     key = openfigi_api_key()
     with connect() as con:
         con.execute(openfigi.CACHE_DDL)
+        con.execute(polygon_tickers.CACHE_DDL)
         if retry_missing:
             con.execute("DELETE FROM openfigi WHERE NOT found")
+            con.execute("DELETE FROM polygon_cusips WHERE outcome <> ?", [polygon_tickers.FOUND])
         # A "not found" with a fails-to-deliver ticker standing in is provisional: ask OpenFIGI again.
         con.execute(
             "DELETE FROM openfigi WHERE NOT found AND cusip IN (SELECT cusip FROM ticker_fallbacks WHERE source = ?)",
@@ -183,9 +193,33 @@ def update_tickers(log=print, retry_missing: bool = False, fallback: TickerFallb
 
     with connect() as con:
         rebuild_after_tickers(con)
+    filled = fill_from_polygon(log, polygon)
+    if filled.get(polygon_tickers.FOUND) or filled.get("reused"):
+        with connect() as con:
+            rebuild_after_tickers(con)
+    with connect() as con:
         tickers = scalar(con, "SELECT count(*) FROM stocks WHERE ticker IS NOT NULL")
     log(f"  {tickers:,} stocks have a ticker")
-    return counts | {"fallback": dict(fallback.counts), "not_found": dict(fallback.unknown)}
+    return counts | {"fallback": dict(fallback.counts), "not_found": dict(fallback.unknown), "polygon": filled}
+
+
+def fill_from_polygon(log=print, client: polygon_tickers.PolygonTickers | None = None) -> dict[str, int]:
+    """With a Polygon key (or a client given), look up the widely held stocks still without a
+    verified ticker; {} without a key or before the model has periods."""
+    if client is None:
+        if not polygon_api_key():
+            return {}
+        client = polygon_tickers.PolygonTickers(polygon_api_key())
+    try:
+        with connect() as con:
+            if not has_table(con, "stock_periods"):
+                return {}
+        counts = polygon_tickers.fill(connect, client, log=log)
+    finally:
+        client.close()
+    if polygon_tickers.summary(counts):
+        log(polygon_tickers.summary(counts))
+    return counts
 
 
 def main() -> int:

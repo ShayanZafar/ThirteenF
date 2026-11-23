@@ -28,7 +28,7 @@ from playwright.sync_api import expect
 
 from thirteenf import config, health, tickers, watchlist
 from thirteenf.db import connect
-from thirteenf.ingest import ftd, issuer_names, openfigi, xbrl
+from thirteenf.ingest import ftd, issuer_names, openfigi, polygon_tickers, xbrl
 from thirteenf.web import format as fmt
 from thirteenf.web.app import app, templates
 
@@ -497,3 +497,133 @@ def test_a_person_finds_a_stock_by_a_fallback_ticker_and_sees_where_it_came_from
     page.reload()
     expect(page.locator(".app-eyebrow .tf-ticker")).to_have_text("T670")
     expect(stamp).to_have_count(0)
+
+
+# --- Polygon's ticker list, last, for widely held stocks ------------------------------------
+
+
+class FakePolygonTickers:
+    """Polygon's /v3/reference/tickers behind a mock transport: `known` maps a CUSIP to the
+    listings Polygon answers with; any other CUSIP gets no results. `refuse` answers 429."""
+
+    def __init__(self, known: dict[str, list[dict]], refuse: bool = False):
+        self.known, self.refuse = known, refuse
+        self.asked: list[str] = []
+        self.requests: list[httpx.Request] = []
+
+    def _answer(self, request: httpx.Request) -> httpx.Response:
+        self.requests.append(request)
+        cusip = request.url.params["cusip"]
+        self.asked.append(cusip)
+        if self.refuse:
+            return httpx.Response(429, json={"status": "ERROR", "error": "too many requests"})
+        results = self.known.get(cusip, [])
+        return httpx.Response(200, json={"results": results, "status": "OK", "count": len(results)})
+
+    def client(self, clock=lambda: 1000.0, sleep=lambda s: None) -> polygon_tickers.PolygonTickers:
+        return polygon_tickers.PolygonTickers(
+            "polygon-key", transport=httpx.MockTransport(self._answer), clock=clock, sleep=sleep
+        )
+
+
+def listing(ticker: str, name: str) -> dict:
+    return {"ticker": ticker, "name": name, "market": "stocks", "type": "CS", "active": True, "locale": "us"}
+
+
+def test_polygons_answer_counts_only_for_one_ticker_whose_name_matches():
+    assert polygon_tickers.first_word("The Walt Disney Co") == "WALT"
+    assert polygon_tickers.first_word("U.S. Bancorp") == polygon_tickers.first_word("US BANCORP DEL") == "US"
+    assert polygon_tickers.judge([listing("OKE", "ONEOK Inc.")], "ONEOK INC NEW") == ("found", "OKE", "ONEOK Inc.")
+    assert polygon_tickers.judge([], "ONEOK INC NEW") == ("not found", None, None)
+    # A filter Polygon ignored answers with its whole list: the first name will not match.
+    outcome, ticker, _ = polygon_tickers.judge([listing("A", "Agilent Technologies Inc.")], "ONEOK INC NEW")
+    assert (outcome, ticker) == ("name differs", None)
+    two = [listing("EA", "Electronic Arts Inc."), listing("EAX", "Electronic Arts Inc.")]
+    assert polygon_tickers.judge(two, "ELECTRONIC ARTS INC")[:2] == ("ambiguous", None)
+
+
+def test_polygon_is_asked_by_cusip_at_five_a_minute_and_a_refusal_leaves_the_rest_for_the_next_run():
+    fake = FakePolygonTickers({AAPL: [listing("AAPL", "Apple Inc.")]})
+    now, slept = [0.0], []
+    client = fake.client(clock=lambda: now[0], sleep=lambda s: (slept.append(s), now.__setitem__(0, now[0] + s)))
+    for _ in range(6):
+        client.lookup(AAPL)
+    assert slept == [60.0]  # the sixth request waits for the first to be a minute old
+    request = fake.requests[0]
+    assert request.url.path == "/v3/reference/tickers" and request.url.params["cusip"] == AAPL
+    assert request.url.params["market"] == "stocks" and request.headers["Authorization"] == "Bearer polygon-key"
+    refusing = FakePolygonTickers({}, refuse=True)
+    with pytest.raises(polygon_tickers.PolygonTickersDown):
+        refusing.client().lookup(AAPL)
+    assert [e["outcome"] for e in health.load_events() if e["source"] == "polygon"][-1] == "throttled"
+
+
+def test_polygon_fills_the_widely_held_stocks_the_other_sources_leave_without_a_ticker(mini_db, monkeypatch):
+    """OpenFIGI knows neither Amazon nor Nvidia and the fails-to-deliver data has neither. Polygon
+    knows Amazon by its CUSIP; for Nvidia's it answers with another company, which is not used."""
+    fake = FakePolygonTickers({AMZN: [listing("AMZN", "Amazon.com, Inc.")], NVDA: [listing("AAPL", "Apple Inc.")]})
+    known = set(minidata.SECURITIES) - {AMZN, NVDA}
+
+    def run() -> dict:
+        openfigi_knowing(monkeypatch, known, [])
+        return tickers.update_tickers(
+            log=QUIET,
+            fallback=tickers.TickerFallback(connect, QUIET, FakeFtdSec({}).client),
+            polygon=fake.client(),
+        )
+
+    counts = run()
+    assert counts["polygon"]["found"] == 1 and counts["polygon"]["name differs"] == 1
+    stocks = _stocks()
+    assert stocks[AMZN] == ("AMZN", "polygon", None)  # provisional, and says where from
+    assert stocks[NVDA] == (None, None, None)
+    assert stocks[AAPL] == ("T037", "openfigi", None)
+    assert set(fake.asked) == {AMZN, NVDA}  # only the stocks without a ticker
+    page = TestClient(app).get(f"/stock/{AMZN}").text
+    assert '<span class="tf-stamp"><b>Ticker</b><i>·</i>From Polygon’s ticker list, looked up by CUSIP</span>' in page
+
+    # The next run asks Polygon about neither: Amazon has its ticker, Nvidia's miss waits 30 days.
+    fake.asked.clear()
+    run()
+    assert fake.asked == [] and _stocks()[AMZN] == ("AMZN", "polygon", None)
+
+    # Asking OpenFIGI again about its misses clears the fallbacks; Polygon's answer is put back
+    # from its cache without a request, and only Nvidia's miss is asked again.
+    openfigi_knowing(monkeypatch, known, [])
+    counts = tickers.update_tickers(
+        log=QUIET,
+        retry_missing=True,
+        fallback=tickers.TickerFallback(connect, QUIET, FakeFtdSec({}).client),
+        polygon=fake.client(),
+    )
+    assert counts["polygon"]["reused"] == 1 and fake.asked == [NVDA]
+    assert _stocks()[AMZN] == ("AMZN", "polygon", None)
+
+    # Once OpenFIGI knows Amazon, its answer replaces Polygon's.
+    known.add(AMZN)
+    openfigi_knowing(monkeypatch, known, [])
+    tickers.update_tickers(
+        log=QUIET,
+        retry_missing=True,
+        fallback=tickers.TickerFallback(connect, QUIET, FakeFtdSec({}).client),
+        polygon=fake.client(),
+    )
+    assert _stocks()[AMZN] == ("T023", "openfigi", None)
+
+
+@pytest.mark.ui
+def test_a_person_finds_a_stock_by_a_polygon_ticker_and_sees_where_it_came_from(mini_db, monkeypatch, page):
+    openfigi_knowing(monkeypatch, set(minidata.SECURITIES) - {AMZN}, [])
+    fake = FakePolygonTickers({AMZN: [listing("AMZN", "Amazon.com, Inc.")]})
+    tickers.update_tickers(
+        log=QUIET, fallback=tickers.TickerFallback(connect, QUIET, FakeFtdSec({}).client), polygon=fake.client()
+    )
+    page.goto("/")
+    page.get_by_role("combobox", name="Search").fill("AMZN")
+    option = page.get_by_role("option", name=re.compile("Amazon"))
+    expect(option.locator(".tf-ticker")).to_have_text("AMZN")
+    option.click()
+    expect(page).to_have_url(re.compile(f"/stock/{AMZN}$"))
+    expect(page.locator(".tf-stamp").filter(has_text="Ticker")).to_have_text(
+        "Ticker·From Polygon’s ticker list, looked up by CUSIP"
+    )

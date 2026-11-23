@@ -47,6 +47,7 @@ web/app.py (FastAPI)  ->  Jinja2 templates + inline SVG  ->  your browser
 | `ingest/issuer_names.py` | The last fallback for tickers: an exact match of normalised issuer names against the SEC's ticker list |
 | `model/periods.py` | Quarter ends and their 13F deadlines (45 days, next business day) |
 | `model/build.py` | Builds every model table in SQL, in order (see below) |
+| `__main__.py` | `python -m thirteenf COMMAND`: runs one command by its short name; `scripts/run.sh` and `scripts\run.cmd` call it with `.venv`'s Python |
 | `tickers.py` | The `python -m thirteenf.tickers` command, and the chain after OpenFIGI (`TickerFallback`); [sources.md](sources.md) |
 | `web/app.py` | Routes: overview, stock, changes, accumulate, managers, search, watchlist, suggestions |
 | `refresh.py` | `python -m thirteenf.refresh`: the whole update under the update lock, then what entered and left the Accumulate list, printed and in `data/refresh-summary.txt` |

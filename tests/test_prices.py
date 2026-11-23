@@ -287,6 +287,18 @@ def test_a_source_with_no_data_leaves_the_symbol_to_the_next_and_a_symbol_fetche
     assert later["due"] == 2
 
 
+def test_a_ticker_windows_reserves_as_a_device_name_is_kept_under_another_file_name(tmp_path):
+    fakes = FakeSources({"CON": ramp(10, 20), "AUX": ramp(5, 6)})
+    db = duckdb.connect()
+    counts = ingest.update(
+        lambda: _keep_open(db), [fakes.tiingo()], ["CON", "AUX"], log=QUIET, now=NOW, folder=tmp_path
+    )
+    assert counts["fetched"] == 2
+    names = sorted(p.stem for p in (tmp_path / "tiingo").iterdir())
+    assert names == ["AUX_", "CON_"]
+    assert db.execute("SELECT count(DISTINCT symbol) FROM raw_prices").fetchone() == (2,)
+
+
 def test_tiingo_is_asked_about_at_most_fifty_symbols_an_hour_and_never_waited_for(tmp_path):
     fakes = FakeSources({f"S{n:02d}": ramp(1, 2) for n in range(60)})
     clock = {"now": 1000.0}

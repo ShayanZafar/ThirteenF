@@ -68,6 +68,15 @@ def symbol_key(ticker: str) -> str:
     return "".join(ch if ch.isalnum() else "-" for ch in ticker.strip().upper()).strip("-")
 
 
+# Names Windows keeps for devices, whatever the extension: a ticker such as CON cannot be a file name.
+WINDOWS_RESERVED = {"CON", "PRN", "AUX", "NUL", *(f"COM{n}" for n in range(1, 10)), *(f"LPT{n}" for n in range(1, 10))}
+
+
+def file_stem(symbol: str) -> str:
+    """The raw file's name for a symbol: the symbol, with an underscore after one Windows reserves."""
+    return f"{symbol}_" if symbol.upper() in WINDOWS_RESERVED else symbol
+
+
 def _since(today: date) -> date:
     return today.replace(year=today.year - HISTORY_YEARS)
 
@@ -268,7 +277,7 @@ def fetch_symbol(providers: list[Provider], symbol: str, today: date, folder: Pa
         if text is None:
             no_data = Fetched(symbol, provider.name, None)
             continue
-        target = folder / provider.name / f"{symbol}.{provider.extension}"
+        target = folder / provider.name / f"{file_stem(symbol)}.{provider.extension}"
         target.parent.mkdir(parents=True, exist_ok=True)
         part = target.with_suffix(target.suffix + ".part")
         part.write_text(text, encoding="utf-8")

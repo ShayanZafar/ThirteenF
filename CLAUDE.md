@@ -29,11 +29,11 @@ Python 3.12 in `.venv`; DuckDB in `data/thirteenf.duckdb`; FastAPI with Jinja2 t
 - `python -m thirteenf.ingest`: download and load the SEC data, build the model, then tickers and prices when their keys are set. `--no-download` loads `data/raw/`; `--download-only` only downloads. `python -m thirteenf.refresh`: the same, scheduled, plus what entered and left Accumulate.
 - `python -m thirteenf.model`: rebuild the model (about a minute).
 - `python -m thirteenf.prices`: daily prices (Stooq, Polygon, Tiingo; free keys) for the market, the watchlist and the Accumulate candidates.
-- `python -m thirteenf.tickers`: map new CUSIPs to tickers (OpenFIGI, then fallbacks: `docs/sources.md`); `--retry-missing` retries the unknown ones.
+- `python -m thirteenf.tickers`: map new CUSIPs to tickers (OpenFIGI, then fallbacks: `docs/sources.md`); `--retry-missing` retries unknowns.
 - `python -m thirteenf.web`: serve at http://127.0.0.1:8000; `--open` opens the browser, `--reload` restarts on code changes.
-- `pytest`: the tests, with the reference-number checks.
+- `pytest`: the tests.
 - `scripts/verify.sh` (`scripts\verify.cmd`): the one check, run by CI on every push to `main` and pull request: ruff format and lint, mypy, licences (free, open-source only), the tests, the core flows and Claude files checks.
-- `scripts/`: `setup`, `update-data`, `start`, `test`, for people running the app (`README.md`).
+- `scripts/`: `setup`, `update-data`, `start`, `test`, `run COMMAND` (uses `.venv`). Give the owner these, not bare `python -m`.
 
 ## Rules
 

@@ -3,6 +3,9 @@
 **"Python 3.12 or newer was not found"** (setup)
 Install it with `winget install Python.Python.3.12` or from [python.org](https://www.python.org/downloads/), open a new terminal, and run setup again.
 
+**"No module named thirteenf", or a command runs on another Python** (for example `C:\Python27`)
+A bare `python -m thirteenf.tickers` runs whichever Python is first on your PATH, not the app's in `.venv`. Run it as `scripts\run.cmd tickers` (`scripts/run.sh tickers` on macOS and Linux), which always uses `.venv`; `scripts\run.cmd` alone lists the commands.
+
 **"SEC_USER_AGENT is not set"** (setup or update-data)
 Run `setx SEC_USER_AGENT "ThirteenF you@example.com"` with your own email, then open a new terminal. On macOS and Linux, export it in your shell profile. The SEC refuses downloads without it.
 
@@ -18,14 +21,14 @@ The connection failed or the SEC answered with a server error four times in a ro
 **Downloads fail with another 403 or a 404**
 The SEC refused that request outright, so it is not tried again. Check `SEC_USER_AGENT`; a 404 means the SEC moved a file, and the app needs a fix.
 
-**"Sources: No reliable source for ..."** (update-data or `python -m thirteenf.tickers`, and a dashed stamp at the top of every page)
+**"Sources: No reliable source for ..."** (update-data or `scripts\run.cmd tickers`, and a dashed stamp at the top of every page)
 In the last 24 hours, every source for that data answered under half of at least 5 requests. The app keeps working on the data it already has. Check your connection, `SEC_USER_AGENT` and your OpenFIGI key, then run the update again later; the line and the stamp go away once the sources answer again, or once the failed requests are over a day old. `data/source-health.json` has each source's counts and its last error, and [sources.md](sources.md) lists the sources.
 
 **"Running scripts is disabled on this system"**
 That message comes from PowerShell `.ps1` scripts. The Windows scripts here are `.cmd` batch files, which are not affected: run `scripts\start.cmd` from PowerShell or Command Prompt, or double-click it.
 
 **The page says "The data is being updated"**
-Another ThirteenF command (`update-data`, `python -m thirteenf.model` or `python -m thirteenf.tickers`) is writing to the database. Reload when it finishes, usually within a few minutes.
+Another ThirteenF command (`update-data`, `scripts\run.cmd model` or `scripts\run.cmd tickers`) is writing to the database. Reload when it finishes, usually within a few minutes.
 
 **The page says the data has not been loaded**
 Run `scripts\update-data.cmd`.
@@ -34,7 +37,7 @@ Run `scripts\update-data.cmd`.
 Something else is using port 8000, perhaps another copy of the app. Close it, or run `scripts\start.cmd --port 8001` and open <http://127.0.0.1:8001>.
 
 **Stocks have no ticker**
-Tickers need the OpenFIGI step: put your key in `data/settings.toml` and run `python -m thirteenf.tickers` (or `update-data`). About 1% of stocks held by 100 or more funds still have none, mostly companies acquired or delisted since; their pages work by name and CUSIP. `python -m thirteenf.tickers --retry-missing` asks OpenFIGI again about the ones it did not know.
+Tickers need the OpenFIGI step: put your key in `data/settings.toml` and run `scripts\run.cmd tickers` (or `update-data`). About 1% of stocks held by 100 or more funds still have none, mostly companies acquired or delisted since; their pages work by name and CUSIP. `scripts\run.cmd tickers --retry-missing` asks OpenFIGI again about the ones it did not know.
 
 **"OpenFIGI did not answer: HTTP 429. Its CUSIPs go to the next source"** (the ticker step)
 OpenFIGI refused or failed a request, so its CUSIPs got their tickers from the SEC's fails-to-deliver data, or else from an exact match of the issuer's name, and the run carried on at full speed. Nothing to do: those tickers are provisional, and the next run asks OpenFIGI about them again. The line at the end of the step says how many came from each.
@@ -43,7 +46,7 @@ OpenFIGI refused or failed a request, so its CUSIPs got their tickers from the S
 OpenFIGI looked these CUSIPs up and found nothing, so those the SEC's fails-to-deliver data has a symbol for take it, marked as from that source. Nothing to do: the next run asks OpenFIGI about them again, and its answer replaces the symbol once it knows them.
 
 **A stock's page says "Ticker · From the SEC's fails-to-deliver data" or "Matched by issuer name, unverified", or a list shows "FTD" or "Unverified" beside a ticker**
-OpenFIGI could not answer for that stock on the last ticker run, or does not know it, so its ticker came from a fallback ([sources.md](sources.md)). A stock OpenFIGI does not know only ever takes the fails-to-deliver symbol. A ticker matched by issuer name is unverified: check it against the company's filings, and note that it never brings a company's cash flow to the Accumulate list. Run `python -m thirteenf.tickers` again; OpenFIGI's answer replaces it.
+OpenFIGI could not answer for that stock on the last ticker run, or does not know it, so its ticker came from a fallback ([sources.md](sources.md)). A stock OpenFIGI does not know only ever takes the fails-to-deliver symbol. A ticker matched by issuer name is unverified: check it against the company's filings, and note that it never brings a company's cash flow to the Accumulate list. Run `scripts\run.cmd tickers` again; OpenFIGI's answer replaces it.
 
 **"cnsfails….zip: not loaded (...)"** (the ticker step)
 A fails-to-deliver file from the SEC did not read as documented (its header, its line count or its trailer's record count), so it is left out; the other files still answer, and the file stays in `data/raw/ftd/` as downloaded. If every file says so, the SEC has changed the format and the app needs a fix.
@@ -51,7 +54,7 @@ A fails-to-deliver file from the SEC did not read as documented (its header, its
 **The ticker step is very slow**
 ## The Accumulate list has no "Price since" numbers, or says "Quarter, from 13F prices"
 
-Daily prices need a free Stooq key (or a Polygon or Tiingo key) in `data/settings.toml`, then `update-data` or `python -m thirteenf.prices` ([getting-started.md](getting-started.md)). Only the market, your watchlist and the list's candidates are fetched, so a stock you add to the watchlist gets prices on the next run. When Stooq's daily limit stops a run, the run says so and the next one continues; `data/source-health.json` shows the sources' answers.
+Daily prices need a free Stooq key (or a Polygon or Tiingo key) in `data/settings.toml`, then `update-data` or `scripts\run.cmd prices` ([getting-started.md](getting-started.md)). Only the market, your watchlist and the list's candidates are fetched, so a stock you add to the watchlist gets prices on the next run. When Stooq's daily limit stops a run, the run says so and the next one continues; `data/source-health.json` shows the sources' answers.
 
 Without an OpenFIGI key, OpenFIGI allows about 250 lookups a minute. Add a key (see [getting-started.md](getting-started.md)); the cache keeps what was already found.
 

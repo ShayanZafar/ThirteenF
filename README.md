@@ -36,11 +36,14 @@ Press Ctrl+C in the app's window to stop it. Every script also runs from a termi
 | `scripts\start.cmd` / `scripts/start.sh` (`start.command` on macOS) | `python -m thirteenf.web --open` | Serves the app at <http://127.0.0.1:8000> and opens it |
 | `scripts\test.cmd` / `scripts/test.sh` | `python -m pytest` | Runs the tests |
 | `scripts\verify.cmd` / `scripts/verify.sh` | | Checks formatting, lint and types, then runs the tests; CI runs the same |
-| | `python -m thirteenf.model` | Rebuilds the model tables from the loaded data (a few minutes) |
-| | `python -m thirteenf.prices` | Fetches daily prices and volume (Stooq, then Polygon, then Tiingo, each with a free key) for the market, your watchlist and the Accumulate list's candidates, and rebuilds the price tables |
-| | `python -m thirteenf.tickers` | Maps new CUSIPs to tickers with OpenFIGI, or, where it cannot answer, the SEC's fails-to-deliver data and the issuer's name until the next run (for a CUSIP OpenFIGI does not know, the fails-to-deliver data alone) |
+| `scripts\run.cmd COMMAND` / `scripts/run.sh COMMAND` | `python -m thirteenf.COMMAND` | Runs any one command below (or `ingest`, `refresh`, `web`) with the Python in `.venv`; with no command it lists them |
+| `scripts\run.cmd model` | `python -m thirteenf.model` | Rebuilds the model tables from the loaded data (a few minutes) |
+| `scripts\run.cmd prices` | `python -m thirteenf.prices` | Fetches daily prices and volume (Stooq, then Polygon, then Tiingo, each with a free key) for the market, your watchlist and the Accumulate list's candidates, and rebuilds the price tables |
+| `scripts\run.cmd tickers` | `python -m thirteenf.tickers` | Maps new CUSIPs to tickers with OpenFIGI, or, where it cannot answer, the SEC's fails-to-deliver data and the issuer's name until the next run (for a CUSIP OpenFIGI does not know, the fails-to-deliver data alone) |
 
-`start` and `update-data` run `setup` for you when `.venv` is missing. The `.command` files run the matching `.sh` from Finder on macOS, and `scripts\keep-window.cmd` keeps a double-clicked window open to read the result. Scripts pass options through: `scripts\start.cmd --port 8001`, `scripts\update-data.cmd --no-download`, `scripts\test.cmd -k tickers`.
+`start` and `update-data` run `setup` for you when `.venv` is missing. The `.command` files run the matching `.sh` from Finder on macOS, and `scripts\keep-window.cmd` keeps a double-clicked window open to read the result. Scripts pass options through: `scripts\start.cmd --port 8001`, `scripts\update-data.cmd --no-download`, `scripts\test.cmd -k tickers`, `scripts\run.cmd tickers --retry-missing`.
+
+**Which Python?** Always the one in `.venv`, which setup creates. The scripts use it for you. A bare `python -m thirteenf...` uses whichever Python is first on your PATH (on Windows that can be an old one such as `C:\Python27`, which fails with "No module named thirteenf"), so run those commands through `scripts\run.cmd` instead, or call `.venv\Scripts\python.exe -m thirteenf.tickers` directly.
 
 New 13F data arrives in three-month batches (December to February, March to May, June to August, September to November). Run `update-data` after each to pick up the new quarter, or let the daily refresh (`scripts\schedule-refresh.cmd`) do it: it picks up a new quarter the day the SEC publishes it, refreshes prices and financials every day, and says what entered and left the Accumulate list.
 

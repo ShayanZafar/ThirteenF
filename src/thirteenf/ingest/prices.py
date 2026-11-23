@@ -118,6 +118,26 @@ class Stooq:
         self._client.close()
 
 
+class MinutePacer:
+    """Keeps a client under `per_minute` requests in any minute: before a request, sleeps until
+    the oldest one in the window is a minute old, and never longer."""
+
+    def __init__(
+        self, per_minute: int, clock: Callable[[], float] = time.monotonic, sleep: Callable[[float], None] = time.sleep
+    ) -> None:
+        self.per_minute, self._clock, self._sleep = per_minute, clock, sleep
+        self._sent: deque[float] = deque()
+
+    def wait(self) -> None:
+        now = self._clock()
+        while self._sent and now - self._sent[0] >= 60:
+            self._sent.popleft()
+        if len(self._sent) >= self.per_minute:
+            self._sleep(60 - (now - self._sent[0]))
+            self._sent.popleft()
+        self._sent.append(self._clock())
+
+
 class Polygon:
     """Polygon's daily aggregates (polygon.io, called Massive since 2025), one JSON answer per
     symbol with split-adjusted bars, two years back on the free plan. The free plan allows
@@ -140,21 +160,10 @@ class Polygon:
         self._client = httpx.Client(
             headers={"Authorization": f"Bearer {api_key}"}, timeout=TIMEOUT, transport=transport
         )
-        self._clock = clock
-        self._sleep = sleep
-        self._sent: deque[float] = deque()
-
-    def _pace(self) -> None:
-        now = self._clock()
-        while self._sent and now - self._sent[0] >= 60:
-            self._sent.popleft()
-        if len(self._sent) >= self.REQUESTS_PER_MINUTE:
-            self._sleep(60 - (now - self._sent[0]))
-            self._sent.popleft()
-        self._sent.append(self._clock())
+        self._pacer = MinutePacer(self.REQUESTS_PER_MINUTE, clock, sleep)
 
     def fetch(self, symbol: str, today: date) -> str | None:
-        self._pace()
+        self._pacer.wait()
         url = self.URL.format(
             symbol=symbol.upper().replace("-", "."), start=_since(today).isoformat(), end=today.isoformat()
         )

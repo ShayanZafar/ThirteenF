@@ -40,4 +40,5 @@ paths:
 
 - OpenFIGI's answers are cached in DuckDB. A batch OpenFIGI refuses or fails goes at once to the SEC's fails-to-deliver data (zips kept in `data/raw/ftd/`), then to an exact issuer-name match (unverified).
 - A CUSIP OpenFIGI answers "not found" for takes the fails-to-deliver symbol alone, never the issuer-name match (decision #14, Oct 12, 2026).
+- Last, with a Polygon key, stocks held by 100+ funds still without a verified ticker are looked up by CUSIP in Polygon's ticker list (`ingest/polygon_tickers.py`): one ticker and a matching first name word, or no answer. Tests pass a fake client; `tests/conftest.py` keeps a real key from reaching it.
 - Those tickers are provisional, and the next run asks OpenFIGI again. `docs/sources.md` has the whole chain.

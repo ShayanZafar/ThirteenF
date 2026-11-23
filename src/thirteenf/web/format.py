@@ -54,6 +54,7 @@ class TickerFallback(NamedTuple):
 _TICKER_FALLBACKS = {
     "sec-ftd": ("FTD", "From the SEC’s fails-to-deliver data"),
     "issuer-name": ("Unverified", "Matched by issuer name, unverified"),
+    "polygon": ("Polygon", "From Polygon’s ticker list, looked up by CUSIP"),
 }
 
 
@@ -66,6 +67,22 @@ _PRICED = {
     "stale": "Prices stopped updating",
 }
 PRICE_SOURCES = {"stooq": "Stooq", "polygon": "Polygon", "tiingo": "Tiingo"}
+
+# Volume money flow since the quarter's start (thirteenf.signals.accumulate.volume_flow), and the
+# reading of it with the price (quiet_accumulation), as the pages say them.
+_VOLUME_FLOW = {"buying": "Volume buying", "neutral": "Volume neutral", "selling": "Volume selling"}
+_QUIET = {
+    "quiet": "Quiet accumulation: lagging while volume buys",
+    "warning": "Lagging on selling volume: check why",
+}
+
+
+def volume_flow(state: str | None) -> str:
+    return _VOLUME_FLOW.get(state or "", "")
+
+
+def quiet(state: str | None) -> str:
+    return _QUIET.get(state or "", "")
 
 
 def priced(state: str | None) -> str:

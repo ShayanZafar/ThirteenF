@@ -28,6 +28,14 @@ class PeriodLike(Protocol):
 
 MIN_FUNDS = 100  # funds holding at both dates, the default the page opens with
 
+# How far a pick's price may have moved against the market since the quarter funds bought
+# in, in points, and still count as lagging (not priced in yet) or ahead.
+PRICE_LAG_PTS = 5.0
+# Volume money flow (thirteenf.model.build, Chaikin money flow, -1 to +1) at or above this reads
+# as buying, at or below its negative as selling, between them as neutral. A common cut-off;
+# volume flow is noisy, so it confirms the 13F signal and never decides a pick on its own.
+FLOW_BUYING = 0.05
+
 # Stocks funds keep moving into, whose free cash flow is
 # high for their market value. See docs/13f-data.md, "Accumulate list".
 RANKINGS = {
@@ -35,10 +43,11 @@ RANKINGS = {
     "tide": "vs_tide_pts DESC",
     # A stale price says nothing about today's market: those go last, with the unpriced.
     "price": "CASE WHEN stale THEN NULL ELSE vs_market_pts END ASC NULLS LAST",
+    # Quiet accumulation first (lagging the market while volume flow is buying), then by money flow.
+    "flow": f"""CASE WHEN stale THEN NULL
+                     WHEN vs_market_pts <= -{PRICE_LAG_PTS} AND money_flow >= {FLOW_BUYING} THEN 1 ELSE 0 END DESC NULLS LAST,
+               CASE WHEN stale THEN NULL ELSE money_flow END DESC NULLS LAST""",
 }
-# How far a pick's price may have moved against the market since the quarter funds bought
-# in, in points, and still count as lagging (not priced in yet) or ahead.
-PRICE_LAG_PTS = 5.0
 MIN_YIELD = 0.05  # free cash flow at least 5% of market value
 MIN_STREAK = 2  # more funds two periods running, or longer
 # Market value is the 13F price times the diluted share count, so two checks
@@ -152,8 +161,42 @@ def picks(
     for r in found:
         # An earlier period's list is measured to today's close, long after it came out:
         # no verdict on whether its flow was priced in then (the backtest answers that).
-        r["priced"] = None if known_by is not None else priced_in(r["vs_market_pts"], r["stale"])
+        past = known_by is not None
+        r["priced"] = None if past else priced_in(r["vs_market_pts"], r["stale"])
+        r["volume_flow"] = None if past else volume_flow(r["money_flow"], r["stale"])
+        r["quiet"] = quiet_accumulation(r["priced"], r["volume_flow"])
+        r["fcf_yield_now"] = None if past else yield_at_latest_close(r)
     return found
+
+
+def volume_flow(money_flow: float | None, stale: bool | None = False) -> str | None:
+    """How volume has traded since the quarter funds bought in began: "buying" (money flow
+    FLOW_BUYING or more), "selling" (as far below zero) or "neutral"; None without enough
+    days of prices or when they stopped updating."""
+    if money_flow is None or stale:
+        return None
+    if money_flow >= FLOW_BUYING:
+        return "buying"
+    return "selling" if money_flow <= -FLOW_BUYING else "neutral"
+
+
+def quiet_accumulation(priced: str | None, flow: str | None) -> str | None:
+    """ "quiet" when funds bought, the price lags the market and volume flow is buying: money
+    going in that the price has not followed yet. "warning" when the price lags and volume
+    flow is selling: the market may know something the funds did not. None otherwise."""
+    if priced != "lagging":
+        return None
+    return {"buying": "quiet", "selling": "warning"}.get(flow or "")
+
+
+def yield_at_latest_close(pick: dict) -> float | None:
+    """The FCF yield on the latest daily close instead of the 13F quarter-end price: the yield
+    scaled by the price's move since the quarter's end. Both closes are split-adjusted by the
+    same source, so a split since cannot skew it. None without both closes or when stale."""
+    end, latest = pick.get("end_close"), pick.get("latest_close")
+    if pick.get("stale") or not end or not latest or end <= 0 or latest <= 0:
+        return None
+    return float(pick["fcf_yield"]) * end / latest
 
 
 def priced_in(vs_market_pts: float | None, stale: bool | None = False) -> str | None:
@@ -171,7 +214,7 @@ def priced_in(vs_market_pts: float | None, stale: bool | None = False) -> str | 
 
 
 _PRICE_COLUMNS = (
-    "pr.since_start_pct, pr.quarter_pct, pr.latest_close, pr.latest_day, pr.vs_market_pts, "
+    "pr.since_start_pct, pr.quarter_pct, pr.end_close, pr.latest_close, pr.latest_day, pr.vs_market_pts, "
     "pr.market_since_start_pct, pr.price_source, sp.net_flow / NULLIF(pr.dollar_volume, 0) AS flow_share"
 )
 
@@ -181,14 +224,16 @@ def _price_join(con) -> tuple[str, str]:
     database built before daily prices were added."""
     if not has_prices(con):
         return (
-            "NULL AS since_start_pct, NULL AS quarter_pct, NULL AS latest_close, NULL AS latest_day, "
-            "NULL AS vs_market_pts, NULL AS market_since_start_pct, NULL AS price_source, NULL AS flow_share, "
-            "false AS stale",
+            "NULL AS since_start_pct, NULL AS quarter_pct, NULL AS end_close, NULL AS latest_close, "
+            "NULL AS latest_day, NULL AS vs_market_pts, NULL AS market_since_start_pct, NULL AS price_source, "
+            "NULL AS flow_share, NULL AS money_flow, false AS stale",
             "",
         )
     stale = "coalesce(pr.stale, false)" if has_column(con, "stock_prices", "stale") else "false"
+    # A database built before volume money flow was added has prices without it.
+    flow = "pr.money_flow" if has_column(con, "stock_prices", "money_flow") else "NULL"
     return (
-        f"{_PRICE_COLUMNS}, {stale} AS stale",
+        f"{_PRICE_COLUMNS}, {flow} AS money_flow, {stale} AS stale",
         "LEFT JOIN stock_prices pr ON pr.cusip = sp.cusip AND pr.period = sp.period",
     )
 

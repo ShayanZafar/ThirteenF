@@ -328,7 +328,7 @@ def accumulate_page(
         # An earlier period's list uses the financials known when it came out, as the backtest
         # does; the period the list opens on uses the latest there are.
         known_by = None if selected.period == default.period else accumulate_rule.list_date(selected.deadline)
-        if known_by is not None and by == "price":
+        if known_by is not None and by in ("price", "flow"):
             by = "yield"  # today's prices say nothing about whether an old list was priced in
         rows = (
             data.accumulate(con, selected.period, minimum, min_yield / 100, streak, by, known_by=known_by)
@@ -360,6 +360,7 @@ def accumulate_page(
         financials={"through": through, "age_days": (date.today() - through).days} if through else None,
         prices=prices,
         lag_pts=f"{data.PRICE_LAG_PTS:g}",
+        flow_buying=f"{accumulate_rule.FLOW_BUYING:g}",
         change=change,
         change_text=story.run_change(change) if change else "",
         known_by=known_by,
